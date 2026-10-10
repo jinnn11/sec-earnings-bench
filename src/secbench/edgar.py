@@ -34,6 +34,9 @@ PLACEHOLDER_USER_AGENT = "Your Name your@email.com"  # the value in .env.example
 REQUESTS_PER_SECOND = 8.0  # SEC's limit is 10
 MAX_RETRIES = 5
 MAX_RETRY_WAIT = 120.0  # seconds; asked to wait longer than this, we give up
+# File name for the body of a URL whose cache path is also a folder (".../0001" when
+# ".../0001/index.json" is cached too). Raw URL path segments never contain "#".
+FOLDER_BODY = "#body"
 
 
 class EdgarError(Exception):
@@ -65,6 +68,8 @@ def cache_path(url: str, cache_dir: Path) -> Path:
     """Map a URL to its cache file: <cache_dir>/<host>/<path>.
 
     A URL ending in "/" maps to <path>/index; a query string adds a hash suffix.
+    If another URL needs this path as a folder, the body is kept in it as FOLDER_BODY
+    (see EdgarClient.fetch).
     """
     check_url(url)
     parts = urlsplit(url)
@@ -77,6 +82,22 @@ def cache_path(url: str, cache_dir: Path) -> Path:
         digest = hashlib.sha256(parts.query.encode()).hexdigest()[:12]
         segments[-1] = f"{segments[-1]}__{digest}"
     return cache_dir.joinpath(parts.hostname or "", *segments)
+
+
+def make_cache_folder(cache_dir: Path, folder: Path) -> None:
+    """Create folder under cache_dir, moving any cached file in the way inside it.
+
+    A file at a path the folder needs becomes <that path>/FOLDER_BODY.
+    """
+    current = cache_dir
+    for part in folder.relative_to(cache_dir).parts:
+        current = current / part
+        if current.is_file():
+            moving = current.with_name(current.name + ".moving")
+            os.replace(current, moving)
+            current.mkdir()
+            os.replace(moving, current / FOLDER_BODY)
+    folder.mkdir(parents=True, exist_ok=True)
 
 
 def parse_retry_after(value: str | None, now: float) -> float | None:
@@ -103,6 +124,15 @@ def format_cik(cik: int | str) -> str:
 def normalize_ticker(ticker: str) -> str:
     """Upper-case, with class shares written as SEC does ("BRK.B" -> "BRK-B")."""
     return ticker.strip().upper().replace(".", "-")
+
+
+# Tickers whose filings are under more than one CIK, current registrant first.
+# SEC's ticker map (TICKERS_URL) knows only the current one.
+TICKER_CIKS: dict[str, list[int]] = {
+    # Exxon Mobil Corp (34088) came under a new holding company, ExxonMobil
+    # Holdings Corp (2115436), on 2026-07-01 (8-K12B 0001193125-26-291990).
+    "XOM": [2115436, 34088],
+}
 
 
 def parse_company_tickers(data: dict[str, dict[str, Any]]) -> dict[str, int]:
@@ -200,6 +230,7 @@ class EdgarClient:
             timeout=30.0,
             follow_redirects=True,
             transport=transport,
+            event_hooks={"request": [self._before_request]},
         )
 
     def close(self) -> None:
@@ -214,12 +245,14 @@ class EdgarClient:
     def fetch(self, url: str, *, refresh: bool = False) -> bytes:
         """Return the body of url, from the cache unless refresh is set."""
         path = cache_path(url, self.cache_dir)
-        if not refresh and path.exists():
+        if path.is_dir():
+            path = path / FOLDER_BODY
+        if not refresh and path.is_file():
             log.info("cache hit %s", url)
             return path.read_bytes()
         log.info("cache miss%s %s", " (refresh)" if refresh else "", url)
         body = self._download(url)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        make_cache_folder(self.cache_dir, path.parent)
         partial = path.with_name(path.name + ".part")
         partial.write_bytes(body)
         os.replace(partial, path)
@@ -236,6 +269,18 @@ class EdgarClient:
         except KeyError:
             raise EdgarError(f"ticker {ticker!r} is not in {TICKERS_URL}") from None
 
+    def ticker_to_ciks(self, ticker: str, *, refresh: bool = False) -> list[int]:
+        """Every CIK a ticker's filings are under: TICKER_CIKS if it lists the
+        ticker, else the one CIK from SEC's map."""
+        cik = self.ticker_to_cik(ticker, refresh=refresh)
+        ciks = TICKER_CIKS.get(normalize_ticker(ticker), [cik])
+        if cik not in ciks:
+            raise EdgarError(
+                f"{TICKERS_URL} maps {ticker!r} to CIK {cik}, which TICKER_CIKS "
+                f"does not list ({ciks}); update TICKER_CIKS"
+            )
+        return list(ciks)
+
     def get_filings(self, cik: int | str, *, refresh: bool = False) -> pd.DataFrame:
         """All filings for a CIK, including the older-filings files.
 
@@ -250,10 +295,20 @@ class EdgarClient:
             )
         return parse_submissions(blocks)
 
+    def _before_request(self, request: httpx.Request) -> None:
+        """Runs before every HTTP request, including each redirect hop."""
+        try:
+            check_url(str(request.url))
+        except ValueError:
+            raise EdgarError(
+                f"refusing to request {request.url}: not an https sec.gov URL "
+                "(redirected?)"
+            ) from None
+        self._limiter.wait()
+
     def _download(self, url: str) -> bytes:
         attempts = self.max_retries + 1
         for attempt in range(attempts):
-            self._limiter.wait()
             retry_after = None
             try:
                 response = self._http.get(url)

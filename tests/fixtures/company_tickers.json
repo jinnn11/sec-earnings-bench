@@ -19,6 +19,11 @@
     "ticker": "BRK-B",
     "title": "BERKSHIRE HATHAWAY INC"
   },
+  "16": {
+    "cik_str": 2115436,
+    "ticker": "XOM",
+    "title": "ExxonMobil Holdings Corp"
+  },
   "7472": {
     "cik_str": 1652044,
     "ticker": "GOOG",

@@ -191,6 +191,33 @@ def test_fetch_refresh_redownloads(tmp_path) -> None:
     assert len(seen) == 2
 
 
+FOLDER_URL = "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123"
+NESTED_URL = FOLDER_URL + "/index.json"
+
+
+@pytest.mark.parametrize("order", [(FOLDER_URL, NESTED_URL), (NESTED_URL, FOLDER_URL)])
+def test_url_and_url_under_it_can_both_be_cached(tmp_path, order) -> None:
+    seen: list[str] = []
+
+    def echo(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(200, content=str(request.url).encode())
+
+    client = make_client(tmp_path, echo)
+    for url in order:
+        assert client.fetch(url) == url.encode()
+    for url in order:
+        assert client.fetch(url) == url.encode()
+    assert seen == list(order)
+
+    folder = cache_path(FOLDER_URL, tmp_path / "raw")
+    assert sorted(p.name for p in folder.iterdir()) == ["#body", "index.json"]
+    assert (folder / "#body").read_bytes() == FOLDER_URL.encode()
+
+    assert client.fetch(FOLDER_URL, refresh=True) == FOLDER_URL.encode()
+    assert seen == [*order, FOLDER_URL]
+
+
 def test_error_responses_are_not_cached(tmp_path) -> None:
     seen: list[str] = []
     client = make_client(tmp_path, scripted([httpx.Response(404)], seen))
@@ -300,6 +327,45 @@ def test_requests_spaced_at_8_per_second(tmp_path) -> None:
     assert len(clock.sleeps) == 2
 
 
+def test_redirect_hops_are_rate_limited(tmp_path) -> None:
+    seen: list[str] = []
+    clock = FakeClock()
+    responses = [
+        httpx.Response(301, headers={"Location": FOLDER_URL + "/"}),
+        httpx.Response(200, content=b"listing"),
+    ]
+    client = make_client(tmp_path, scripted(responses, seen), clock)
+    assert client.fetch(FOLDER_URL) == b"listing"
+    assert seen == [FOLDER_URL, FOLDER_URL + "/"]
+    assert clock.sleeps == pytest.approx([0.125])
+    assert cache_path(FOLDER_URL, tmp_path / "raw").read_bytes() == b"listing"
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "https://example.com/collect",
+        "https://sec.gov.example.com/x",
+        "http://www.sec.gov/Archives/x.htm",
+    ],
+)
+def test_redirect_off_sec_gov_is_refused(tmp_path, location) -> None:
+    seen: list[str] = []
+    agents: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        agents.append(request.headers["User-Agent"])
+        return httpx.Response(302, headers={"Location": location})
+
+    client = make_client(tmp_path, handler)
+    with pytest.raises(EdgarError, match="not an https sec.gov URL"):
+        client.fetch(DOC_URL)
+    assert seen == [DOC_URL]
+    assert agents == [UA]
+    assert not (tmp_path / "raw").exists()
+
+
 # Tickers
 
 
@@ -314,6 +380,7 @@ def test_parse_company_tickers() -> None:
         "AAPL": 320193,
         "GOOGL": 1652044,
         "BRK-B": 1067983,
+        "XOM": 2115436,
         "GOOG": 1652044,
         "BRK-A": 1067983,
     }
@@ -331,6 +398,28 @@ def test_ticker_to_cik(tmp_path) -> None:
     assert seen == [edgar.TICKERS_URL]
     client.ticker_to_cik("AAPL", refresh=True)
     assert seen == [edgar.TICKERS_URL] * 2
+
+
+def test_ticker_to_ciks_adds_listed_predecessors(tmp_path) -> None:
+    client = make_client(tmp_path, fixture_server([]))
+    assert client.ticker_to_ciks("XOM") == [2115436, 34088]  # holding company first
+    assert client.ticker_to_ciks("xom") == [2115436, 34088]
+    assert client.ticker_to_ciks("AAPL") == [320193]  # not listed: SEC's CIK only
+
+
+def test_ticker_to_ciks_rejects_a_stale_list(tmp_path, monkeypatch) -> None:
+    monkeypatch.setitem(edgar.TICKER_CIKS, "AAPL", [111, 222])
+    client = make_client(tmp_path, fixture_server([]))
+    with pytest.raises(EdgarError, match="maps 'AAPL' to CIK 320193"):
+        client.ticker_to_ciks("AAPL")
+
+
+def test_ticker_ciks_data_is_well_formed() -> None:
+    for ticker, ciks in edgar.TICKER_CIKS.items():
+        assert ticker == edgar.normalize_ticker(ticker)
+        assert len(ciks) >= 2  # a single CIK needs no entry
+        assert len(set(ciks)) == len(ciks)
+        assert all(isinstance(cik, int) and cik > 0 for cik in ciks)
 
 
 # Filings
