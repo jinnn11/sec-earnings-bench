@@ -1,0 +1,290 @@
+{
+  "cik": "0000320193",
+  "entityType": "operating",
+  "sic": "3571",
+  "sicDescription": "Electronic Computers",
+  "ownerOrg": "06 Technology",
+  "insiderTransactionForOwnerExists": 0,
+  "insiderTransactionForIssuerExists": 1,
+  "name": "Apple Inc.",
+  "tickers": [
+    "AAPL"
+  ],
+  "exchanges": [
+    "Nasdaq"
+  ],
+  "ein": "942404110",
+  "lei": null,
+  "description": "",
+  "website": "",
+  "investorWebsite": "",
+  "category": "Large accelerated filer",
+  "fiscalYearEnd": "0926",
+  "stateOfIncorporation": "CA",
+  "stateOfIncorporationDescription": "CA",
+  "addresses": {
+    "mailing": {
+      "street1": "ONE APPLE PARK WAY",
+      "street2": null,
+      "city": "CUPERTINO",
+      "stateOrCountry": "CA",
+      "zipCode": "95014",
+      "stateOrCountryDescription": "CA",
+      "isForeignLocation": 0,
+      "foreignStateTerritory": null,
+      "country": null,
+      "countryCode": null
+    },
+    "business": {
+      "street1": "ONE APPLE PARK WAY",
+      "street2": null,
+      "city": "CUPERTINO",
+      "stateOrCountry": "CA",
+      "zipCode": "95014",
+      "stateOrCountryDescription": "CA",
+      "isForeignLocation": null,
+      "foreignStateTerritory": null,
+      "country": null,
+      "countryCode": null
+    }
+  },
+  "phone": "(408) 996-1010",
+  "flags": "",
+  "formerNames": [
+    {
+      "name": "APPLE INC",
+      "from": "2007-01-10T05:00:00.000Z",
+      "to": "2019-08-05T04:00:00.000Z"
+    },
+    {
+      "name": "APPLE COMPUTER INC",
+      "from": "1994-01-26T05:00:00.000Z",
+      "to": "2007-01-04T05:00:00.000Z"
+    },
+    {
+      "name": "APPLE COMPUTER INC/ FA",
+      "from": "1997-07-28T04:00:00.000Z",
+      "to": "1997-07-28T04:00:00.000Z"
+    }
+  ],
+  "filings": {
+    "recent": {
+      "accessionNumber": [
+        "0001140361-26-039158",
+        "0001958244-26-000636",
+        "0001140361-26-035325",
+        "0000320193-26-000020",
+        "0000320193-26-000018",
+        "0000320193-26-000013",
+        "0000320193-26-000011",
+        "0001308179-26-000008",
+        "0000320193-25-000079",
+        "0001140361-25-005876",
+        "0001193125-15-322466"
+      ],
+      "filingDate": [
+        "2026-10-08",
+        "2026-10-02",
+        "2026-09-01",
+        "2026-07-31",
+        "2026-07-30",
+        "2026-05-01",
+        "2026-04-30",
+        "2026-01-08",
+        "2025-10-31",
+        "2025-02-25",
+        "2015-09-17"
+      ],
+      "reportDate": [
+        "2026-10-06",
+        "",
+        "2026-04-17",
+        "2026-06-27",
+        "2026-07-30",
+        "2026-03-28",
+        "2026-04-30",
+        "2026-02-24",
+        "2025-09-27",
+        "2025-02-25",
+        "2015-09-10"
+      ],
+      "acceptanceDateTime": [
+        "2026-10-09T02:30:32.000Z",
+        "2026-10-03T01:17:10.000Z",
+        "2026-09-02T00:30:35.000Z",
+        "2026-07-31T14:01:02.000Z",
+        "2026-07-31T00:30:28.000Z",
+        "2026-05-01T14:01:00.000Z",
+        "2026-05-01T00:30:41.000Z",
+        "2026-01-09T02:31:36.000Z",
+        "2025-10-31T14:01:26.000Z",
+        "2025-02-26T02:47:19.000Z",
+        "2015-09-18T00:31:39.000Z"
+      ],
+      "act": [
+        "",
+        "33",
+        "34",
+        "34",
+        "34",
+        "34",
+        "34",
+        "34",
+        "34",
+        "34",
+        "34"
+      ],
+      "form": [
+        "4",
+        "144",
+        "8-K/A",
+        "10-Q",
+        "8-K",
+        "10-Q",
+        "8-K",
+        "DEF 14A",
+        "10-K",
+        "8-K",
+        "8-K"
+      ],
+      "fileNumber": [
+        "",
+        "001-36743",
+        "001-36743",
+        "001-36743",
+        "001-36743",
+        "001-36743",
+        "001-36743",
+        "001-36743",
+        "001-36743",
+        "001-36743",
+        "001-36743"
+      ],
+      "filmNumber": [
+        "",
+        "261437893",
+        "261351260",
+        "261225227",
+        "261223821",
+        "26928636",
+        "26926130",
+        "26520008",
+        "251437791",
+        "25664289",
+        "151112559"
+      ],
+      "items": [
+        "",
+        "",
+        "5.02",
+        "",
+        "2.02,9.01",
+        "",
+        "2.02,9.01",
+        "",
+        "",
+        "5.07",
+        "8.01,9.01"
+      ],
+      "core_type": [
+        "4",
+        "144",
+        "XBRL",
+        "XBRL",
+        "XBRL",
+        "XBRL",
+        "XBRL",
+        "XBRL",
+        "XBRL",
+        "XBRL",
+        "8-K"
+      ],
+      "size": [
+        4822,
+        5383,
+        241262,
+        5946811,
+        417360,
+        5809851,
+        412047,
+        13682253,
+        9392337,
+        291815,
+        284884
+      ],
+      "isXBRL": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0
+      ],
+      "isInlineXBRL": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0
+      ],
+      "isXBRLNumeric": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
+        0,
+        null,
+        null,
+        null,
+        null
+      ],
+      "primaryDocument": [
+        "xslF345X06/form4.xml",
+        "xsl144X01/primary_doc.xml",
+        "ef20081427_8ka.htm",
+        "aapl-20260627.htm",
+        "aapl-20260730.htm",
+        "aapl-20260328.htm",
+        "aapl-20260430.htm",
+        "aapl014016-def14a.htm",
+        "aapl-20250927.htm",
+        "ef20044022_8k.htm",
+        "d31615d8k.htm"
+      ],
+      "primaryDocDescription": [
+        "FORM 4",
+        "",
+        "8-K/A",
+        "10-Q",
+        "8-K",
+        "10-Q",
+        "8-K",
+        "DEFINITIVE PROXY STATEMENT",
+        "10-K",
+        "8-K",
+        "8-K"
+      ]
+    },
+    "files": [
+      {
+        "name": "CIK0000320193-submissions-001.json",
+        "filingCount": 1264,
+        "filingFrom": "1994-01-26",
+        "filingTo": "2015-09-15"
+      }
+    ]
+  }
+}
