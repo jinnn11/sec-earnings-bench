@@ -1,0 +1,17 @@
+{
+  "ticker": "MSFT",
+  "cik": 789019,
+  "filing_date": "2025-07-30",
+  "accession_number": "0000950170-25-100226",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/789019/000095017025100226/msft-ex99_1.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "EX-99.1",
+      "url": "https://www.sec.gov/Archives/edgar/data/789019/000095017025100226/msft-ex99_1.htm",
+      "file": "0000950170-25-100226.md",
+      "chosen": true
+    }
+  ]
+}

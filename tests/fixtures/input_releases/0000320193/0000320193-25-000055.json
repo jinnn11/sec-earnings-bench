@@ -1,0 +1,17 @@
+{
+  "ticker": "AAPL",
+  "cik": 320193,
+  "filing_date": "2025-05-01",
+  "accession_number": "0000320193-25-000055",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000055/a8-kex991q2202503292025.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "EX-99.1",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000055/a8-kex991q2202503292025.htm",
+      "file": "0000320193-25-000055.md",
+      "chosen": true
+    }
+  ]
+}

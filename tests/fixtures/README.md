@@ -51,3 +51,14 @@ Answer-key fixtures (`tests/test_answers.py`), built 2026-10-11 from the cache
 as on the full cache. Values are written back as Python floats; every kept value was
 checked to parse to the same decimal as SEC's text.
 `tests/fixtures/answers_handchecked.csv` is hand-checked and maintained by hand.
+
+Release-input fixtures (`tests/test_inputs.py`, `tests/test_grade.py`), copied
+2026-10-11 byte for byte from `data/releases/`: `input_releases/{cik10}/` holds four
+saved releases, each record (`<accession>.json`) with every exhibit's markdown.
+
+| Release | Why |
+| --- | --- |
+| XOM `0002115436-26-000006` (Q2 2026) | EX-99.1 has no income statement (only a summary table that passes the link filter); its statements are in EX-99.2, which the input appends |
+| AAPL `0000320193-25-000055` (Q2 FY25) | Statements in EX-99.1; three- and six-month columns |
+| CAT `0000018230-25-000037` (Q2 2025) | Statements in EX-99.1, plus an EX-99.2 that is not appended |
+| MSFT `0000950170-25-100226` (FY25) | A fourth-quarter release linked to a 10-K |

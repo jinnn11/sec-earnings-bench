@@ -1,0 +1,24 @@
+{
+  "ticker": "CAT",
+  "cik": 18230,
+  "filing_date": "2025-08-05",
+  "accession_number": "0000018230-25-000037",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000037/ex991toformcat2q2025earnin.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "EX-99.1",
+      "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000037/ex991toformcat2q2025earnin.htm",
+      "file": "0000018230-25-000037.md",
+      "chosen": true
+    },
+    {
+      "type": "EX-99.2",
+      "description": "EX-99.2",
+      "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000037/ex992toformcat2q2025retail.htm",
+      "file": "0000018230-25-000037_EX-99.2.md",
+      "chosen": false
+    }
+  ]
+}

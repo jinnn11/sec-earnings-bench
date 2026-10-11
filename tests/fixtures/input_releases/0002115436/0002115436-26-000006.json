@@ -1,0 +1,24 @@
+{
+  "ticker": "XOM",
+  "cik": 2115436,
+  "filing_date": "2026-07-31",
+  "accession_number": "0002115436-26-000006",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/2115436/000211543626000006/livef8k2q26991.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "NEWS RELEASE",
+      "url": "https://www.sec.gov/Archives/edgar/data/2115436/000211543626000006/livef8k2q26991.htm",
+      "file": "0002115436-26-000006.md",
+      "chosen": true
+    },
+    {
+      "type": "EX-99.2",
+      "description": "INVESTOR RELATIONS DATA SUMMARY",
+      "url": "https://www.sec.gov/Archives/edgar/data/2115436/000211543626000006/livef8k2q26992.htm",
+      "file": "0002115436-26-000006_EX-99.2.md",
+      "chosen": false
+    }
+  ]
+}
