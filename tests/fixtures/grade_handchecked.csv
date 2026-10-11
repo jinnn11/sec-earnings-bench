@@ -1,0 +1,11 @@
+ticker,linked_accession,field,period_type,predicted_value,expected_verdict
+XOM,0000034088-26-000093,net_income,quarter,14525000000,correct
+XOM,0000034088-26-000093,net_income,quarter,7082000000,wrong_period
+XOM,0000034088-26-000093,net_income,quarter,18708000000,wrong_period
+XOM,0000034088-26-000093,net_income,quarter,14525,scale
+XOM,0000034088-26-000093,eps_diluted,quarter,4.47,wrong_period
+AAPL,0000320193-25-000057,revenue,quarter,95400000000,rounded
+AAPL,0000320193-25-000057,revenue,quarter,-95359000000,sign
+AAPL,0000320193-25-000057,eps_diluted,quarter,,missing
+CAT,0000018230-25-000040,revenue,quarter,30818000000,wrong_period
+MSFT,0000950170-25-100235,net_income,full_year,101832000000,correct
