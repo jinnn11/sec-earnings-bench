@@ -25,3 +25,16 @@ Submission rows were chosen to cover: Item 2.02 8-Ks, 10-Q, 10-K, 8-K/A, Form 4,
 424B2 with a blank `reportDate`, a DEF 14A whose `reportDate` is after its
 `filingDate`, an S-8 with a blank `primaryDocument`, and a 1999 8-K with old-style
 item `"2"`.
+
+Linking fixtures (`tests/test_link.py`), built 2026-10-10 from the cache (`data/raw/`)
+and the saved releases (`data/releases/`) of the 10-company release run:
+
+| File | Contents |
+| --- | --- |
+| `pressrelease062326.htm` | https://www.sec.gov/Archives/edgar/data/320187/000032018726000070/pressrelease062326.htm, byte for byte: NKE's 2026-06-23 Item 2.02 8-K exhibit, a CFO-transition announcement with no tables |
+| `link_releases.json` | All 61 saved releases: each `record` is the saved `<accession>.json` unchanged; `markdown` is the first table of the chosen exhibit's markdown that `link.check_earnings` accepts on its own (`markdown_is_excerpt: true`), or the whole markdown when it accepts none (only NKE 0000320187-26-000070) |
+| `link_submissions.json` | Responses by URL. `company_tickers.json`: the 10 tickers' entries (original keys). One submissions JSON per CIK (the 10 tickers plus XOM's predecessor, 34088): every top-level field kept; `filings.recent` holds every row from `recent` and the older-filings files whose form contains "10-Q" or "10-K" and that was filed on or after 2025-01-01 (every column kept); `filings.files` is set to `[]` |
+
+The filter accepts a release if any one of its tables qualifies, so trimming a
+release to the table it accepted gives the same verdict as the whole markdown.
+`tests/fixtures/links_handchecked.csv` is hand-checked and maintained by hand.

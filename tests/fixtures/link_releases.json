@@ -1,0 +1,1472 @@
+[
+ {
+  "record": {
+   "ticker": "CAT",
+   "cik": 18230,
+   "filing_date": "2025-04-30",
+   "accession_number": "0000018230-25-000013",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000013/ex991toformcat1q2025earnin.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000013/ex991toformcat1q2025earnin.htm",
+     "file": "0000018230-25-000013.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000013/ex992toformcat1q2025retail.htm",
+     "file": "0000018230-25-000013_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended March 31, 2025 | Three Months Ended March 31, 2024 |\n| --- | --- | --- |\n| Sales and revenues: |  |  |\n| Sales of Machinery, Energy & Transportation | $13,378 | $14,960 |\n| Revenues of Financial Products | 871 | 839 |\n| Total sales and revenues | 14,249 | 15,799 |\n| Operating costs: |  |  |\n| Cost of goods sold | 8,965 | 9,662 |\n| Selling, general and administrative expenses | 1,593 | 1,577 |\n| Research and development expenses | 480 | 520 |\n| Interest expense of Financial Products | 326 | 298 |\n| Other operating (income) expenses | 306 | 223 |\n| Total operating costs | 11,670 | 12,280 |\n| Operating profit | 2,579 | 3,519 |\n| Interest expense excluding Financial Products | 116 | 143 |\n| Other income (expense) | 107 | 156 |\n| Consolidated profit before taxes | 2,570 | 3,532 |\n| Provision (benefit) for income taxes | 574 | 688 |\n| Profit of consolidated companies | 1,996 | 2,844 |\n| Equity in profit (loss) of unconsolidated affiliated companies | 7 | 10 |\n| Profit of consolidated and affiliated companies | 2,003 | 2,854 |\n| Less: Profit (loss) attributable to noncontrolling interests | \u2014 | (2) |\n| Profit <sup>1</sup> | $2,003 | $2,856 |\n| Profit per common share | $4.22 | $5.78 |\n| Profit per common share \u2014 diluted <sup>2</sup> | $4.20 | $5.75 |\n| Weighted-average common shares outstanding (millions) |  |  |\n| \u2013 Basic | 474.9 | 493.9 |\n| \u2013 Diluted <sup>2</sup> | 477.1 | 496.9 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "CAT",
+   "cik": 18230,
+   "filing_date": "2025-08-05",
+   "accession_number": "0000018230-25-000037",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000037/ex991toformcat2q2025earnin.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000037/ex991toformcat2q2025earnin.htm",
+     "file": "0000018230-25-000037.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000037/ex992toformcat2q2025retail.htm",
+     "file": "0000018230-25-000037_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended June 30, 2025 | Three Months Ended June 30, 2024 | Six Months Ended June 30, 2025 | Six Months Ended June 30, 2024 |\n| --- | --- | --- | --- | --- |\n| Sales and revenues: |  |  |  |  |\n| Sales of Machinery, Energy & Transportation | $15,674 | $15,840 | $29,052 | $30,800 |\n| Revenues of Financial Products | 895 | 849 | 1,766 | 1,688 |\n| Total sales and revenues | 16,569 | 16,689 | 30,818 | 32,488 |\n| Operating costs: |  |  |  |  |\n| Cost of goods sold | 10,807 | 10,150 | 19,772 | 19,812 |\n| Selling, general and administrative expenses | 1,694 | 1,652 | 3,287 | 3,229 |\n| Research and development expenses | 551 | 535 | 1,031 | 1,055 |\n| Interest expense of Financial Products | 336 | 314 | 662 | 612 |\n| Other operating (income) expenses | 321 | 556 | 627 | 779 |\n| Total operating costs | 13,709 | 13,207 | 25,379 | 25,487 |\n| Operating profit | 2,860 | 3,482 | 5,439 | 7,001 |\n| Interest expense excluding Financial Products | 126 | 137 | 242 | 280 |\n| Other income (expense) | 84 | 155 | 191 | 311 |\n| Consolidated profit before taxes | 2,818 | 3,500 | 5,388 | 7,032 |\n| Provision (benefit) for income taxes | 646 | 836 | 1,220 | 1,524 |\n| Profit of consolidated companies | 2,172 | 2,664 | 4,168 | 5,508 |\n| Equity in profit (loss) of unconsolidated affiliated companies | 7 | 17 | 14 | 27 |\n| Profit of consolidated and affiliated companies | 2,179 | 2,681 | 4,182 | 5,535 |\n| Less: Profit (loss) attributable to noncontrolling interests | \u2014 | \u2014 | \u2014 | (2) |\n| Profit <sup>1</sup> | $2,179 | $2,681 | $4,182 | $5,537 |\n| Profit per common share | $4.64 | $5.50 | $8.85 | $11.28 |\n| Profit per common share \u2014 diluted <sup>2</sup> | $4.62 | $5.48 | $8.82 | $11.23 |\n| Weighted-average common shares outstanding (millions) |  |  |  |  |\n| \u2013 Basic | 469.7 | 487.2 | 472.4 | 490.7 |\n| \u2013 Diluted <sup>2</sup> | 471.5 | 489.5 | 474.5 | 493.3 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "CAT",
+   "cik": 18230,
+   "filing_date": "2025-10-29",
+   "accession_number": "0000018230-25-000043",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000043/ex991toformcat3q2025earnin.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000043/ex991toformcat3q2025earnin.htm",
+     "file": "0000018230-25-000043.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823025000043/ex992toformcat3q2025retail.htm",
+     "file": "0000018230-25-000043_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended September 30, 2025 | Three Months Ended September 30, 2024 | Nine Months Ended September 30, 2025 | Nine Months Ended September 30, 2024 |\n| --- | --- | --- | --- | --- |\n| Sales and revenues: |  |  |  |  |\n| Sales of Machinery, Energy & Transportation | $16,726 | $15,231 | $45,778 | $46,031 |\n| Revenues of Financial Products | 912 | 875 | 2,678 | 2,563 |\n| Total sales and revenues | 17,638 | 16,106 | 48,456 | 48,594 |\n| Operating costs: |  |  |  |  |\n| Cost of goods sold | 11,673 | 10,066 | 31,445 | 29,878 |\n| Selling, general and administrative expenses | 1,822 | 1,669 | 5,109 | 4,898 |\n| Research and development expenses | 555 | 533 | 1,586 | 1,588 |\n| Interest expense of Financial Products | 346 | 336 | 1,008 | 948 |\n| Other operating (income) expenses | 190 | 355 | 817 | 1,134 |\n| Total operating costs | 14,586 | 12,959 | 39,965 | 38,446 |\n| Operating profit | 3,052 | 3,147 | 8,491 | 10,148 |\n| Interest expense excluding Financial Products | 133 | 125 | 375 | 405 |\n| Other income (expense) | 208 | 76 | 399 | 387 |\n| Consolidated profit before taxes | 3,127 | 3,098 | 8,515 | 10,130 |\n| Provision (benefit) for income taxes | 836 | 642 | 2,056 | 2,166 |\n| Profit of consolidated companies | 2,291 | 2,456 | 6,459 | 7,964 |\n| Equity in profit (loss) of unconsolidated affiliated companies | 8 | 7 | 22 | 34 |\n| Profit of consolidated and affiliated companies | 2,299 | 2,463 | 6,481 | 7,998 |\n| Less: Profit (loss) attributable to noncontrolling interests | (1) | (1) | (1) | (3) |\n| Profit <sup>1</sup> | $2,300 | $2,464 | $6,482 | $8,001 |\n| Profit per common share | $4.91 | $5.09 | $13.76 | $16.36 |\n| Profit per common share \u2014 diluted <sup>2</sup> | $4.88 | $5.06 | $13.69 | $16.27 |\n| Weighted-average common shares outstanding (millions) |  |  |  |  |\n| \u2013 Basic | 468.6 | 484.2 | 471.3 | 489.0 |\n| \u2013 Diluted <sup>2</sup> | 470.8 | 486.7 | 473.4 | 491.7 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "CAT",
+   "cik": 18230,
+   "filing_date": "2026-01-29",
+   "accession_number": "0000018230-26-000003",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000003/cat_exx991x4qx2025xearning.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000003/cat_exx991x4qx2025xearning.htm",
+     "file": "0000018230-26-000003.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000003/ex992toformxretailstatisti.htm",
+     "file": "0000018230-26-000003_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended December 31, 2025 | Three Months Ended December 31, 2024 | Twelve Months Ended December 31, 2025 | Twelve Months Ended December 31, 2024 |\n| --- | --- | --- | --- | --- |\n| Sales and revenues: |  |  |  |  |\n| Sales of Machinery, Power & Energy | $18,202 | $15,332 | $63,980 | $61,363 |\n| Revenues of Financial Products | 931 | 883 | 3,609 | 3,446 |\n| Total sales and revenues | 19,133 | 16,215 | 67,589 | 64,809 |\n| Operating costs: |  |  |  |  |\n| Cost of goods sold | 13,307 | 10,321 | 44,752 | 40,199 |\n| Selling, general and administrative expenses | 1,876 | 1,769 | 6,985 | 6,667 |\n| Research and development expenses | 562 | 519 | 2,148 | 2,107 |\n| Interest expense of Financial Products | 351 | 338 | 1,359 | 1,286 |\n| Other operating (income) expenses | 377 | 344 | 1,194 | 1,478 |\n| Total operating costs | 16,473 | 13,291 | 56,438 | 51,737 |\n| Operating profit | 2,660 | 2,924 | 11,151 | 13,072 |\n| Interest expense excluding Financial Products | 127 | 107 | 502 | 512 |\n| Other income (expense) | 493 | 426 | 892 | 813 |\n| Consolidated profit before taxes | 3,026 | 3,243 | 11,541 | 13,373 |\n| Provision (benefit) for income taxes | 712 | 463 | 2,768 | 2,629 |\n| Profit of consolidated companies | 2,314 | 2,780 | 8,773 | 10,744 |\n| Equity in profit (loss) of unconsolidated affiliated companies | 87 | 10 | 109 | 44 |\n| Profit of consolidated and affiliated companies | 2,401 | 2,790 | 8,882 | 10,788 |\n| Less: Profit (loss) attributable to noncontrolling interests | (1) | (1) | (2) | (4) |\n| Profit <sup>1</sup> | $2,402 | $2,791 | $8,884 | $10,792 |\n| Profit per common share | $5.15 | $5.81 | $18.90 | $22.17 |\n| Profit per common share \u2014 diluted <sup>2</sup> | $5.12 | $5.78 | $18.81 | $22.05 |\n| Weighted-average common shares outstanding (millions) |  |  |  |  |\n| \u2013 Basic | 466.5 | 480.0 | 470.0 | 486.7 |\n| \u2013 Diluted <sup>2</sup> | 469.0 | 482.6 | 472.3 | 489.4 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "CAT",
+   "cik": 18230,
+   "filing_date": "2026-04-30",
+   "accession_number": "0000018230-26-000017",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000017/ex991toformcat1q2026earnin.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000017/ex991toformcat1q2026earnin.htm",
+     "file": "0000018230-26-000017.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000017/ex992toformcat1q2026retail.htm",
+     "file": "0000018230-26-000017_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended March 31, 2026 | Three Months Ended March 31, 2025 |\n| --- | --- | --- |\n| Sales and revenues: |  |  |\n| Sales of Machinery, Power & Energy | $16,473 | $13,378 |\n| Revenues of Financial Products | 942 | 871 |\n| Total sales and revenues | 17,415 | 14,249 |\n| Operating costs: |  |  |\n| Cost of goods sold | 11,306 | 8,965 |\n| Selling, general and administrative expenses | 1,816 | 1,593 |\n| Research and development expenses | 537 | 480 |\n| Interest expense of Financial Products | 345 | 326 |\n| Other operating (income) expenses | 326 | 306 |\n| Total operating costs | 14,330 | 11,670 |\n| Operating profit | 3,085 | 2,579 |\n| Interest expense excluding Financial Products | 134 | 116 |\n| Other income (expense) | 260 | 107 |\n| Consolidated profit before taxes | 3,211 | 2,570 |\n| Provision (benefit) for income taxes | 670 | 574 |\n| Profit of consolidated companies | 2,541 | 1,996 |\n| Equity in profit (loss) of unconsolidated affiliated companies | 7 | 7 |\n| Profit of consolidated and affiliated companies | 2,548 | 2,003 |\n| Less: Profit (loss) attributable to noncontrolling interests | (1) | \u2014 |\n| Profit <sup>1</sup> | $2,549 | $2,003 |\n| Profit per common share | $5.50 | $4.22 |\n| Profit per common share \u2014 diluted <sup>2</sup> | $5.47 | $4.20 |\n| Weighted-average common shares outstanding (millions) |  |  |\n| \u2013 Basic | 463.4 | 474.9 |\n| \u2013 Diluted <sup>2</sup> | 465.8 | 477.1 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "CAT",
+   "cik": 18230,
+   "filing_date": "2026-08-04",
+   "accession_number": "0000018230-26-000040",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000040/ex991toformcat2q2026earnin.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000040/ex991toformcat2q2026earnin.htm",
+     "file": "0000018230-26-000040.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/18230/000001823026000040/ex992toformcat2q2026retail.htm",
+     "file": "0000018230-26-000040_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended June 30, 2026 | Three Months Ended June 30, 2025 | Six Months Ended June 30, 2026 | Six Months Ended June 30, 2025 |\n| --- | --- | --- | --- | --- |\n| Sales and revenues: |  |  |  |  |\n| Sales of Machinery, Power & Energy | $19,581 | $15,674 | $36,054 | $29,052 |\n| Revenues of Financial Products | 962 | 895 | 1,904 | 1,766 |\n| Total sales and revenues | 20,543 | 16,569 | 37,958 | 30,818 |\n| Operating costs: |  |  |  |  |\n| Cost of goods sold | 12,781 | 10,807 | 24,087 | 19,772 |\n| Selling, general and administrative expenses | 2,018 | 1,694 | 3,834 | 3,287 |\n| Research and development expenses | 616 | 551 | 1,153 | 1,031 |\n| Interest expense of Financial Products | 362 | 336 | 707 | 662 |\n| Other operating (income) expenses | 471 | 321 | 797 | 627 |\n| Total operating costs | 16,248 | 13,709 | 30,578 | 25,379 |\n| Operating profit | 4,295 | 2,860 | 7,380 | 5,439 |\n| Interest expense excluding Financial Products | 135 | 126 | 269 | 242 |\n| Other income (expense) | 398 | 84 | 658 | 191 |\n| Consolidated profit before taxes | 4,558 | 2,818 | 7,769 | 5,388 |\n| Provision (benefit) for income taxes | 1,055 | 646 | 1,725 | 1,220 |\n| Profit of consolidated companies | 3,503 | 2,172 | 6,044 | 4,168 |\n| Equity in profit (loss) of unconsolidated affiliated companies | 90 | 7 | 97 | 14 |\n| Profit of consolidated and affiliated companies | 3,593 | 2,179 | 6,141 | 4,182 |\n| Less: Profit (loss) attributable to noncontrolling interests | \u2014 | \u2014 | (1) | \u2014 |\n| Profit <sup>1</sup> | $3,593 | $2,179 | $6,142 | $4,182 |\n| Profit per common share | $7.80 | $4.64 | $13.29 | $8.85 |\n| Profit per common share \u2014 diluted <sup>2</sup> | $7.77 | $4.62 | $13.23 | $8.82 |\n| Weighted-average common shares outstanding (millions) |  |  |  |  |\n| \u2013 Basic | 460.4 | 469.7 | 462.0 | 472.4 |\n| \u2013 Diluted <sup>2</sup> | 462.5 | 471.5 | 464.3 | 474.5 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "XOM",
+   "cik": 34088,
+   "filing_date": "2025-05-02",
+   "accession_number": "0000034088-25-000022",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000022/livef8k1q25991.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "NEWS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000022/livef8k1q25991.htm",
+     "file": "0000034088-25-000022.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "INVESTOR RELATIONS DATA SUMMARY",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000022/livef8k1q25992.htm",
+     "file": "0000034088-25-000022_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| Dollars in millions (except per share data) | 1Q25 | 4Q24 | Change vs 4Q24 | 1Q24 | Change vs 1Q24 |\n| --- | --- | --- | --- | --- | --- |\n| Results Summary |  |  |  |  |  |\n| Earnings (U.S. GAAP) | 7,713 | 7,610 | +103 | 8,220 | -507 |\n| Earnings Excluding Identified Items (non-GAAP) | 7,713 | 7,394 | +319 | 8,220 | -507 |\n| Earnings Per Common Share \u00b2 | 1.76 | 1.72 | +0.04 | 2.06 | -0.30 |\n| Earnings Excluding Identified Items Per Common Share (non-GAAP) \u00b2 | 1.76 | 1.67 | +0.09 | 2.06 | -0.30 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "XOM",
+   "cik": 34088,
+   "filing_date": "2025-08-01",
+   "accession_number": "0000034088-25-000040",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000040/livef8k2q25991.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "NEWS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000040/livef8k2q25991.htm",
+     "file": "0000034088-25-000040.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "INVESTOR RELATIONS DATA SUMMARY",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000040/livef8k2q25992.htm",
+     "file": "0000034088-25-000040_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| 2Q25 | 1Q25 | Change vs 1Q25 | Dollars in millions (except per share data) | YTD 2025 | YTD 2024 | Change vs YTD 2024 |\n| --- | --- | --- | --- | --- | --- | --- |\n| Results Summary |  |  |  |  |  |  |\n| 7,082 | 7,713 | -631 | Earnings (U.S. GAAP) | 14,795 | 17,460 | -2,665 |\n| 7,082 | 7,713 | -631 | Earnings Excluding Identified Items (non-GAAP) | 14,795 | 17,460 | -2,665 |\n| 1.64 | 1.76 | -0.12 | Earnings Per Common Share <sup>\u00b3</sup> | 3.40 | 4.20 | -0.80 |\n| 1.64 | 1.76 | -0.12 | Earnings Excluding Identified Items Per Common Share (non-GAAP) <sup>\u00b3</sup> | 3.40 | 4.20 | -0.80 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "XOM",
+   "cik": 34088,
+   "filing_date": "2025-10-31",
+   "accession_number": "0000034088-25-000059",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000059/livef8k3q25991.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "NEWS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000059/livef8k3q25991.htm",
+     "file": "0000034088-25-000059.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "INVESTOR RELATIONS DATA SUMMARY",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408825000059/livef8k3q25992.htm",
+     "file": "0000034088-25-000059_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| 3Q25 | 2Q25 | Change vs 2Q25 | Dollars in millions (except per share data) | YTD 2025 | YTD 2024 | Change vs YTD 2024 |\n| --- | --- | --- | --- | --- | --- | --- |\n| Results Summary |  |  |  |  |  |  |\n| 7,548 | 7,082 | +466 | Earnings (U.S. GAAP) | 22,343 | 26,070 | -3,727 |\n| 8,058 | 7,082 | +976 | Earnings Excluding Identified Items (non-GAAP) | 22,853 | 26,070 | -3,217 |\n| 1.76 | 1.64 | +0.12 | Earnings Per Common Share \u00b9 | 5.16 | 6.12 | -0.96 |\n| 1.88 | 1.64 | +0.24 | Earnings Excluding Identified Items Per Common Share (non-GAAP) \u00b9 | 5.28 | 6.12 | -0.84 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "XOM",
+   "cik": 34088,
+   "filing_date": "2026-01-30",
+   "accession_number": "0000034088-26-000033",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000033/livef8k4q25991.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "NEWS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000033/livef8k4q25991.htm",
+     "file": "0000034088-26-000033.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "INVESTOR RELATIONS DATA SUMMARY",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000033/livef8k4q25992.htm",
+     "file": "0000034088-26-000033_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| 4Q25 | 3Q25 | Change vs 3Q25 | Dollars in millions (except per share data) | 2025 | 2024 | Change vs 2024 |\n| --- | --- | --- | --- | --- | --- | --- |\n| Results Summary |  |  |  |  |  |  |\n| 6,501 | 7,548 | -1,047 | Earnings (U.S. GAAP) | 28,844 | 33,680 | -4,836 |\n| 7,256 | 8,058 | -802 | Earnings Excluding Identified Items (non-GAAP) | 30,109 | 33,464 | -3,355 |\n| 1.53 | 1.76 | -0.23 | Earnings Per Common Share <sup>\u00b2</sup> | 6.70 | 7.84 | -1.14 |\n| 1.71 | 1.88 | -0.17 | Earnings Excluding Identified Items Per Common Share (non-GAAP) <sup>\u00b2</sup> | 6.99 | 7.79 | -0.80 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "XOM",
+   "cik": 34088,
+   "filing_date": "2026-05-01",
+   "accession_number": "0000034088-26-000065",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000065/livef8k1q26991.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "NEWS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000065/livef8k1q26991.htm",
+     "file": "0000034088-26-000065.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "INVESTOR RELATIONS DATA SUMMARY",
+     "url": "https://www.sec.gov/Archives/edgar/data/34088/000003408826000065/livef8k1q26992.htm",
+     "file": "0000034088-26-000065_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| Dollars in millions (except per share data) | 1Q26 | 4Q25 | Change vs 4Q25 | 1Q25 | Change vs 1Q25 |\n| --- | --- | --- | --- | --- | --- |\n| Results Summary |  |  |  |  |  |\n| Earnings (U.S. GAAP) | 4,183 | 6,501 | -2,318 | 7,713 | -3,530 |\n| Earnings Excluding Identified Items (non-GAAP) | 4,889 | 7,256 | -2,367 | 7,713 | -2,824 |\n| Earnings Excluding Identified Items and Estimated Timing Effects (non-GAAP) | 8,772 | 6,920 | +1,852 | 7,584 | +1,188 |\n| Earnings Per Common Share \u00b2 | 1.00 | 1.53 | -0.53 | 1.76 | -0.76 |\n| Earnings Excluding Identified Items Per Common Share (non-GAAP) \u00b2 | 1.16 | 1.71 | -0.55 | 1.76 | -0.60 |\n| Earnings Excluding Identified Items and Estimated Timing Effects Per Common Share (non-GAAP) \u00b2 | 2.09 | 1.63 | +0.46 | 1.73 | +0.36 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "WMT",
+   "cik": 104169,
+   "filing_date": "2025-05-15",
+   "accession_number": "0000104169-25-000069",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000069/earningsreleasefy26q1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "PRESS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000069/earningsreleasefy26q1.htm",
+     "file": "0000104169-25-000069.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EARNINGS PRESENTATION",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000069/earningspresentationfy26.htm",
+     "file": "0000104169-25-000069_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| (Amounts in millions, except per share data) | Three Months Ended April 30, 2025 | Three Months Ended April 30, 2024 | Three Months Ended April 30, Percent Change |\n| --- | --- | --- | --- |\n| Revenues: |  |  |  |\n| Net sales | $163,981 | $159,938 | 2.5% |\n| Membership and other income | 1,628 | 1,570 | 3.7% |\n| Total revenues | 165,609 | 161,508 | 2.5% |\n| Costs and expenses: |  |  |  |\n| Cost of sales | 124,303 | 121,431 | 2.4% |\n| Operating, selling, general and administrative expenses | 34,171 | 33,236 | 2.8% |\n| Operating income | 7,135 | 6,841 | 4.3% |\n| Interest: |  |  |  |\n| Debt | 519 | 597 | (13.1%) |\n| Finance lease | 118 | 117 | 0.9% |\n| Interest income | (93) | (114) | (18.4%) |\n| Interest, net | 544 | 600 | (9.3%) |\n| Other (gains) and losses | 597 | (794) | NM |\n| Income before income taxes | 5,994 | 7,035 | (14.8%) |\n| Provision for income taxes | 1,355 | 1,728 | (21.6%) |\n| Consolidated net income | 4,639 | 5,307 | (12.6%) |\n| Consolidated net income attributable to noncontrolling interest | (152) | (203) | (25.1%) |\n| Consolidated net income attributable to Walmart | $4,487 | $5,104 | (12.1%) |\n| Net income per common share: |  |  |  |\n| Basic net income per common share attributable to Walmart | $0.56 | $0.63 | (11.1%) |\n| Diluted net income per common share attributable to Walmart | $0.56 | $0.63 | (11.1%) |\n| Weighted-average common shares outstanding: |  |  |  |\n| Basic | 8,011 | 8,053 |  |\n| Diluted | 8,051 | 8,084 |  |\n| Dividends declared per common share | $0.94 | $0.83 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "WMT",
+   "cik": 104169,
+   "filing_date": "2025-08-21",
+   "accession_number": "0000104169-25-000120",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000120/earningsreleasefy26q2.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "PRESS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000120/earningsreleasefy26q2.htm",
+     "file": "0000104169-25-000120.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EARNINGS PRESENTATION",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000120/earningspresentationfy26.htm",
+     "file": "0000104169-25-000120_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| (Amounts in millions, except per share data) | Three Months Ended July 31, 2025 | Three Months Ended July 31, 2024 | Three Months Ended July 31, Percent Change | Six Months Ended July 31, 2025 | Six Months Ended July 31, 2024 | Six Months Ended July 31, Percent Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| Revenues: |  |  |  |  |  |  |\n| Net sales | $175,750 | $167,767 | 4.8% | $339,731 | $327,705 | 3.7% |\n| Membership and other income | 1,652 | 1,568 | 5.4% | 3,280 | 3,138 | 4.5% |\n| Total revenues | 177,402 | 169,335 | 4.8% | 343,011 | 330,843 | 3.7% |\n| Costs and expenses: |  |  |  |  |  |  |\n| Cost of sales | 132,771 | 126,810 | 4.7% | 257,074 | 248,241 | 3.6% |\n| Operating, selling, general and administrative expenses | 37,345 | 34,585 | 8.0% | 71,516 | 67,821 | 5.4% |\n| Operating income | 7,286 | 7,940 | (8.2%) | 14,421 | 14,781 | (2.4%) |\n| Interest: |  |  |  |  |  |  |\n| Debt | 651 | 557 | 16.9% | 1,170 | 1,154 | 1.4% |\n| Finance lease | 118 | 122 | (3.3%) | 236 | 239 | (1.3%) |\n| Interest income | (94) | (114) | (17.5%) | (187) | (228) | (18.0%) |\n| Interest, net | 675 | 565 | 19.5% | 1,219 | 1,165 | 4.6% |\n| Other (gains) and losses | (2,708) | 1,162 | NM | (2,111) | 368 | NM |\n| Income before income taxes | 9,319 | 6,213 | 50.0% | 15,313 | 13,248 | 15.6% |\n| Provision for income taxes | 2,168 | 1,502 | 44.3% | 3,523 | 3,230 | 9.1% |\n| Consolidated net income | 7,151 | 4,711 | 51.8% | 11,790 | 10,018 | 17.7% |\n| Consolidated net income attributable to noncontrolling interest | (125) | (210) | (40.5%) | (277) | (413) | (32.9%) |\n| Consolidated net income attributable to Walmart | $7,026 | $4,501 | 56.1% | $11,513 | $9,605 | 19.9% |\n| Net income per common share: |  |  |  |  |  |  |\n| Basic net income per common share attributable to Walmart | $0.88 | $0.56 | 57.1% | $1.44 | $1.19 | 21.0% |\n| Diluted net income per common share attributable to Walmart | $0.88 | $0.56 | 57.1% | $1.43 | $1.19 | 20.2% |\n| Weighted-average common shares outstanding: |  |  |  |  |  |  |\n| Basic | 7,978 | 8,044 |  | 7,994 | 8,048 |  |\n| Diluted | 8,016 | 8,081 |  | 8,033 | 8,082 |  |\n| Dividends declared per common share | $\u2014 | $\u2014 |  | $0.94 | $0.83 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "WMT",
+   "cik": 104169,
+   "filing_date": "2025-11-20",
+   "accession_number": "0000104169-25-000177",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000177/earningsreleasefy26q3.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "PRESS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000177/earningsreleasefy26q3.htm",
+     "file": "0000104169-25-000177.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EARNINGS PRESENTATION",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000177/earningspresentationfy26.htm",
+     "file": "0000104169-25-000177_EX-99.2.md",
+     "chosen": false
+    },
+    {
+     "type": "EX-99.3",
+     "description": "PRESS RELEASE REGARDING WALMART TRANSFER TO NASDAQ",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000177/pressrelease-transfertonas.htm",
+     "file": "0000104169-25-000177_EX-99.3.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| (Amounts in millions, except per share data) | Three Months Ended October 31, 2025 | Three Months Ended October 31, 2024 | Three Months Ended October 31, Percent Change | Nine Months Ended October 31, 2025 | Nine Months Ended October 31, 2024 | Nine Months Ended October 31, Percent Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| Revenues: |  |  |  |  |  |  |\n| Net sales | $177,769 | $168,003 | 5.8% | $517,500 | $495,708 | 4.4% |\n| Membership and other income | 1,727 | 1,585 | 9.0% | 5,007 | 4,723 | 6.0% |\n| Total revenues | 179,496 | 169,588 | 5.8% | 522,507 | 500,431 | 4.4% |\n| Costs and expenses: |  |  |  |  |  |  |\n| Cost of sales | 134,706 | 127,340 | 5.8% | 391,780 | 375,581 | 4.3% |\n| Operating, selling, general and administrative expenses | 38,094 | 35,540 | 7.2% | 109,610 | 103,361 | 6.0% |\n| Operating income | 6,696 | 6,708 | (0.2%) | 21,117 | 21,489 | (1.7%) |\n| Interest: |  |  |  |  |  |  |\n| Debt | 563 | 496 | 13.5% | 1,733 | 1,650 | 5.0% |\n| Finance lease | 121 | 122 | (0.8%) | 357 | 361 | (1.1%) |\n| Interest income | (93) | (140) | (33.6%) | (280) | (368) | (23.9%) |\n| Interest, net | 591 | 478 | 23.6% | 1,810 | 1,643 | 10.2% |\n| Other (gains) and losses | (2,081) | 132 | NM | (4,192) | 500 | NM |\n| Income before income taxes | 8,186 | 6,098 | 34.2% | 23,499 | 19,346 | 21.5% |\n| Provision for income taxes | 2,098 | 1,384 | 51.6% | 5,621 | 4,614 | 21.8% |\n| Consolidated net income | 6,088 | 4,714 | 29.1% | 17,878 | 14,732 | 21.4% |\n| Consolidated net (income) loss attributable to noncontrolling interest | 55 | (137) | NM | (222) | (550) | (59.6%) |\n| Consolidated net income attributable to Walmart | $6,143 | $4,577 | 34.2% | $17,656 | $14,182 | 24.5% |\n| Net income per common share: |  |  |  |  |  |  |\n| Basic net income per common share attributable to Walmart | $0.77 | $0.57 | 35.1% | $2.21 | $1.76 | 25.6% |\n| Diluted net income per common share attributable to Walmart | $0.77 | $0.57 | 35.1% | $2.20 | $1.75 | 25.7% |\n| Weighted-average common shares outstanding: |  |  |  |  |  |  |\n| Basic | 7,974 | 8,038 |  | 7,987 | 8,044 |  |\n| Diluted | 8,011 | 8,082 |  | 8,026 | 8,082 |  |\n| Dividends declared per common share | $\u2014 | $\u2014 |  | $0.94 | $0.83 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "WMT",
+   "cik": 104169,
+   "filing_date": "2026-02-19",
+   "accession_number": "0000104169-26-000032",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000032/earningsreleasefy26q4.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "PRESS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000032/earningsreleasefy26q4.htm",
+     "file": "0000104169-26-000032.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EARNINGS PRESENTATION",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000032/earningspresentationfy26.htm",
+     "file": "0000104169-26-000032_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| (Amounts in millions, except per share data) | Three Months Ended January 31, 2026 | Three Months Ended January 31, 2025 | Three Months Ended January 31, Percent Change | Fiscal Year Ended January 31, 2026 | Fiscal Year Ended January 31, 2025 | Fiscal Year Ended January 31, Percent Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| Revenues: |  |  |  |  |  |  |\n| Net sales | $188,913 | $178,830 | 5.6% | $706,413 | $674,538 | 4.7% |\n| Membership and other income | 1,743 | 1,724 | 1.1% | 6,750 | 6,447 | 4.7% |\n| Total revenues | 190,656 | 180,554 | 5.6% | 713,163 | 680,985 | 4.7% |\n| Costs and expenses: |  |  |  |  |  |  |\n| Cost of sales | 143,615 | 136,172 | 5.5% | 535,395 | 511,753 | 4.6% |\n| Operating, selling, general and administrative expenses | 38,333 | 36,523 | 5.0% | 147,943 | 139,884 | 5.8% |\n| Operating income | 8,708 | 7,859 | 10.8% | 29,825 | 29,348 | 1.6% |\n| Interest: |  |  |  |  |  |  |\n| Debt | 585 | 599 | (2.3%) | 2,318 | 2,249 | 3.1% |\n| Finance lease | 124 | 118 | 5.1% | 481 | 479 | 0.4% |\n| Interest income | (88) | (115) | (23.5%) | (368) | (483) | (23.8%) |\n| Interest, net | 621 | 602 | 3.2% | 2,431 | 2,245 | 8.3% |\n| Other (gains) and losses | 2,117 | 294 | 620.1% | (2,075) | 794 | NM |\n| Income before income taxes | 5,970 | 6,963 | (14.3%) | 29,469 | 26,309 | 12.0% |\n| Provision for income taxes | 1,578 | 1,538 | 2.6% | 7,199 | 6,152 | 17.0% |\n| Consolidated net income | 4,392 | 5,425 | (19.0%) | 22,270 | 20,157 | 10.5% |\n| Consolidated net income attributable to noncontrolling interest | (155) | (171) | (9.4%) | (377) | (721) | (47.7%) |\n| Consolidated net income attributable to Walmart | $4,237 | $5,254 | (19.4%) | $21,893 | $19,436 | 12.6% |\n| Net income per common share: |  |  |  |  |  |  |\n| Basic net income per common share attributable to Walmart | $0.53 | $0.65 | (18.5%) | $2.74 | $2.42 | 13.2% |\n| Diluted net income per common share attributable to Walmart | 0.53 | 0.65 | (18.5%) | 2.73 | 2.41 | 13.3% |\n| Weighted-average common shares outstanding: |  |  |  |  |  |  |\n| Basic | 7,971 | 8,029 |  | 7,983 | 8,041 |  |\n| Diluted | 8,009 | 8,078 |  | 8,022 | 8,081 |  |\n| Dividends declared per common share | $\u2014 | $\u2014 |  | $0.94 | $0.83 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "WMT",
+   "cik": 104169,
+   "filing_date": "2026-05-21",
+   "accession_number": "0000104169-26-000095",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000095/earningsreleasefy27q1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000095/earningsreleasefy27q1.htm",
+     "file": "0000104169-26-000095.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000095/earningspresentationfy27.htm",
+     "file": "0000104169-26-000095_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| (Amounts in millions, except per share data) | Three Months Ended April 30, 2026 | Three Months Ended April 30, 2025 | Three Months Ended April 30, Percent Change |\n| --- | --- | --- | --- |\n| Revenues: |  |  |  |\n| Net sales | $175,684 | $163,981 | 7.1% |\n| Membership and other income | 2,067 | 1,628 | 27.0% |\n| Total revenues | 177,751 | 165,609 | 7.3% |\n| Costs and expenses: |  |  |  |\n| Cost of sales | 133,058 | 124,303 | 7.0% |\n| Operating, selling, general and administrative expenses | 37,200 | 34,171 | 8.9% |\n| Operating income | 7,493 | 7,135 | 5.0% |\n| Interest: |  |  |  |\n| Debt | 574 | 519 | 10.6% |\n| Finance lease | 125 | 118 | 5.9% |\n| Interest income | (79) | (93) | (15.1%) |\n| Interest, net | 620 | 544 | 14.0% |\n| Other (gains) and losses | (275) | 597 | NM |\n| Income before income taxes | 7,148 | 5,994 | 19.3% |\n| Provision for income taxes | 1,658 | 1,355 | 22.4% |\n| Consolidated net income | 5,490 | 4,639 | 18.3% |\n| Consolidated net income attributable to noncontrolling interest | (160) | (152) | 5.3% |\n| Consolidated net income attributable to Walmart | $5,330 | $4,487 | 18.8% |\n| Net income per common share: |  |  |  |\n| Basic net income per common share attributable to Walmart | $0.67 | $0.56 | 19.6% |\n| Diluted net income per common share attributable to Walmart | 0.67 | 0.56 | 19.6% |\n| Weighted-average common shares outstanding: |  |  |  |\n| Basic | 7,969 | 8,011 |  |\n| Diluted | 7,999 | 8,051 |  |\n| Dividends declared per common share | $0.99 | $0.94 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "WMT",
+   "cik": 104169,
+   "filing_date": "2026-08-20",
+   "accession_number": "0000104169-26-000145",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000145/earningsreleasefy27q2.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000145/earningsreleasefy27q2.htm",
+     "file": "0000104169-26-000145.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416926000145/earningspresentationfy27.htm",
+     "file": "0000104169-26-000145_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| (Amounts in millions, except per share data) | Three Months Ended July 31, 2026 | Three Months Ended July 31, 2025 | Three Months Ended July 31, Percent Change | Six Months Ended July 31, 2026 | Six Months Ended July 31, 2025 | Six Months Ended July 31, Percent Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| Revenues: |  |  |  |  |  |  |\n| Net sales | $186,100 | $175,750 | 5.9% | $361,784 | $339,731 | 6.5% |\n| Membership and other income | 1,837 | 1,652 | 11.2% | 3,904 | 3,280 | 19.0% |\n| Total revenues | 187,937 | 177,402 | 5.9% | 365,688 | 343,011 | 6.6% |\n| Costs and expenses: |  |  |  |  |  |  |\n| Cost of sales | 138,804 | 132,771 | 4.5% | 271,862 | 257,074 | 5.8% |\n| Operating, selling, general and administrative expenses | 39,750 | 37,345 | 6.4% | 76,950 | 71,516 | 7.6% |\n| Operating income | 9,383 | 7,286 | 28.8% | 16,876 | 14,421 | 17.0% |\n| Interest: |  |  |  |  |  |  |\n| Debt | 137 | 651 | (79.0%) | 711 | 1,170 | (39.2%) |\n| Finance lease | 126 | 118 | 6.8% | 251 | 236 | 6.4% |\n| Interest income | (92) | (94) | (2.1%) | (171) | (187) | (8.6%) |\n| Interest, net | 171 | 675 | (74.7%) | 791 | 1,219 | (35.1%) |\n| Other (gains) and losses | 1,200 | (2,708) | NM | 925 | (2,111) | NM |\n| Income before income taxes | 8,012 | 9,319 | (14.0%) | 15,160 | 15,313 | (1.0%) |\n| Provision for income taxes | 1,483 | 2,168 | (31.6%) | 3,141 | 3,523 | (10.8%) |\n| Consolidated net income | 6,529 | 7,151 | (8.7%) | 12,019 | 11,790 | 1.9% |\n| Consolidated net income attributable to noncontrolling interest | (163) | (125) | 30.4% | (323) | (277) | 16.6% |\n| Consolidated net income attributable to Walmart | $6,366 | $7,026 | (9.4%) | $11,696 | $11,513 | 1.6% |\n| Net income per common share: |  |  |  |  |  |  |\n| Basic net income per common share attributable to Walmart | $0.80 | $0.88 | (9.1%) | $1.47 | $1.44 | 2.1% |\n| Diluted net income per common share attributable to Walmart | 0.80 | 0.88 | (9.1%) | 1.46 | 1.43 | 2.1% |\n| Weighted-average common shares outstanding: |  |  |  |  |  |  |\n| Basic | 7,954 | 7,978 |  | 7,962 | 7,994 |  |\n| Diluted | 7,978 | 8,016 |  | 7,989 | 8,033 |  |\n| Dividends declared per common share | $\u2014 | $\u2014 |  | $0.99 | $0.94 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NKE",
+   "cik": 320187,
+   "filing_date": "2025-06-26",
+   "accession_number": "0000320187-25-000034",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018725000034/q4fy25exhibit991er.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018725000034/q4fy25exhibit991er.htm",
+     "file": "0000320187-25-000034.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| (In millions, except per share data) | THREE MONTHS ENDED% 5/31/2025 | THREE MONTHS ENDED% 5/31/2024 | Change | TWELVE MONTHS ENDED% 5/31/2025 | TWELVE MONTHS ENDED% 5/31/2024 | Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| NIKE, Inc. |  |  |  |  |  |  |\n| CONSOLIDATED STATEMENTS OF INCOME |  |  |  |  |  |  |\n| (Unaudited) |  |  |  |  |  |  |\n| Revenues | $11,097 | $12,606 | -12% | $46,309 | $51,362 | -10% |\n| Cost of sales | 6,628 | 6,972 | -5% | 26,519 | 28,475 | -7% |\n| Gross profit | 4,469 | 5,634 | -21% | 19,790 | 22,887 | -14% |\n| Gross margin | 40.3% | 44.7% |  | 42.7% | 44.6% |  |\n| Demand creation expense | 1,253 | 1,091 | 15% | 4,689 | 4,285 | 9% |\n| Operating overhead expense | 2,895 | 2,997 | -3% | 11,399 | 12,291 | -7% |\n| Total selling and administrative expense | 4,148 | 4,088 | 1% | 16,088 | 16,576 | -3% |\n| % of revenues | 37.4% | 32.4% |  | 34.7% | 32.3% |  |\n| Interest expense (income), net | (22) | (53) | \u2014 | (107) | (161) | \u2014 |\n| Other (income) expense, net | 25 | (127) | \u2014 | (76) | (228) | \u2014 |\n| Income before income taxes | 318 | 1,726 | -82% | 3,885 | 6,700 | -42% |\n| Income tax expense | 107 | 226 | -53% | 666 | 1,000 | -33% |\n| Effective tax rate | 33.6% | 13.1% |  | 17.1% | 14.9% |  |\n| NET INCOME | $211 | $1,500 | -86% | $3,219 | $5,700 | -44% |\n| Earnings per common share: |  |  |  |  |  |  |\n| Basic | $0.14 | $0.99 | -86% | $2.17 | $3.76 | -42% |\n| Diluted | $0.14 | $0.99 | -86% | $2.16 | $3.73 | -42% |\n| Weighted average common shares outstanding: |  |  |  |  |  |  |\n| Basic | 1,476.7 | 1,508.0 |  | 1,484.9 | 1,517.6 |  |\n| Diluted | 1,477.7 | 1,516.7 |  | 1,487.6 | 1,529.7 |  |\n| Dividends declared per common share | $0.400 | $0.370 |  | $1.570 | $1.450 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NKE",
+   "cik": 320187,
+   "filing_date": "2025-09-30",
+   "accession_number": "0000320187-25-000091",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018725000091/q1fy26exhibit991er.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018725000091/q1fy26exhibit991er.htm",
+     "file": "0000320187-25-000091.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| (In millions, except per share data) | THREE MONTHS ENDED% 8/31/2025 | THREE MONTHS ENDED% 8/31/2024 | Change |\n| --- | --- | --- | --- |\n| NIKE, Inc. |  |  |  |\n| CONSOLIDATED STATEMENTS OF INCOME |  |  |  |\n| (Unaudited) |  |  |  |\n| Revenues | $11,720 | $11,589 | 1% |\n| Cost of sales | 6,777 | 6,332 | 7% |\n| Gross profit | 4,943 | 5,257 | -6% |\n| Gross margin | 42.2% | 45.4% |  |\n| Demand creation expense | 1,188 | 1,226 | -3% |\n| Operating overhead expense | 2,828 | 2,822 | 0% |\n| Total selling and administrative expense | 4,016 | 4,048 | -1% |\n| % of revenues | 34.3% | 34.9% |  |\n| Interest expense (income), net | (18) | (43) | \u2014 |\n| Other (income) expense, net | 23 | (55) | \u2014 |\n| Income before income taxes | 922 | 1,307 | -29% |\n| Income tax expense | 195 | 256 | -24% |\n| Effective tax rate | 21.1% | 19.6% |  |\n| NET INCOME | $727 | $1,051 | -31% |\n| Earnings per common share: |  |  |  |\n| Basic | $0.49 | $0.70 | -30% |\n| Diluted | $0.49 | $0.70 | -30% |\n| Weighted average common shares outstanding: |  |  |  |\n| Basic | 1,476.6 | 1,497.7 |  |\n| Diluted | 1,479.0 | 1,502.0 |  |\n| Dividends declared per common share | $0.400 | $0.370 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NKE",
+   "cik": 320187,
+   "filing_date": "2025-12-18",
+   "accession_number": "0000320187-25-000138",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018725000138/q2fy26exhibit991er.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018725000138/q2fy26exhibit991er.htm",
+     "file": "0000320187-25-000138.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| (In millions, except per share data) | THREE MONTHS ENDED% 11/30/2025 | THREE MONTHS ENDED% 11/30/2024 | Change | SIX MONTHS ENDED% 11/30/2025 | SIX MONTHS ENDED% 11/30/2024 | Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| NIKE, Inc. |  |  |  |  |  |  |\n| CONSOLIDATED STATEMENTS OF INCOME |  |  |  |  |  |  |\n| (Unaudited) |  |  |  |  |  |  |\n| Revenues | $12,427 | $12,354 | 1% | $24,147 | $23,943 | 1% |\n| Cost of sales | 7,382 | 6,965 | 6% | 14,159 | 13,297 | 6% |\n| Gross profit | 5,045 | 5,389 | -6% | 9,988 | 10,646 | -6% |\n| Gross margin | 40.6% | 43.6% |  | 41.4% | 44.5% |  |\n| Demand creation expense | 1,273 | 1,122 | 13% | 2,461 | 2,348 | 5% |\n| Operating overhead expense | 2,766 | 2,883 | -4% | 5,594 | 5,705 | -2% |\n| Total selling and administrative expense | 4,039 | 4,005 | 1% | 8,055 | 8,053 | 0% |\n| % of revenues | 32.5% | 32.4% |  | 33.4% | 33.6% |  |\n| Interest (income) expense, net | (9) | (24) | \u2014 | (27) | (67) | \u2014 |\n| Other (income) expense, net | 16 | (8) | \u2014 | 39 | (63) | \u2014 |\n| Income before income taxes | 999 | 1,416 | -29% | 1,921 | 2,723 | -29% |\n| Income tax expense | 207 | 253 | -18% | 402 | 509 | -21% |\n| Effective tax rate | 20.7% | 17.9% |  | 20.9% | 18.7% |  |\n| NET INCOME | $792 | $1,163 | -32% | $1,519 | $2,214 | -31% |\n| Earnings per common share: |  |  |  |  |  |  |\n| Basic | $0.54 | $0.78 | -31% | $1.03 | $1.48 | -30% |\n| Diluted | $0.53 | $0.78 | -32% | $1.03 | $1.48 | -30% |\n| Weighted average common shares outstanding: |  |  |  |  |  |  |\n| Basic | 1,479.5 | 1,486.8 |  | 1,478.1 | 1,492.3 |  |\n| Diluted | 1,481.0 | 1,490.0 |  | 1,480.0 | 1,495.9 |  |\n| Dividends declared per common share | $0.410 | $0.400 |  | $0.810 | $0.770 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NKE",
+   "cik": 320187,
+   "filing_date": "2026-03-31",
+   "accession_number": "0000320187-26-000026",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000026/q3fy26exhibit991er.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000026/q3fy26exhibit991er.htm",
+     "file": "0000320187-26-000026.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| (In millions, except per share data) | THREE MONTHS ENDED% 2/28/2026 | THREE MONTHS ENDED% 2/28/2025 | Change | NINE MONTHS ENDED% 2/28/2026 | NINE MONTHS ENDED% 2/28/2025 | Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| NIKE, Inc. |  |  |  |  |  |  |\n| CONSOLIDATED STATEMENTS OF INCOME |  |  |  |  |  |  |\n| (Unaudited) |  |  |  |  |  |  |\n| Revenues | $11,279 | $11,269 | 0% | $35,426 | $35,212 | 1% |\n| Cost of sales | 6,749 | 6,594 | 2% | 20,908 | 19,891 | 5% |\n| Gross profit | 4,530 | 4,675 | -3% | 14,518 | 15,321 | -5% |\n| Gross margin | 40.2% | 41.5% |  | 41.0% | 43.5% |  |\n| Demand creation expense | 1,090 | 1,088 | 0% | 3,551 | 3,436 | 3% |\n| Operating overhead expense | 2,887 | 2,799 | 3% | 8,481 | 8,504 | 0% |\n| Total selling and administrative expense | 3,977 | 3,887 | 2% | 12,032 | 11,940 | 1% |\n| % of revenues | 35.3% | 34.5% |  | 34.0% | 33.9% |  |\n| Interest (income) expense, net | (15) | (18) | \u2014 | (42) | (85) | \u2014 |\n| Other (income) expense, net | (82) | (38) | \u2014 | (43) | (101) | \u2014 |\n| Income before income taxes | 650 | 844 | -23% | 2,571 | 3,567 | -28% |\n| Income tax expense | 130 | 50 | 160% | 532 | 559 | -5% |\n| Effective tax rate | 20.0% | 5.9% |  | 20.7% | 15.7% |  |\n| NET INCOME | $520 | $794 | -35% | $2,039 | $3,008 | -32% |\n| Earnings per common share: |  |  |  |  |  |  |\n| Basic | $0.35 | $0.54 | -35% | $1.38 | $2.02 | -32% |\n| Diluted | $0.35 | $0.54 | -35% | $1.38 | $2.02 | -32% |\n| Weighted average common shares outstanding: |  |  |  |  |  |  |\n| Basic | 1,480.5 | 1,478.1 |  | 1,478.9 | 1,487.6 |  |\n| Diluted | 1,481.6 | 1,480.6 |  | 1,480.4 | 1,491.0 |  |\n| Dividends declared per common share | $0.410 | $0.400 |  | $1.220 | $1.170 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NKE",
+   "cik": 320187,
+   "filing_date": "2026-06-23",
+   "accession_number": "0000320187-26-000070",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000070/pressrelease062326.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000070/pressrelease062326.htm",
+     "file": "0000320187-26-000070.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "NIKE, Inc. Announces Planned CFO Transition\n\nDavid M. Denton named incoming Chief Financial Officer\n\nBEAVERTON, Ore., June 23, 2026 \u2014 NIKE, Inc. (NYSE:NKE) today announced that David M. Denton will join the company as Executive Vice President and Chief Financial Officer, effective August 17. Matthew Friend will step down as Executive Vice President and Chief Financial Officer at that time and remain with the company through September 4 to support an orderly transition. Friend will participate in the company\u2019s fourth quarter fiscal 2026 earnings call on June 30, as planned.\n\nDenton will lead Nike\u2019s global finance organization, partnering with President and Chief Executive Officer Elliott Hill and the Senior Leadership Team to support disciplined execution, capital allocation, and long-term value creation.\n\n\u201cDave is a proven public-company CFO who knows how to help great consumer brands operate with discipline and invest to win,\u201d said Elliott Hill, President and Chief Executive Officer, NIKE, Inc. \u201cWe\u2019re focused on doing what Nike does best: serving athletes, leading with sport and building the most innovative products in the world. Dave\u2019s experience, judgment, and operating rigor will help us execute against these priorities with consistency and build on the progress underway.\u201d\n\nDenton joins Nike from Pfizer, Inc., where he has served as Chief Financial Officer and Executive Vice President since May 2022. He brings more than 30 years of finance and operating leadership experience across complex global public companies. Prior to Pfizer, Denton served as Chief Financial Officer and Executive Vice President of Lowe\u2019s Companies, Inc. from 2018 to 2022, where he oversaw finance, strategy, and other enterprise functions while helping advance the company\u2019s transformation and growth priorities. Earlier in his career, he spent two decades at CVS Health Corporation, including as Executive Vice President and Chief Financial Officer, where he helped guide the company\u2019s evolution into a diversified health solutions organization. Denton also brings public company governance experience having previously served on the Boards of Directors of Haleon (2023\u20132024) and Tapestry (2014\u20132023) and is expected to serve on the Board of Honeywell Aerospace following its planned spin-off from Honeywell.\n\n\u201cNike is one of the world\u2019s great brands, with extraordinary strengths in sport, innovation, and global scale,\u201d said Denton. \u201cI\u2019m excited to partner with Elliott and the leadership team to support the company\u2019s priorities, invest with discipline, and help deliver sustainable long-term value as Nike continues to lead with sport and serve athletes around the world.\u201d\n\n\"This is a natural moment for a leadership transition as we move from foundational actions to sustained growth through our Sport Offense operating model,\u201d added Hill. \u201cI\u2019d like to thank Matt for his many contributions to Nike over the years. He has dedicated a significant part of his career to this company and has been a valued colleague and partner to many across Nike. We are grateful for his service, appreciate his commitment to ensuring a seamless transition, and wish him all the best in his next chapter.\u201d\n\nNIKE, Inc. Provides Update on Expected Fourth Quarter Fiscal 2026 Results\n\nAs previously announced, NIKE, Inc. will report fourth quarter and fiscal year 2026 results on Tuesday, June 30th at 2:00 p.m. PT. These results will include a benefit from tariff refunds that was not contemplated in the company\u2019s previously provided guidance. Excluding this one-time benefit, fourth quarter results are expected to be generally in line with previously provided guidance.\n\nAbout NIKE, Inc.\n\nNIKE, Inc., headquartered in Beaverton, Oregon, is the world's leading designer, marketer and distributor of authentic athletic footwear, apparel, equipment and accessories for a wide variety of sports and fitness activities. Converse, a wholly-owned NIKE, Inc. subsidiary brand, designs, markets and distributes athletic lifestyle footwear, apparel and accessories. For more information, NIKE, Inc.\u2019s earnings releases and other financial information are available on the Internet at https://investors.nike.com/. Individuals can also visit https://about.nike.com/ and follow NIKE on LinkedIn, Instagram and YouTube.\n\n---\n\nContacts\n\nInvestor Contact:\n\nPaul Trussell\n\ninvestor.relations@nike.com\n\nMedia Contact:\n\nSandra Carreon-John\n\nmedia.relations@nike.com\n",
+  "markdown_is_excerpt": false
+ },
+ {
+  "record": {
+   "ticker": "NKE",
+   "cik": 320187,
+   "filing_date": "2026-06-30",
+   "accession_number": "0000320187-26-000076",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000076/q4fy26exhibit991er.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000076/q4fy26exhibit991er.htm",
+     "file": "0000320187-26-000076.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| (In millions, except per share data) | THREE MONTHS ENDED% 5/31/2026 | THREE MONTHS ENDED% 5/31/2025 | Change | TWELVE MONTHS ENDED% 5/31/2026 | TWELVE MONTHS ENDED% 5/31/2025 | Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| NIKE, Inc. |  |  |  |  |  |  |\n| CONSOLIDATED STATEMENTS OF INCOME |  |  |  |  |  |  |\n| (Unaudited) |  |  |  |  |  |  |\n| Revenues | $10,972 | $11,097 | -1% | $46,398 | $46,309 | 0% |\n| Cost of sales | 5,579 | 6,628 | -16% | 26,487 | 26,519 | 0% |\n| Gross profit | 5,393 | 4,469 | 21% | 19,911 | 19,790 | 1% |\n| Gross margin | 49.2% | 40.3% |  | 42.9% | 42.7% |  |\n| Demand creation expense | 1,203 | 1,253 | -4% | 4,754 | 4,689 | 1% |\n| Operating overhead expense | 2,879 | 2,895 | -1% | 11,360 | 11,399 | 0% |\n| Total selling and administrative expense | 4,082 | 4,148 | -2% | 16,114 | 16,088 | 0% |\n| % of revenues | 37.2% | 37.4% |  | 34.7% | 34.7% |  |\n| Interest (income) expense, net | (8) | (22) | \u2014 | (50) | (107) | \u2014 |\n| Other (income) expense, net | (10) | 25 | \u2014 | (53) | (76) | \u2014 |\n| Income before income taxes | 1,329 | 318 | 318% | 3,900 | 3,885 | 0% |\n| Income tax expense | 260 | 107 | 143% | 792 | 666 | 19% |\n| Effective tax rate | 19.6% | 33.6% |  | 20.3% | 17.1% |  |\n| NET INCOME | $1,069 | $211 | 407% | $3,108 | $3,219 | -3% |\n| Earnings per common share: |  |  |  |  |  |  |\n| Basic | $0.72 | $0.14 | 414% | $2.10 | $2.17 | -3% |\n| Diluted | $0.72 | $0.14 | 414% | $2.10 | $2.16 | -3% |\n| Weighted average common shares outstanding: |  |  |  |  |  |  |\n| Basic | 1,482.6 | 1,476.7 |  | 1,479.8 | 1,484.9 |  |\n| Diluted | 1,482.9 | 1,477.7 |  | 1,481.0 | 1,487.6 |  |\n| Dividends declared per common share | $0.410 | $0.400 |  | $1.630 | $1.570 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NKE",
+   "cik": 320187,
+   "filing_date": "2026-10-01",
+   "accession_number": "0000320187-26-000184",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000184/q1fy27exhibit991er.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320187/000032018726000184/q1fy27exhibit991er.htm",
+     "file": "0000320187-26-000184.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| (In millions, except per share data) | THREE MONTHS ENDED% 8/31/2026 | THREE MONTHS ENDED% 8/31/2025 | Change |\n| --- | --- | --- | --- |\n| NIKE, Inc. |  |  |  |\n| CONSOLIDATED STATEMENTS OF INCOME |  |  |  |\n| (Unaudited) |  |  |  |\n| Revenues | $11,213 | $11,720 | -4% |\n| Cost of sales | 6,415 | 6,777 | -5% |\n| Gross profit | 4,798 | 4,943 | -3% |\n| Gross margin | 42.8% | 42.2% | 60 bps |\n| Demand creation expense | 1,252 | 1,188 | 5% |\n| Operating overhead expense | 2,658 | 2,828 | -6% |\n| Total selling and administrative expense | 3,910 | 4,016 | -3% |\n| % of revenues | 34.9% | 34.3% | 60 bps |\n| Interest (income) expense, net | (14) | (18) | \u2014 |\n| Other (income) expense, net | (19) | 23 | \u2014 |\n| Income before income taxes | 921 | 922 | 0% |\n| Income tax expense | 209 | 195 | 7% |\n| Effective tax rate | 22.7% | 21.1% | 160 bps |\n| NET INCOME | $712 | $727 | -2% |\n| Earnings per common share: |  |  |  |\n| Basic | $0.48 | $0.49 |  |\n| Diluted | $0.48 | $0.49 |  |\n| Weighted average common shares outstanding: |  |  |  |\n| Basic | 1,483.6 | 1,476.6 |  |\n| Diluted | 1,484.2 | 1,479.0 |  |\n| Dividends declared per common share | $0.410 | $0.400 |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "AAPL",
+   "cik": 320193,
+   "filing_date": "2025-05-01",
+   "accession_number": "0000320193-25-000055",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000055/a8-kex991q2202503292025.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000055/a8-kex991q2202503292025.htm",
+     "file": "0000320193-25-000055.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended March 29, 2025 | Three Months Ended March 30, 2024 | Six Months Ended March 29, 2025 | Six Months Ended March 30, 2024 |\n| --- | --- | --- | --- | --- |\n| Net sales: |  |  |  |  |\n| Products | $68,714 | $66,886 | $166,674 | $163,344 |\n| Services | 26,645 | 23,867 | 52,985 | 46,984 |\n| Total net sales <sup>(1)</sup> | 95,359 | 90,753 | 219,659 | 210,328 |\n| Cost of sales: |  |  |  |  |\n| Products | 44,030 | 42,424 | 103,477 | 100,864 |\n| Services | 6,462 | 6,058 | 13,040 | 12,338 |\n| Total cost of sales | 50,492 | 48,482 | 116,517 | 113,202 |\n| Gross margin | 44,867 | 42,271 | 103,142 | 97,126 |\n| Operating expenses: |  |  |  |  |\n| Research and development | 8,550 | 7,903 | 16,818 | 15,599 |\n| Selling, general and administrative | 6,728 | 6,468 | 13,903 | 13,254 |\n| Total operating expenses | 15,278 | 14,371 | 30,721 | 28,853 |\n| Operating income | 29,589 | 27,900 | 72,421 | 68,273 |\n| Other income/(expense), net | (279) | 158 | (527) | 108 |\n| Income before provision for income taxes | 29,310 | 28,058 | 71,894 | 68,381 |\n| Provision for income taxes | 4,530 | 4,422 | 10,784 | 10,829 |\n| Net income | $24,780 | $23,636 | $61,110 | $57,552 |\n| Earnings per share: |  |  |  |  |\n| Basic | $1.65 | $1.53 | $4.06 | $3.72 |\n| Diluted | $1.65 | $1.53 | $4.05 | $3.71 |\n| Shares used in computing earnings per share: |  |  |  |  |\n| Basic | 14,994,082 | 15,405,856 | 15,037,903 | 15,457,810 |\n| Diluted | 15,056,133 | 15,464,709 | 15,103,499 | 15,520,675 |\n| <sup>(1)</sup> Net sales by reportable segment: |  |  |  |  |\n| Americas | $40,315 | $37,273 | $92,963 | $87,703 |\n| Europe | 24,454 | 24,123 | 58,315 | 54,520 |\n| Greater China | 16,002 | 16,372 | 34,515 | 37,191 |\n| Japan | 7,298 | 6,262 | 16,285 | 14,029 |\n| Rest of Asia Pacific | 7,290 | 6,723 | 17,581 | 16,885 |\n| Total net sales | $95,359 | $90,753 | $219,659 | $210,328 |\n| <sup>(1)</sup> Net sales by category: |  |  |  |  |\n| iPhone | $46,841 | $45,963 | $115,979 | $115,665 |\n| Mac | 7,949 | 7,451 | 16,936 | 15,231 |\n| iPad | 6,402 | 5,559 | 14,490 | 12,582 |\n| Wearables, Home and Accessories | 7,522 | 7,913 | 19,269 | 19,866 |\n| Services | 26,645 | 23,867 | 52,985 | 46,984 |\n| Total net sales | $95,359 | $90,753 | $219,659 | $210,328 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "AAPL",
+   "cik": 320193,
+   "filing_date": "2025-07-31",
+   "accession_number": "0000320193-25-000071",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000071/a8-kex991q3202506282025.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000071/a8-kex991q3202506282025.htm",
+     "file": "0000320193-25-000071.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended June 28, 2025 | Three Months Ended June 29, 2024 | Nine Months Ended June 28, 2025 | Nine Months Ended June 29, 2024 |\n| --- | --- | --- | --- | --- |\n| Net sales: |  |  |  |  |\n| Products | $66,613 | $61,564 | $233,287 | $224,908 |\n| Services | 27,423 | 24,213 | 80,408 | 71,197 |\n| Total net sales <sup>(1)</sup> | 94,036 | 85,777 | 313,695 | 296,105 |\n| Cost of sales: |  |  |  |  |\n| Products | 43,620 | 39,803 | 147,097 | 140,667 |\n| Services | 6,698 | 6,296 | 19,738 | 18,634 |\n| Total cost of sales | 50,318 | 46,099 | 166,835 | 159,301 |\n| Gross margin | 43,718 | 39,678 | 146,860 | 136,804 |\n| Operating expenses: |  |  |  |  |\n| Research and development | 8,866 | 8,006 | 25,684 | 23,605 |\n| Selling, general and administrative | 6,650 | 6,320 | 20,553 | 19,574 |\n| Total operating expenses | 15,516 | 14,326 | 46,237 | 43,179 |\n| Operating income | 28,202 | 25,352 | 100,623 | 93,625 |\n| Other income/(expense), net | (171) | 142 | (698) | 250 |\n| Income before provision for income taxes | 28,031 | 25,494 | 99,925 | 93,875 |\n| Provision for income taxes | 4,597 | 4,046 | 15,381 | 14,875 |\n| Net income | $23,434 | $21,448 | $84,544 | $79,000 |\n| Earnings per share: |  |  |  |  |\n| Basic | $1.57 | $1.40 | $5.64 | $5.13 |\n| Diluted | $1.57 | $1.40 | $5.62 | $5.11 |\n| Shares used in computing earnings per share: |  |  |  |  |\n| Basic | 14,902,886 | 15,287,521 | 14,992,898 | 15,401,047 |\n| Diluted | 14,948,179 | 15,348,175 | 15,051,726 | 15,463,175 |\n| <sup>(1)</sup> Net sales by reportable segment: |  |  |  |  |\n| Americas | $41,198 | $37,678 | $134,161 | $125,381 |\n| Europe | 24,014 | 21,884 | 82,329 | 76,404 |\n| Greater China | 15,369 | 14,728 | 49,884 | 51,919 |\n| Japan | 5,782 | 5,097 | 22,067 | 19,126 |\n| Rest of Asia Pacific | 7,673 | 6,390 | 25,254 | 23,275 |\n| Total net sales | $94,036 | $85,777 | $313,695 | $296,105 |\n| <sup>(1)</sup> Net sales by category: |  |  |  |  |\n| iPhone | $44,582 | $39,296 | $160,561 | $154,961 |\n| Mac | 8,046 | 7,009 | 24,982 | 22,240 |\n| iPad | 6,581 | 7,162 | 21,071 | 19,744 |\n| Wearables, Home and Accessories | 7,404 | 8,097 | 26,673 | 27,963 |\n| Services | 27,423 | 24,213 | 80,408 | 71,197 |\n| Total net sales | $94,036 | $85,777 | $313,695 | $296,105 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "AAPL",
+   "cik": 320193,
+   "filing_date": "2025-10-30",
+   "accession_number": "0000320193-25-000077",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000077/a8-kex991q4202509272025.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000077/a8-kex991q4202509272025.htm",
+     "file": "0000320193-25-000077.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended September 27, 2025 | Three Months Ended September 28, 2024 | Twelve Months Ended September 27, 2025 | Twelve Months Ended September 28, 2024 |\n| --- | --- | --- | --- | --- |\n| Net sales: |  |  |  |  |\n| Products | $73,716 | $69,958 | $307,003 | $294,866 |\n| Services | 28,750 | 24,972 | 109,158 | 96,169 |\n| Total net sales <sup>(1)</sup> | 102,466 | 94,930 | 416,161 | 391,035 |\n| Cost of sales: |  |  |  |  |\n| Products | 47,019 | 44,566 | 194,116 | 185,233 |\n| Services | 7,106 | 6,485 | 26,844 | 25,119 |\n| Total cost of sales | 54,125 | 51,051 | 220,960 | 210,352 |\n| Gross margin | 48,341 | 43,879 | 195,201 | 180,683 |\n| Operating expenses: |  |  |  |  |\n| Research and development | 8,866 | 7,765 | 34,550 | 31,370 |\n| Selling, general and administrative | 7,048 | 6,523 | 27,601 | 26,097 |\n| Total operating expenses | 15,914 | 14,288 | 62,151 | 57,467 |\n| Operating income | 32,427 | 29,591 | 133,050 | 123,216 |\n| Other income/(expense), net | 377 | 19 | (321) | 269 |\n| Income before provision for income taxes | 32,804 | 29,610 | 132,729 | 123,485 |\n| Provision for income taxes | 5,338 | 14,874 | 20,719 | 29,749 |\n| Net income | $27,466 | $14,736 | $112,010 | $93,736 |\n| Earnings per share: |  |  |  |  |\n| Basic | $1.85 | $0.97 | $7.49 | $6.11 |\n| Diluted | $1.85 | $0.97 | $7.46 | $6.08 |\n| Shares used in computing earnings per share: |  |  |  |  |\n| Basic | 14,815,307 | 15,171,990 | 14,948,500 | 15,343,783 |\n| Diluted | 14,863,609 | 15,242,853 | 15,004,697 | 15,408,095 |\n| <sup>(1)</sup> Net sales by reportable segment: |  |  |  |  |\n| Americas | $44,192 | $41,664 | $178,353 | $167,045 |\n| Europe | 28,703 | 24,924 | 111,032 | 101,328 |\n| Greater China | 14,493 | 15,033 | 64,377 | 66,952 |\n| Japan | 6,636 | 5,926 | 28,703 | 25,052 |\n| Rest of Asia Pacific | 8,442 | 7,383 | 33,696 | 30,658 |\n| Total net sales | $102,466 | $94,930 | $416,161 | $391,035 |\n| <sup>(1)</sup> Net sales by category: |  |  |  |  |\n| iPhone | $49,025 | $46,222 | $209,586 | $201,183 |\n| Mac | 8,726 | 7,744 | 33,708 | 29,984 |\n| iPad | 6,952 | 6,950 | 28,023 | 26,694 |\n| Wearables, Home and Accessories | 9,013 | 9,042 | 35,686 | 37,005 |\n| Services | 28,750 | 24,972 | 109,158 | 96,169 |\n| Total net sales | $102,466 | $94,930 | $416,161 | $391,035 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "AAPL",
+   "cik": 320193,
+   "filing_date": "2026-01-29",
+   "accession_number": "0000320193-26-000005",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000005/a8-kex991q1202612272025.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000005/a8-kex991q1202612272025.htm",
+     "file": "0000320193-26-000005.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended December 27, 2025 | Three Months Ended December 28, 2024 |\n| --- | --- | --- |\n| Net sales: |  |  |\n| Products | $113,743 | $97,960 |\n| Services | 30,013 | 26,340 |\n| Total net sales <sup>(1)</sup> | 143,756 | 124,300 |\n| Cost of sales: |  |  |\n| Products | 67,478 | 59,447 |\n| Services | 7,047 | 6,578 |\n| Total cost of sales | 74,525 | 66,025 |\n| Gross margin | 69,231 | 58,275 |\n| Operating expenses: |  |  |\n| Research and development | 10,887 | 8,268 |\n| Selling, general and administrative | 7,492 | 7,175 |\n| Total operating expenses | 18,379 | 15,443 |\n| Operating income | 50,852 | 42,832 |\n| Other income/(expense), net | 150 | (248) |\n| Income before provision for income taxes | 51,002 | 42,584 |\n| Provision for income taxes | 8,905 | 6,254 |\n| Net income | $42,097 | $36,330 |\n| Earnings per share: |  |  |\n| Basic | $2.85 | $2.41 |\n| Diluted | $2.84 | $2.40 |\n| Shares used in computing earnings per share: |  |  |\n| Basic | 14,748,158 | 15,081,724 |\n| Diluted | 14,810,356 | 15,150,865 |\n| <sup>(1)</sup> Net sales by reportable segment: |  |  |\n| Americas | $58,529 | $52,648 |\n| Europe | 38,146 | 33,861 |\n| Greater China | 25,526 | 18,513 |\n| Japan | 9,413 | 8,987 |\n| Rest of Asia Pacific | 12,142 | 10,291 |\n| Total net sales | $143,756 | $124,300 |\n| <sup>(1)</sup> Net sales by category: |  |  |\n| iPhone | $85,269 | $69,138 |\n| Mac | 8,386 | 8,987 |\n| iPad | 8,595 | 8,088 |\n| Wearables, Home and Accessories | 11,493 | 11,747 |\n| Services | 30,013 | 26,340 |\n| Total net sales | $143,756 | $124,300 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "AAPL",
+   "cik": 320193,
+   "filing_date": "2026-04-30",
+   "accession_number": "0000320193-26-000011",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000011/a8-kex991q2202603282026.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000011/a8-kex991q2202603282026.htm",
+     "file": "0000320193-26-000011.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended March 28, 2026 | Three Months Ended March 29, 2025 | Six Months Ended March 28, 2026 | Six Months Ended March 29, 2025 |\n| --- | --- | --- | --- | --- |\n| Net sales: |  |  |  |  |\n| Products | $80,208 | $68,714 | $193,951 | $166,674 |\n| Services | 30,976 | 26,645 | 60,989 | 52,985 |\n| Total net sales <sup>(1)</sup> | 111,184 | 95,359 | 254,940 | 219,659 |\n| Cost of sales: |  |  |  |  |\n| Products | 49,179 | 44,030 | 116,657 | 103,477 |\n| Services | 7,224 | 6,462 | 14,271 | 13,040 |\n| Total cost of sales | 56,403 | 50,492 | 130,928 | 116,517 |\n| Gross margin | 54,781 | 44,867 | 124,012 | 103,142 |\n| Operating expenses: |  |  |  |  |\n| Research and development | 11,419 | 8,550 | 22,306 | 16,818 |\n| Selling, general and administrative | 7,477 | 6,728 | 14,969 | 13,903 |\n| Total operating expenses | 18,896 | 15,278 | 37,275 | 30,721 |\n| Operating income | 35,885 | 29,589 | 86,737 | 72,421 |\n| Other income/(expense), net | (52) | (279) | 98 | (527) |\n| Income before provision for income taxes | 35,833 | 29,310 | 86,835 | 71,894 |\n| Provision for income taxes | 6,255 | 4,530 | 15,160 | 10,784 |\n| Net income | $29,578 | $24,780 | $71,675 | $61,110 |\n| Earnings per share: |  |  |  |  |\n| Basic | $2.02 | $1.65 | $4.87 | $4.06 |\n| Diluted | $2.01 | $1.65 | $4.85 | $4.05 |\n| Shares used in computing earnings per share: |  |  |  |  |\n| Basic | 14,673,278 | 14,994,082 | 14,710,718 | 15,037,903 |\n| Diluted | 14,725,873 | 15,056,133 | 14,768,115 | 15,103,499 |\n| <sup>(1)</sup> Net sales by reportable segment: |  |  |  |  |\n| Americas | $45,093 | $40,315 | $103,622 | $92,963 |\n| Europe | 28,055 | 24,454 | 66,201 | 58,315 |\n| Greater China | 20,497 | 16,002 | 46,023 | 34,515 |\n| Japan | 8,401 | 7,298 | 17,814 | 16,285 |\n| Rest of Asia Pacific | 9,138 | 7,290 | 21,280 | 17,581 |\n| Total net sales | $111,184 | $95,359 | $254,940 | $219,659 |\n| <sup>(1)</sup> Net sales by category: |  |  |  |  |\n| iPhone | $56,994 | $46,841 | $142,263 | $115,979 |\n| Mac | 8,399 | 7,949 | 16,785 | 16,936 |\n| iPad | 6,914 | 6,402 | 15,509 | 14,490 |\n| Wearables, Home and Accessories | 7,901 | 7,522 | 19,394 | 19,269 |\n| Services | 30,976 | 26,645 | 60,989 | 52,985 |\n| Total net sales | $111,184 | $95,359 | $254,940 | $219,659 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "AAPL",
+   "cik": 320193,
+   "filing_date": "2026-07-30",
+   "accession_number": "0000320193-26-000018",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000018/a8-kex991q3202606272026.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000018/a8-kex991q3202606272026.htm",
+     "file": "0000320193-26-000018.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended June 27, 2026 | Three Months Ended June 28, 2025 | Nine Months Ended June 27, 2026 | Nine Months Ended June 28, 2025 |\n| --- | --- | --- | --- | --- |\n| Net sales: |  |  |  |  |\n| Products | $78,678 | $66,613 | $272,629 | $233,287 |\n| Services | 30,739 | 27,423 | 91,728 | 80,408 |\n| Total net sales <sup>(1)</sup> | 109,417 | 94,036 | 364,357 | 313,695 |\n| Cost of sales: |  |  |  |  |\n| Products | 47,153 | 43,620 | 163,810 | 147,097 |\n| Services | 7,494 | 6,698 | 21,765 | 19,738 |\n| Total cost of sales | 54,647 | 50,318 | 185,575 | 166,835 |\n| Gross margin | 54,770 | 43,718 | 178,782 | 146,860 |\n| Operating expenses: |  |  |  |  |\n| Research and development | 11,729 | 8,866 | 34,035 | 25,684 |\n| Selling, general and administrative | 7,346 | 6,650 | 22,315 | 20,553 |\n| Total operating expenses | 19,075 | 15,516 | 56,350 | 46,237 |\n| Operating income | 35,695 | 28,202 | 122,432 | 100,623 |\n| Other income/(expense), net | 572 | (171) | 670 | (698) |\n| Income before provision for income taxes | 36,267 | 28,031 | 123,102 | 99,925 |\n| Provision for income taxes | 6,478 | 4,597 | 21,638 | 15,381 |\n| Net income | $29,789 | $23,434 | $101,464 | $84,544 |\n| Earnings per share: |  |  |  |  |\n| Basic | $2.03 | $1.57 | $6.91 | $5.64 |\n| Diluted | $2.02 | $1.57 | $6.88 | $5.62 |\n| Shares used in computing earnings per share: |  |  |  |  |\n| Basic | 14,656,110 | 14,902,886 | 14,692,515 | 14,992,898 |\n| Diluted | 14,714,676 | 14,948,179 | 14,750,302 | 15,051,726 |\n| <sup>(1)</sup> Net sales by reportable segment: |  |  |  |  |\n| Americas | $45,781 | $41,198 | $149,403 | $134,161 |\n| Europe | 29,395 | 24,014 | 95,596 | 82,329 |\n| Greater China | 18,816 | 15,369 | 64,839 | 49,884 |\n| Japan | 6,554 | 5,782 | 24,368 | 22,067 |\n| Rest of Asia Pacific | 8,871 | 7,673 | 30,151 | 25,254 |\n| Total net sales | $109,417 | $94,036 | $364,357 | $313,695 |\n| <sup>(1)</sup> Net sales by category: |  |  |  |  |\n| iPhone | $54,252 | $44,582 | $196,515 | $160,561 |\n| Mac | 10,352 | 8,046 | 27,137 | 24,982 |\n| iPad | 6,191 | 6,581 | 21,700 | 21,071 |\n| Wearables, Home and Accessories | 7,883 | 7,404 | 27,277 | 26,673 |\n| Services | 30,739 | 27,423 | 91,728 | 80,408 |\n| Total net sales | $109,417 | $94,036 | $364,357 | $313,695 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "HD",
+   "cik": 354950,
+   "filing_date": "2025-05-20",
+   "accession_number": "0000354950-25-000133",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/354950/000035495025000133/hd_exhibit991x05042025.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/354950/000035495025000133/hd_exhibit991x05042025.htm",
+     "file": "0000354950-25-000133.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| in millions, except per share data | Three Months Ended May 4, 2025 | Three Months Ended April 28, 2024 | % Change |\n| --- | --- | --- | --- |\n| Net sales | $39,856 | $36,418 | 9.4% |\n| Cost of sales | 26,397 | 23,985 | 10.1 |\n| Gross profit | 13,459 | 12,433 | 8.3 |\n| Operating expenses: |  |  |  |\n| Selling, general and administrative | 7,530 | 6,667 | 12.9 |\n| Depreciation and amortization | 796 | 687 | 15.9 |\n| Total operating expenses | 8,326 | 7,354 | 13.2 |\n| Operating income | 5,133 | 5,079 | 1.1 |\n| Interest and other (income) expense: |  |  |  |\n| Interest income and other, net | (24) | (57) | (57.9) |\n| Interest expense | 615 | 485 | 26.8 |\n| Interest and other, net | 591 | 428 | 38.1 |\n| Earnings before provision for income taxes | 4,542 | 4,651 | (2.3) |\n| Provision for income taxes | 1,109 | 1,051 | 5.5 |\n| Net earnings | $3,433 | $3,600 | (4.6)% |\n| Basic weighted average common shares | 992 | 989 | 0.3% |\n| Basic earnings per share | $3.46 | $3.64 | (4.9) |\n| Diluted weighted average common shares | 994 | 992 | 0.2% |\n| Diluted earnings per share | $3.45 | $3.63 | (5.0) |\n|  | Three Months Ended |  |  |\n| Selected Sales Data <sup>(1)</sup> | May 4, 2025 | April 28, 2024 | % Change |\n| Customer transactions (in millions) | 394.8 | 386.8 | 2.1% |\n| Average ticket | $90.71 | $90.68 | \u2014 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "HD",
+   "cik": 354950,
+   "filing_date": "2025-08-19",
+   "accession_number": "0000354950-25-000195",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/354950/000035495025000195/hd_exhibit991x08032025.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/354950/000035495025000195/hd_exhibit991x08032025.htm",
+     "file": "0000354950-25-000195.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| in millions, except per share data | Three Months Ended August 3, 2025 | Three Months Ended July 28, 2024 | % Change | Six Months Ended August 3, 2025 | Six Months Ended July 28, 2024 | % Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| Net sales | $45,277 | $43,175 | 4.9% | $85,133 | $79,593 | 7.0% |\n| Cost of sales | 30,152 | 28,759 | 4.8 | 56,549 | 52,744 | 7.2 |\n| Gross profit | 15,125 | 14,416 | 4.9 | 28,584 | 26,849 | 6.5 |\n| Operating expenses: |  |  |  |  |  |  |\n| Selling, general and administrative | 7,764 | 7,144 | 8.7 | 15,294 | 13,811 | 10.7 |\n| Depreciation and amortization | 806 | 738 | 9.2 | 1,602 | 1,425 | 12.4 |\n| Total operating expenses | 8,570 | 7,882 | 8.7 | 16,896 | 15,236 | 10.9 |\n| Operating income | 6,555 | 6,534 | 0.3 | 11,688 | 11,613 | 0.6 |\n| Interest and other (income) expense: |  |  |  |  |  |  |\n| Interest income and other, net | (25) | (84) | (70.2) | (49) | (141) | (65.2) |\n| Interest expense | 575 | 573 | 0.3 | 1,190 | 1,058 | 12.5 |\n| Interest and other, net | 550 | 489 | 12.5 | 1,141 | 917 | 24.4 |\n| Earnings before provision for income taxes | 6,005 | 6,045 | (0.7) | 10,547 | 10,696 | (1.4) |\n| Provision for income taxes | 1,454 | 1,484 | (2.0) | 2,563 | 2,535 | 1.1 |\n| Net earnings | $4,551 | $4,561 | (0.2)% | $7,984 | $8,161 | (2.2)% |\n| Basic weighted average common shares | 992 | 990 | 0.2% | 992 | 989 | 0.3% |\n| Basic earnings per share | $4.59 | $4.61 | (0.4) | $8.05 | $8.25 | (2.4) |\n| Diluted weighted average common shares | 994 | 992 | 0.2% | 994 | 992 | 0.2% |\n| Diluted earnings per share | $4.58 | $4.60 | (0.4) | $8.03 | $8.23 | (2.4) |\n|  | Three Months Ended |  |  | Six Months Ended |  |  |\n| Selected sales data: | August 3, 2025 | July 28, 2024 | % Change | August 3, 2025 | July 28, 2024 | % Change |\n| Comparable sales (% change) | 1.0% | (3.3)% | N/A | 0.4% | (3.1)% | N/A |\n| Comparable customer transactions (% change) <sup>(1)</sup> | (0.4)% | (2.2)% | N/A | (0.5)% | (1.9)% | N/A |\n| Comparable average ticket (% change) <sup>(1)</sup> | 1.4% | (1.3)% | N/A | 0.7% | (1.3)% | N/A |\n| Customer transactions (in millions) <sup>(1)</sup> | 446.8 | 451.0 | (0.9)% | 841.6 | 837.8 | 0.5% |\n| Average ticket <sup>(1)</sup> | $90.01 | $88.90 | 1.2 | $90.34 | $89.72 | 0.7 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "HD",
+   "cik": 354950,
+   "filing_date": "2025-11-18",
+   "accession_number": "0000354950-25-000238",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/354950/000035495025000238/hd_exhibit991x11022025.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/354950/000035495025000238/hd_exhibit991x11022025.htm",
+     "file": "0000354950-25-000238.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| in millions, except per share data | Three Months Ended November 2, 2025 | Three Months Ended October 27, 2024 | % Change | Nine Months Ended November 2, 2025 | Nine Months Ended October 27, 2024 | % Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| Net sales | $41,352 | $40,217 | 2.8% | $126,485 | $119,810 | 5.6% |\n| Cost of sales | 27,537 | 26,792 | 2.8 | 84,086 | 79,536 | 5.7 |\n| Gross profit | 13,815 | 13,425 | 2.9 | 42,399 | 40,274 | 5.3 |\n| Operating expenses: |  |  |  |  |  |  |\n| Selling, general and administrative | 7,636 | 7,212 | 5.9 | 22,930 | 21,023 | 9.1 |\n| Depreciation and amortization | 826 | 795 | 3.9 | 2,428 | 2,220 | 9.4 |\n| Total operating expenses | 8,462 | 8,007 | 5.7 | 25,358 | 23,243 | 9.1 |\n| Operating income | 5,353 | 5,418 | (1.2) | 17,041 | 17,031 | 0.1 |\n| Interest and other (income) expense: |  |  |  |  |  |  |\n| Interest income and other, net | (32) | (30) | 6.7 | (81) | (171) | (52.6) |\n| Interest expense | 628 | 625 | 0.5 | 1,818 | 1,683 | 8.0 |\n| Interest and other, net | 596 | 595 | 0.2 | 1,737 | 1,512 | 14.9 |\n| Earnings before provision for income taxes | 4,757 | 4,823 | (1.4) | 15,304 | 15,519 | (1.4) |\n| Provision for income taxes | 1,156 | 1,175 | (1.6) | 3,719 | 3,710 | 0.2 |\n| Net earnings | $3,601 | $3,648 | (1.3)% | $11,585 | $11,809 | (1.9)% |\n| Basic weighted average common shares | 993 | 991 | 0.2% | 992 | 990 | 0.2% |\n| Basic earnings per share | $3.63 | $3.68 | (1.4) | $11.68 | $11.93 | (2.1) |\n| Diluted weighted average common shares | 995 | 993 | 0.2% | 994 | 992 | 0.2% |\n| Diluted earnings per share | $3.62 | $3.67 | (1.4) | $11.65 | $11.90 | (2.1) |\n|  | Three Months Ended |  |  | Nine Months Ended |  |  |\n| Selected sales data: | November 2, 2025 | October 27, 2024 | % Change | November 2, 2025 | October 27, 2024 | % Change |\n| Comparable sales (% change) | 0.2% | (1.3)% | N/A | 0.3% | (2.5)% | N/A |\n| Comparable customer transactions (% change) <sup>(1)</sup> | (1.6)% | (0.6)% | N/A | (0.8)% | (1.5)% | N/A |\n| Comparable average ticket (% change) <sup>(1)</sup> | 1.8% | (0.8)% | N/A | 1.1% | (1.2)% | N/A |\n| Customer transactions (in millions) <sup>(1)</sup> | 393.5 | 399.0 | (1.4)% | 1,235.0 | 1,236.8 | (0.1)% |\n| Average ticket <sup>(1)</sup> | $90.39 | $88.65 | 2.0 | $90.35 | $89.38 | 1.1 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "HD",
+   "cik": 354950,
+   "filing_date": "2026-02-24",
+   "accession_number": "0000354950-26-000026",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/354950/000035495026000026/hd_exhibit991x02012026.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/354950/000035495026000026/hd_exhibit991x02012026.htm",
+     "file": "0000354950-26-000026.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| in millions, except per share data | Three Months Ended <sup>(1)</sup> February 1, 2026 | Three Months Ended <sup>(1)</sup> February 2, 2025 | % Change | Fiscal Year Ended <sup>(2)</sup> February 1, 2026 | Fiscal Year Ended <sup>(2)</sup> February 2, 2025 | % Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| Net sales | $38,198 | $39,704 | (3.8)% | $164,683 | $159,514 | 3.2% |\n| Cost of sales | 25,732 | 26,670 | (3.5) | 109,818 | 106,206 | 3.4 |\n| Gross profit | 12,466 | 13,034 | (4.4) | 54,865 | 53,308 | 2.9 |\n| Operating expenses: |  |  |  |  |  |  |\n| Selling, general and administrative | 7,772 | 7,725 | 0.6 | 30,702 | 28,748 | 6.8 |\n| Depreciation and amortization | 845 | 814 | 3.8 | 3,273 | 3,034 | 7.9 |\n| Total operating expenses | 8,617 | 8,539 | 0.9 | 33,975 | 31,782 | 6.9 |\n| Operating income | 3,849 | 4,495 | (14.4) | 20,890 | 21,526 | (3.0) |\n| Interest and other (income) expense: |  |  |  |  |  |  |\n| Interest income and other, net | (43) | (30) | 43.3 | (124) | (201) | (38.3) |\n| Interest expense | 594 | 638 | (6.9) | 2,412 | 2,321 | 3.9 |\n| Interest and other, net | 551 | 608 | (9.4) | 2,288 | 2,120 | 7.9 |\n| Earnings before provision for income taxes | 3,298 | 3,887 | (15.2) | 18,602 | 19,406 | (4.1) |\n| Provision for income taxes | 727 | 890 | (18.3) | 4,446 | 4,600 | (3.3) |\n| Net earnings | $2,571 | $2,997 | (14.2)% | $14,156 | $14,806 | (4.4)% |\n| Basic weighted average common shares | 993 | 991 | 0.2% | 993 | 990 | 0.3% |\n| Basic earnings per share | $2.59 | $3.02 | (14.2) | $14.26 | $14.96 | (4.7) |\n| Diluted weighted average common shares | 995 | 994 | 0.1% | 995 | 993 | 0.2% |\n| Diluted earnings per share | $2.58 | $3.02 | (14.6) | $14.23 | $14.91 | (4.6) |\n|  | Three Months Ended <sup>(1)</sup> |  |  | Fiscal Year Ended <sup>(2)</sup> |  |  |\n| Selected sales data: | February 1, 2026 | February 2, 2025 | % Change | February 1, 2026 | February 2, 2025 | % Change |\n| Comparable sales (% change) | 0.4% | 0.8% | N/A | 0.3% | (1.8)% | N/A |\n| Comparable customer transactions (% change) <sup>(3)</sup> | (1.6)% | 0.6% | N/A | (1.0)% | (1.0)% | N/A |\n| Comparable average ticket (% change) <sup>(3)</sup> | 2.4% | 0.2% | N/A | 1.4% | (0.9)% | N/A |\n| Customer transactions (in millions) <sup>(3)</sup> | 366.5 | 400.4 | (8.5)% | 1,601.5 | 1,637.2 | (2.2)% |\n| Average ticket <sup>(3)</sup> | $91.28 | $89.11 | 2.4 | $90.56 | $89.31 | 1.4 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "HD",
+   "cik": 354950,
+   "filing_date": "2026-05-19",
+   "accession_number": "0000354950-26-000101",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/354950/000035495026000101/hd_exhibit991x05032026.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/354950/000035495026000101/hd_exhibit991x05032026.htm",
+     "file": "0000354950-26-000101.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| in millions, except per share data | Three Months Ended May 3, 2026 | Three Months Ended May 4, 2025 | % Change |\n| --- | --- | --- | --- |\n| Net sales | $41,765 | $39,856 | 4.8% |\n| Cost of sales | 27,984 | 26,397 | 6.0 |\n| Gross profit | 13,781 | 13,459 | 2.4 |\n| Operating expenses: |  |  |  |\n| Selling, general and administrative | 7,959 | 7,530 | 5.7 |\n| Depreciation and amortization | 841 | 796 | 5.7 |\n| Total operating expenses | 8,800 | 8,326 | 5.7 |\n| Operating income | 4,981 | 5,133 | (3.0) |\n| Interest and other (income) expense: |  |  |  |\n| Interest income and other, net | (7) | (24) | (70.8) |\n| Interest expense | 611 | 615 | (0.7) |\n| Interest and other, net | 604 | 591 | 2.2 |\n| Earnings before provision for income taxes | 4,377 | 4,542 | (3.6) |\n| Provision for income taxes | 1,088 | 1,109 | (1.9) |\n| Net earnings | $3,289 | $3,433 | (4.2)% |\n| Basic weighted average common shares | 994 | 992 | 0.2% |\n| Basic earnings per share | $3.31 | $3.46 | (4.3) |\n| Diluted weighted average common shares | 996 | 994 | 0.2% |\n| Diluted earnings per share | $3.30 | $3.45 | (4.3) |\n|  | Three Months Ended |  |  |\n| Selected sales data: | May 3, 2026 | May 4, 2025 | % Change |\n| Comparable sales (% change) | 0.6% | (0.3)% | N/A |\n| Comparable customer transactions (% change) <sup>(1)</sup> | (1.3)% | (0.5)% | N/A |\n| Comparable average ticket (% change) <sup>(1)</sup> | 2.2% | \u2014% | N/A |\n| Customer transactions (in millions) <sup>(1)</sup> | 391.1 | 394.8 | (0.9)% |\n| Average ticket <sup>(1)</sup> | $92.76 | $90.71 | 2.3 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "HD",
+   "cik": 354950,
+   "filing_date": "2026-08-18",
+   "accession_number": "0000354950-26-000145",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/354950/000035495026000145/hd_exhibit991x08022026.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/354950/000035495026000145/hd_exhibit991x08022026.htm",
+     "file": "0000354950-26-000145.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| in millions, except per share data | Three Months Ended August 2, 2026 | Three Months Ended August 3, 2025 | % Change | Six Months Ended August 2, 2026 | Six Months Ended August 3, 2025 | % Change |\n| --- | --- | --- | --- | --- | --- | --- |\n| Net sales | $47,861 | $45,277 | 5.7% | $89,626 | $85,133 | 5.3% |\n| Cost of sales | 31,746 | 30,152 | 5.3 | 59,730 | 56,549 | 5.6 |\n| Gross profit | 16,115 | 15,125 | 6.5 | 29,896 | 28,584 | 4.6 |\n| Operating expenses: |  |  |  |  |  |  |\n| Selling, general and administrative | 8,424 | 7,764 | 8.5 | 16,383 | 15,294 | 7.1 |\n| Depreciation and amortization | 852 | 806 | 5.7 | 1,693 | 1,602 | 5.7 |\n| Total operating expenses | 9,276 | 8,570 | 8.2 | 18,076 | 16,896 | 7.0 |\n| Operating income | 6,839 | 6,555 | 4.3 | 11,820 | 11,688 | 1.1 |\n| Interest and other (income) expense: |  |  |  |  |  |  |\n| Interest income and other, net | (59) | (25) | N/M | (66) | (49) | 34.7 |\n| Interest expense | 583 | 575 | 1.4 | 1,194 | 1,190 | 0.3 |\n| Interest and other, net | 524 | 550 | (4.7) | 1,128 | 1,141 | (1.1) |\n| Earnings before provision for income taxes | 6,315 | 6,005 | 5.2 | 10,692 | 10,547 | 1.4 |\n| Provision for income taxes | 1,549 | 1,454 | 6.5 | 2,637 | 2,563 | 2.9 |\n| Net earnings | $4,766 | $4,551 | 4.7% | $8,055 | $7,984 | 0.9% |\n| Basic weighted average common shares | 994 | 992 | 0.2% | 994 | 992 | 0.2% |\n| Basic earnings per share | $4.79 | $4.59 | 4.4 | $8.10 | $8.05 | 0.6 |\n| Diluted weighted average common shares | 996 | 994 | 0.2% | 996 | 994 | 0.2% |\n| Diluted earnings per share | $4.79 | $4.58 | 4.6 | $8.09 | $8.03 | 0.7 |\n|  | Three Months Ended |  |  | Six Months Ended |  |  |\n| Selected sales data: | August 2, 2026 | August 3, 2025 | % Change | August 2, 2026 | August 3, 2025 | % Change |\n| Comparable sales (% change) | 1.7% | 1.0% | N/A | 1.2% | 0.4% | N/A |\n| Comparable customer transactions (% change) <sup>(1)</sup> | (1.0)% | (0.4)% | N/A | (1.2)% | (0.5)% | N/A |\n| Comparable average ticket (% change) <sup>(1)</sup> | 2.8% | 1.4% | N/A | 2.5% | 0.7% | N/A |\n| Customer transactions (in millions) <sup>(1)</sup> | 443.2 | 446.8 | (0.8)% | 834.3 | 841.6 | (0.9)% |\n| Average ticket <sup>(1)</sup> | $92.50 | $90.01 | 2.8 | $92.62 | $90.34 | 2.5 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "MSFT",
+   "cik": 789019,
+   "filing_date": "2025-04-30",
+   "accession_number": "0000950170-25-061032",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/789019/000095017025061032/msft-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/789019/000095017025061032/msft-ex99_1.htm",
+     "file": "0000950170-25-061032.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended March 31, 2025 | Three Months Ended March 31, 2024 | Nine Months Ended March 31, 2025 | Nine Months Ended March 31, 2024 |\n| --- | --- | --- | --- | --- |\n| Revenue: |  |  |  |  |\n| Product | $15,319 | $17,080 | $46,810 | $51,556 |\n| Service and other | 54,747 | 44,778 | 158,473 | 128,839 |\n| Total revenue | 70,066 | 61,858 | 205,283 | 180,395 |\n| Cost of revenue: |  |  |  |  |\n| Product | 3,037 | 4,339 | 10,187 | 13,834 |\n| Service and other | 18,882 | 14,166 | 53,630 | 40,596 |\n| Total cost of revenue | 21,919 | 18,505 | 63,817 | 54,430 |\n| Gross margin | 48,147 | 43,353 | 141,466 | 125,965 |\n| Research and development | 8,198 | 7,653 | 23,659 | 21,454 |\n| Sales and marketing | 6,212 | 6,207 | 18,369 | 17,640 |\n| General and administrative | 1,737 | 1,912 | 5,233 | 5,363 |\n| Operating income | 32,000 | 27,581 | 94,205 | 81,508 |\n| Other expense, net | (623) | (854) | (3,194) | (971) |\n| Income before income taxes | 31,377 | 26,727 | 91,011 | 80,537 |\n| Provision for income taxes | 5,553 | 4,788 | 16,412 | 14,437 |\n| Net income | $25,824 | $21,939 | $74,599 | $66,100 |\n| Earnings per share: |  |  |  |  |\n| Basic | $3.47 | $2.95 | $10.03 | $8.90 |\n| Diluted | $3.46 | $2.94 | $9.99 | $8.85 |\n| Weighted average shares outstanding: |  |  |  |  |\n| Basic | 7,434 | 7,431 | 7,434 | 7,431 |\n| Diluted | 7,461 | 7,472 | 7,466 | 7,467 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "MSFT",
+   "cik": 789019,
+   "filing_date": "2025-07-30",
+   "accession_number": "0000950170-25-100226",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/789019/000095017025100226/msft-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/789019/000095017025100226/msft-ex99_1.htm",
+     "file": "0000950170-25-100226.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended June 30, 2025 | Three Months Ended June 30, 2024 | Twelve Months Ended June 30, 2025 | Twelve Months Ended June 30, 2024 |\n| --- | --- | --- | --- | --- |\n| Revenue: |  |  |  |  |\n| Product | $17,136 | $13,217 | $63,946 | $64,773 |\n| Service and other | 59,305 | 51,510 | 217,778 | 180,349 |\n| Total revenue | 76,441 | 64,727 | 281,724 | 245,122 |\n| Cost of revenue: |  |  |  |  |\n| Product | 3,314 | 1,438 | 13,501 | 15,272 |\n| Service and other | 20,700 | 18,246 | 74,330 | 58,842 |\n| Total cost of revenue | 24,014 | 19,684 | 87,831 | 74,114 |\n| Gross margin | 52,427 | 45,043 | 193,893 | 171,008 |\n| Research and development | 8,829 | 8,056 | 32,488 | 29,510 |\n| Sales and marketing | 7,285 | 6,816 | 25,654 | 24,456 |\n| General and administrative | 1,990 | 2,246 | 7,223 | 7,609 |\n| Operating income | 34,323 | 27,925 | 128,528 | 109,433 |\n| Other expense, net | (1,707) | (675) | (4,901) | (1,646) |\n| Income before income taxes | 32,616 | 27,250 | 123,627 | 107,787 |\n| Provision for income taxes | 5,383 | 5,214 | 21,795 | 19,651 |\n| Net income | $27,233 | $22,036 | $101,832 | $88,136 |\n| Earnings per share: |  |  |  |  |\n| Basic | $3.66 | $2.96 | $13.70 | $11.86 |\n| Diluted | $3.65 | $2.95 | $13.64 | $11.80 |\n| Weighted average shares outstanding: |  |  |  |  |\n| Basic | 7,432 | 7,433 | 7,433 | 7,431 |\n| Diluted | 7,461 | 7,472 | 7,465 | 7,469 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "MSFT",
+   "cik": 789019,
+   "filing_date": "2025-10-29",
+   "accession_number": "0001193125-25-256310",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312525256310/msft-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312525256310/msft-ex99_1.htm",
+     "file": "0001193125-25-256310.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312525256310/msft-ex99_2.htm",
+     "file": "0001193125-25-256310_EX-99.2.md",
+     "chosen": false
+    },
+    {
+     "type": "EX-99.3",
+     "description": "EX-99.3",
+     "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312525256310/msft-ex99_3.htm",
+     "file": "0001193125-25-256310_EX-99.3.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended September 30, 2025 | Three Months Ended September 30, 2024 |\n| --- | --- | --- |\n| Revenue: |  |  |\n| Product | $15,922 | $15,272 |\n| Service and other | 61,751 | 50,313 |\n| Total revenue | 77,673 | 65,585 |\n| Cost of revenue: |  |  |\n| Product | 2,922 | 3,294 |\n| Service and other | 21,121 | 16,805 |\n| Total cost of revenue | 24,043 | 20,099 |\n| Gross margin | 53,630 | 45,486 |\n| Research and development | 8,146 | 7,544 |\n| Sales and marketing | 5,717 | 5,717 |\n| General and administrative | 1,806 | 1,673 |\n| Operating income | 37,961 | 30,552 |\n| Other expense, net | (3,660) | (283) |\n| Income before income taxes | 34,301 | 30,269 |\n| Provision for income taxes | 6,554 | 5,602 |\n| Net income | $27,747 | $24,667 |\n| Earnings per share: |  |  |\n| Basic | $3.73 | $3.32 |\n| Diluted | $3.72 | $3.30 |\n| Weighted average shares outstanding: |  |  |\n| Basic | 7,433 | 7,433 |\n| Diluted | 7,466 | 7,470 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "MSFT",
+   "cik": 789019,
+   "filing_date": "2026-01-28",
+   "accession_number": "0001193125-26-027198",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526027198/msft-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526027198/msft-ex99_1.htm",
+     "file": "0001193125-26-027198.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended December 31, 2025 | Three Months Ended December 31, 2024 | Six Months Ended December 31, 2025 | Six Months Ended December 31, 2024 |\n| --- | --- | --- | --- | --- |\n| Revenue: |  |  |  |  |\n| Product | $16,451 | $16,219 | $32,373 | $31,491 |\n| Service and other | 64,822 | 53,413 | 126,573 | 103,726 |\n| Total revenue | 81,273 | 69,632 | 158,946 | 135,217 |\n| Cost of revenue: |  |  |  |  |\n| Product | 3,505 | 3,856 | 6,427 | 7,150 |\n| Service and other | 22,473 | 17,943 | 43,594 | 34,748 |\n| Total cost of revenue | 25,978 | 21,799 | 50,021 | 41,898 |\n| Gross margin | 55,295 | 47,833 | 108,925 | 93,319 |\n| Research and development | 8,504 | 7,917 | 16,650 | 15,461 |\n| Sales and marketing | 6,584 | 6,440 | 12,301 | 12,157 |\n| General and administrative | 1,932 | 1,823 | 3,738 | 3,496 |\n| Operating income | 38,275 | 31,653 | 76,236 | 62,205 |\n| Other income (expense), net | 9,971 | (2,288) | 6,311 | (2,571) |\n| Income before income taxes | 48,246 | 29,365 | 82,547 | 59,634 |\n| Provision for income taxes | 9,788 | 5,257 | 16,342 | 10,859 |\n| Net income | $38,458 | $24,108 | $66,205 | $48,775 |\n| Earnings per share: |  |  |  |  |\n| Basic | $5.18 | $3.24 | $8.91 | $6.56 |\n| Diluted | $5.16 | $3.23 | $8.87 | $6.53 |\n| Weighted average shares outstanding: |  |  |  |  |\n| Basic | 7,431 | 7,435 | 7,432 | 7,434 |\n| Diluted | 7,460 | 7,468 | 7,463 | 7,469 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "MSFT",
+   "cik": 789019,
+   "filing_date": "2026-04-29",
+   "accession_number": "0001193125-26-191457",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526191457/msft-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526191457/msft-ex99_1.htm",
+     "file": "0001193125-26-191457.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| ($ in millions, except per share amounts) | 2026 As Reported (GAAP) | 2026 Adjustment* | 2026 As Adjusted (non-GAAP) | 2025 As Reported (GAAP) | 2025 Adjustment* | 2025 As Adjusted (non-GAAP) | Percentage Change Y/Y GAAP | Percentage Change Y/Y Constant Currency | Percentage Change Y/Y Non-GAAP | Percentage Change Y/Y Non-GAAP Constant Currency |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| Three Months Ended March 31, |  |  |  |  |  |  |  |  |  |  |\n| Net Income | $31,778 | $14 | $31,792 | $25,824 | $583 | $26,407 | 23% | 20% | 20% | 18% |\n| Diluted Earnings per Share | $4.27 | $0.00 | $4.27 | $3.46 | $0.08 | $3.54 | 23% | 21% | 21% | 18% |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "MSFT",
+   "cik": 789019,
+   "filing_date": "2026-07-29",
+   "accession_number": "0001193125-26-323632",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526323632/msft-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526323632/msft-ex99_1.htm",
+     "file": "0001193125-26-323632.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "| ($ in millions, except per share amounts) | 2026 As Reported (GAAP) | 2026 Impact from OpenAI* | 2026 As Adjusted (non-GAAP) | 2025 As Reported (GAAP) | 2025 Impact from OpenAI* | 2025 As Adjusted (non-GAAP) | Percentage Change Y/Y GAAP | Percentage Change Y/Y Constant Currency | Net Impact from OpenAI* | Percentage Change Y/Y Non-GAAP | Percentage Change Y/Y Non-GAAP Constant Currency |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| Three Months Ended June 30, |  |  |  |  |  |  |  |  |  |  |  |\n| Net Income | $35,766 | $(480) | $35,286 | $27,233 | $1,575 | $28,808 | 31% | 31% | $(2,055) | 22% | 22% |\n| Diluted Earnings per Share | $4.81 | $(0.07) | $4.74 | $3.65 | $0.21 | $3.86 | 32% | 32% | $(0.28) | 23% | 23% |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NVDA",
+   "cik": 1045810,
+   "filing_date": "2025-05-28",
+   "accession_number": "0001045810-25-000115",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000115/q1fy26pr.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000115/q1fy26pr.htm",
+     "file": "0001045810-25-000115.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000115/q1fy26cfocommentary.htm",
+     "file": "0001045810-25-000115_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| ($ in millions, except earnings per share) | Q1 FY26 | Q4 FY25 | Q1 FY25 | Q/Q | Y/Y |\n| --- | --- | --- | --- | --- | --- |\n| GAAP |  |  |  |  |  |\n| Revenue | $44,062 | $39,331 | $26,044 | 12% | 69% |\n| Gross margin | 60.5% | 73.0% | 78.4% | (12.5) pts | (17.9) pts |\n| Operating expenses | $5,030 | $4,689 | $3,497 | 7% | 44% |\n| Operating income | $21,638 | $24,034 | $16,909 | (10)% | 28% |\n| Net income | $18,775 | $22,091 | $14,881 | (15)% | 26% |\n| Diluted earnings per share* | $0.76 | $0.89 | $0.60 | (15)% | 27% |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NVDA",
+   "cik": 1045810,
+   "filing_date": "2025-08-27",
+   "accession_number": "0001045810-25-000207",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000207/q2fy26pr.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000207/q2fy26pr.htm",
+     "file": "0001045810-25-000207.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000207/q2fy26cfocommentary.htm",
+     "file": "0001045810-25-000207_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| ($ in millions, except earnings per share) | Q2 FY26 | Q1 FY26 | Q2 FY25 | Q/Q | Y/Y |\n| --- | --- | --- | --- | --- | --- |\n| GAAP |  |  |  |  |  |\n| Revenue | $46,743 | $44,062 | $30,040 | 6% | 56% |\n| Gross margin | 72.4% | 60.5% | 75.1% | 11.9 pts | (2.7) pts |\n| Operating expenses | $5,413 | $5,030 | $3,932 | 8% | 38% |\n| Operating income | $28,440 | $21,638 | $18,642 | 31% | 53% |\n| Net income | $26,422 | $18,775 | $16,599 | 41% | 59% |\n| Diluted earnings per share | $1.08 | $0.76 | $0.67 | 42% | 61% |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NVDA",
+   "cik": 1045810,
+   "filing_date": "2025-11-19",
+   "accession_number": "0001045810-25-000228",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000228/q3fy26pr.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000228/q3fy26pr.htm",
+     "file": "0001045810-25-000228.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581025000228/q3fy26cfocommentary.htm",
+     "file": "0001045810-25-000228_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| ($ in millions, except earnings per share) | Q3 FY26 | Q2 FY26 | Q3 FY25 | Q/Q | Y/Y |\n| --- | --- | --- | --- | --- | --- |\n| GAAP |  |  |  |  |  |\n| Revenue | $57,006 | $46,743 | $35,082 | 22% | 62% |\n| Gross margin | 73.4% | 72.4% | 74.6% | 1.0 pts | (1.2) pts |\n| Operating expenses | $5,839 | $5,413 | $4,287 | 8% | 36% |\n| Operating income | $36,010 | $28,440 | $21,869 | 27% | 65% |\n| Net income | $31,910 | $26,422 | $19,309 | 21% | 65% |\n| Diluted earnings per share | $1.30 | $1.08 | $0.78 | 20% | 67% |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NVDA",
+   "cik": 1045810,
+   "filing_date": "2026-02-25",
+   "accession_number": "0001045810-26-000019",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000019/q4fy26pr.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000019/q4fy26pr.htm",
+     "file": "0001045810-26-000019.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000019/q4fy26cfocommentary.htm",
+     "file": "0001045810-26-000019_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| ($ in millions, except earnings per share) | Q4 FY26 | Q3 FY26 | Q4 FY25 | Q/Q | Y/Y |\n| --- | --- | --- | --- | --- | --- |\n| GAAP |  |  |  |  |  |\n| Revenue | $68,127 | $57,006 | $39,331 | 20% | 73% |\n| Gross margin | 75.0% | 73.4% | 73.0% | 1.6 pts | 2.0 pts |\n| Operating expenses | $6,794 | $5,839 | $4,689 | 16% | 45% |\n| Operating income | $44,299 | $36,010 | $24,034 | 23% | 84% |\n| Net income | $42,960 | $31,910 | $22,091 | 35% | 94% |\n| Diluted earnings per share | $1.76 | $1.30 | $0.89 | 35% | 98% |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NVDA",
+   "cik": 1045810,
+   "filing_date": "2026-05-20",
+   "accession_number": "0001045810-26-000051",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000051/q1fy27pr.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000051/q1fy27pr.htm",
+     "file": "0001045810-26-000051.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000051/q1fy27cfocommentary.htm",
+     "file": "0001045810-26-000051_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| ($ in millions, except earnings per share) | Q1 FY27 | Q4 FY26 | Q1 FY26 | Q/Q | Y/Y |\n| --- | --- | --- | --- | --- | --- |\n| GAAP |  |  |  |  |  |\n| Revenue | $81,615 | $68,127 | $44,062 | 20% | 85% |\n| Gross margin | 74.9% | 75.0% | 60.5% | (0.1) pts | 14.4 pts |\n| Operating expenses | $7,621 | $6,794 | $5,030 | 12% | 52% |\n| Operating income | $53,536 | $44,299 | $21,638 | 21% | 147% |\n| Net income | $58,321 | $42,960 | $18,775 | 36% | 211% |\n| Diluted earnings per share | $2.39 | $1.76 | $0.76 | 36% | 214% |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NVDA",
+   "cik": 1045810,
+   "filing_date": "2026-08-26",
+   "accession_number": "0001045810-26-000073",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000073/q2fy27pr.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000073/q2fy27pr.htm",
+     "file": "0001045810-26-000073.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "EX-99.2",
+     "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000073/q2fy27cfocommentary.htm",
+     "file": "0001045810-26-000073_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| ($ in millions, except earnings per share) | Q2 FY27 | Q1 FY27 | Q2 FY26 | Q/Q | Y/Y |\n| --- | --- | --- | --- | --- | --- |\n| GAAP |  |  |  |  |  |\n| Revenue | $96,221 | $81,615 | $46,743 | 18% | 106% |\n| Gross margin | 75.0% | 74.9% | 72.4% | 0.1 pts | 2.6 pts |\n| Operating expenses | $8,408 | $7,621 | $5,413 | 10% | 55% |\n| Operating income | $63,734 | $53,536 | $28,440 | 19% | 124% |\n| Net income | $59,688 | $58,321 | $26,422 | 2% | 126% |\n| Diluted earnings per share | $2.46 | $2.39 | $1.08 | 3% | 128% |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NFLX",
+   "cik": 1065280,
+   "filing_date": "2025-04-17",
+   "accession_number": "0001065280-25-000175",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528025000175/ex991_q125.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528025000175/ex991_q125.htm",
+     "file": "0001065280-25-000175.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended March 31, 2025 | Three Months Ended December 31, 2024 | Three Months Ended March 31, 2024 |\n| --- | --- | --- | --- |\n| Revenues | $10,542,801 | $10,246,513 | $9,370,440 |\n| Cost of revenues | 5,263,147 | 5,767,364 | 4,977,073 |\n| Sales and marketing | 688,370 | 976,204 | 654,340 |\n| Technology and development | 822,823 | 776,505 | 702,473 |\n| General and administrative | 421,462 | 453,674 | 404,020 |\n| Operating income | 3,346,999 | 2,272,766 | 2,632,534 |\n| Other income (expense): |  |  |  |\n| Interest expense | (184,172) | (192,603) | (173,314) |\n| Interest and other income (expense) | 50,899 | 54,105 | 155,359 |\n| Income before income taxes | 3,213,726 | 2,134,268 | 2,614,579 |\n| Provision for income taxes | (323,375) | (265,661) | (282,370) |\n| Net income | $2,890,351 | $1,868,607 | $2,332,209 |\n| Earnings per share: |  |  |  |\n| Basic | $6.76 | $4.37 | $5.40 |\n| Diluted | $6.61 | $4.27 | $5.28 |\n| Weighted-average shares of common stock outstanding: |  |  |  |\n| Basic | 427,270 | 427,716 | 432,090 |\n| Diluted | 436,962 | 437,786 | 441,654 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NFLX",
+   "cik": 1065280,
+   "filing_date": "2025-07-17",
+   "accession_number": "0001065280-25-000322",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528025000322/ex991_q225.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528025000322/ex991_q225.htm",
+     "file": "0001065280-25-000322.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended June 30, 2025 | Three Months Ended March 31, 2025 | Three Months Ended June 30, 2024 | Six Months Ended June 30, 2025 | Six Months Ended June 30, 2024 |\n| --- | --- | --- | --- | --- | --- |\n| Revenues | $11,079,166 | $10,542,801 | $9,559,310 | $21,621,967 | $18,929,750 |\n| Cost of revenues | 5,325,311 | 5,263,147 | 5,174,143 | 10,588,458 | 10,151,216 |\n| Sales and marketing | 713,265 | 688,370 | 644,084 | 1,401,635 | 1,298,424 |\n| Technology and development | 824,683 | 822,823 | 711,254 | 1,647,506 | 1,413,727 |\n| General and administrative | 441,213 | 421,462 | 426,992 | 862,675 | 831,012 |\n| Operating income | 3,774,694 | 3,346,999 | 2,602,837 | 7,121,693 | 5,235,371 |\n| Other income (expense): |  |  |  |  |  |\n| Interest expense | (182,649) | (184,172) | (167,986) | (366,821) | (341,300) |\n| Interest and other income (expense) | 39,630 | 50,899 | 79,005 | 90,529 | 234,364 |\n| Income before income taxes | 3,631,675 | 3,213,726 | 2,513,856 | 6,845,401 | 5,128,435 |\n| Provision for income taxes | (506,262) | (323,375) | (366,550) | (829,637) | (648,920) |\n| Net income | $3,125,413 | $2,890,351 | $2,147,306 | $6,015,764 | $4,479,515 |\n| Earnings per share: |  |  |  |  |  |\n| Basic | $7.35 | $6.76 | $4.99 | $14.11 | $10.39 |\n| Diluted | $7.19 | $6.61 | $4.88 | $13.80 | $10.16 |\n| Weighted-average shares of common stock outstanding: |  |  |  |  |  |\n| Basic | 425,211 | 427,270 | 430,065 | 426,235 | 431,078 |\n| Diluted | 434,883 | 436,962 | 439,739 | 435,917 | 440,697 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NFLX",
+   "cik": 1065280,
+   "filing_date": "2025-10-21",
+   "accession_number": "0001065280-25-000404",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528025000404/ex991_q325.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528025000404/ex991_q325.htm",
+     "file": "0001065280-25-000404.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended September 30, 2025 | Three Months Ended June 30, 2025 | Three Months Ended September 30, 2024 | Nine Months Ended September 30, 2025 | Nine Months Ended September 30, 2024 |\n| --- | --- | --- | --- | --- | --- |\n| Revenues | $11,510,307 | $11,079,166 | $9,824,703 | $33,132,274 | $28,754,453 |\n| Cost of revenues | 6,164,250 | 5,325,311 | 5,119,884 | 16,752,708 | 15,271,100 |\n| Sales and marketing | 786,295 | 713,265 | 642,926 | 2,187,930 | 1,941,350 |\n| Technology and development | 853,584 | 824,683 | 735,063 | 2,501,090 | 2,148,790 |\n| General and administrative | 457,931 | 441,213 | 417,353 | 1,320,606 | 1,248,365 |\n| Operating income | 3,248,247 | 3,774,694 | 2,909,477 | 10,369,940 | 8,144,848 |\n| Other income (expense): |  |  |  |  |  |\n| Interest expense | (175,294) | (182,649) | (184,830) | (542,115) | (526,130) |\n| Interest and other income (expense) | 36,457 | 39,630 | (21,693) | 126,986 | 212,671 |\n| Income before income taxes | 3,109,410 | 3,631,675 | 2,702,954 | 9,954,811 | 7,831,389 |\n| Provision for income taxes | (562,494) | (506,262) | (339,445) | (1,392,131) | (988,365) |\n| Net income | $2,546,916 | $3,125,413 | $2,363,509 | $8,562,680 | $6,843,024 |\n| Earnings per share: |  |  |  |  |  |\n| Basic | $6.00 | $7.35 | $5.52 | $20.12 | $15.91 |\n| Diluted | $5.87 | $7.19 | $5.40 | $19.67 | $15.56 |\n| Weighted-average shares of common stock outstanding: |  |  |  |  |  |\n| Basic | 424,455 | 425,211 | 428,239 | 425,635 | 430,125 |\n| Diluted | 434,039 | 434,883 | 437,898 | 435,284 | 439,757 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NFLX",
+   "cik": 1065280,
+   "filing_date": "2026-01-20",
+   "accession_number": "0001065280-26-000033",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528026000033/ex991_q425.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528026000033/ex991_q425.htm",
+     "file": "0001065280-26-000033.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended December 31, 2025 | Three Months Ended September 30, 2025 | Three Months Ended December 31, 2024 | Twelve Months Ended December 31, 2025 | Twelve Months Ended December 31, 2024 |\n| --- | --- | --- | --- | --- | --- |\n| Revenues | $12,050,762 | $11,510,307 | $10,246,513 | $45,183,036 | $39,000,966 |\n| Cost of revenues | 6,522,621 | 6,164,250 | 5,767,364 | 23,275,329 | 21,038,464 |\n| Sales and marketing | 1,113,376 | 786,295 | 976,204 | 3,301,306 | 2,917,554 |\n| Technology and development | 890,300 | 853,584 | 776,505 | 3,391,390 | 2,925,295 |\n| General and administrative | 567,802 | 457,931 | 453,674 | 1,888,408 | 1,702,039 |\n| Operating income | 2,956,663 | 3,248,247 | 2,272,766 | 13,326,603 | 10,417,614 |\n| Other income (expense): |  |  |  |  |  |\n| Interest expense | (234,395) | (175,294) | (192,603) | (776,510) | (718,733) |\n| Interest and other income | 45,473 | 36,457 | 54,105 | 172,459 | 266,776 |\n| Income before income taxes | 2,767,741 | 3,109,410 | 2,134,268 | 12,722,552 | 9,965,657 |\n| Provision for income taxes | (349,220) | (562,494) | (265,661) | (1,741,351) | (1,254,026) |\n| Net income | $2,418,521 | $2,546,916 | $1,868,607 | $10,981,201 | $8,711,631 |\n| Earnings per share*: |  |  |  |  |  |\n| Basic | $0.57 | $0.60 | $0.44 | $2.58 | $2.03 |\n| Diluted | $0.56 | $0.59 | $0.43 | $2.53 | $1.98 |\n| Weighted-average shares of common stock outstanding*: |  |  |  |  |  |\n| Basic | 4,229,221 | 4,244,553 | 4,277,159 | 4,249,512 | 4,295,191 |\n| Diluted | 4,317,144 | 4,340,392 | 4,377,861 | 4,343,863 | 4,392,608 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NFLX",
+   "cik": 1065280,
+   "filing_date": "2026-04-16",
+   "accession_number": "0001065280-26-000137",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528026000137/ex991_q126.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528026000137/ex991_q126.htm",
+     "file": "0001065280-26-000137.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended March 31, 2026 | Three Months Ended December 31, 2025 | Three Months Ended March 31, 2025 |\n| --- | --- | --- | --- |\n| Revenues | $12,249,757 | $12,050,762 | $10,542,801 |\n| Cost of revenues | 5,888,238 | 6,522,621 | 5,263,147 |\n| Sales and marketing | 842,217 | 1,113,376 | 688,370 |\n| Technology and development | 959,696 | 890,300 | 822,823 |\n| General and administrative | 602,609 | 567,802 | 421,462 |\n| Operating income | 3,956,997 | 2,956,663 | 3,346,999 |\n| Other income (expense): |  |  |  |\n| Interest expense | (262,077) | (234,395) | (184,172) |\n| Interest and other income (expense) | 2,852,166 | 45,473 | 50,899 |\n| Income before income taxes | 6,547,086 | 2,767,741 | 3,213,726 |\n| Provision for income taxes | (1,264,295) | (349,220) | (323,375) |\n| Net income | $5,282,791 | $2,418,521 | $2,890,351 |\n| Earnings per share*: |  |  |  |\n| Basic | $1.25 | $0.57 | $0.68 |\n| Diluted | $1.23 | $0.56 | $0.66 |\n| Weighted-average shares of common stock outstanding*: |  |  |  |\n| Basic | 4,222,787 | 4,229,221 | 4,272,695 |\n| Diluted | 4,298,437 | 4,317,144 | 4,369,623 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "NFLX",
+   "cik": 1065280,
+   "filing_date": "2026-07-16",
+   "accession_number": "0001065280-26-000211",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528026000211/ex991_q226.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1065280/000106528026000211/ex991_q226.htm",
+     "file": "0001065280-26-000211.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended June 30, 2026 | Three Months Ended March 31, 2026 | Three Months Ended June 30, 2025 | Six Months Ended June 30, 2026 | Six Months Ended June 30, 2025 |\n| --- | --- | --- | --- | --- | --- |\n| Revenues | $12,559,938 | $12,249,757 | $11,079,166 | $24,809,695 | $21,621,967 |\n| Cost of revenues | 6,036,965 | 5,888,238 | 5,325,311 | 11,925,203 | 10,588,458 |\n| Sales and marketing | 823,838 | 842,217 | 713,265 | 1,666,055 | 1,401,635 |\n| Technology and development | 1,007,675 | 959,696 | 824,683 | 1,967,371 | 1,647,506 |\n| General and administrative | 498,850 | 602,609 | 441,213 | 1,101,459 | 862,675 |\n| Operating income | 4,192,610 | 3,956,997 | 3,774,694 | 8,149,607 | 7,121,693 |\n| Other income (expense): |  |  |  |  |  |\n| Interest expense | (175,685) | (262,077) | (182,649) | (437,762) | (366,821) |\n| Interest and other income (expense) | 51,661 | 2,852,166 | 39,630 | 2,903,827 | 90,529 |\n| Income before income taxes | 4,068,586 | 6,547,086 | 3,631,675 | 10,615,672 | 6,845,401 |\n| Provision for income taxes | (667,172) | (1,264,295) | (506,262) | (1,931,467) | (829,637) |\n| Net income | $3,401,414 | $5,282,791 | $3,125,413 | $8,684,205 | $6,015,764 |\n| Earnings per share*: |  |  |  |  |  |\n| Basic | $0.81 | $1.25 | $0.74 | $2.06 | $1.41 |\n| Diluted | $0.80 | $1.23 | $0.72 | $2.03 | $1.38 |\n| Weighted-average shares of common stock outstanding*: |  |  |  |  |  |\n| Basic | 4,189,303 | 4,222,787 | 4,252,112 | 4,205,952 | 4,262,347 |\n| Diluted | 4,261,300 | 4,298,437 | 4,348,825 | 4,279,776 | 4,359,167 |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "ORCL",
+   "cik": 1341439,
+   "filing_date": "2025-06-11",
+   "accession_number": "0000950170-25-084831",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1341439/000095017025084831/orcl-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1341439/000095017025084831/orcl-ex99_1.htm",
+     "file": "0000950170-25-084831.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended May 31, 2025 | Three Months Ended May 31, % of Revenues | Three Months Ended May 31, 2024 | Three Months Ended May 31, % of Revenues | % Increase (Decrease) in US $ | % Increase (Decrease) in Constant Currency (1) |\n| --- | --- | --- | --- | --- | --- | --- |\n| REVENUES |  |  |  |  |  |  |\n| Cloud services and license support | $11,698 | 74% | $10,234 | 72% | 14% | 14% |\n| Cloud license and on-premise license | 2,007 | 13% | 1,838 | 13% | 9% | 8% |\n| Hardware | 850 | 5% | 842 | 6% | 1% | 0% |\n| Services | 1,348 | 8% | 1,373 | 9% | (2%) | (2%) |\n| Total revenues | 15,903 | 100% | 14,287 | 100% | 11% | 11% |\n| OPERATING EXPENSES |  |  |  |  |  |  |\n| Cloud services and license support | 3,343 | 21% | 2,522 | 18% | 33% | 32% |\n| Hardware | 252 | 2% | 241 | 2% | 4% | 4% |\n| Services | 1,145 | 7% | 1,160 | 8% | (1%) | (2%) |\n| Sales and marketing | 2,306 | 15% | 2,114 | 15% | 9% | 9% |\n| Research and development | 2,654 | 17% | 2,226 | 15% | 19% | 20% |\n| General and administrative | 467 | 3% | 402 | 3% | 16% | 16% |\n| Amortization of intangible assets | 544 | 3% | 743 | 5% | (27%) | (27%) |\n| Acquisition related and other | 4 | 0% | 101 | 1% | (96%) | (97%) |\n| Restructuring | 79 | 0% | 92 | 0% | (15%) | (16%) |\n| Total operating expenses | 10,794 | 68% | 9,601 | 67% | 12% | 12% |\n| OPERATING INCOME | 5,109 | 32% | 4,686 | 33% | 9% | 7% |\n| Interest expense | (978) | (6%) | (878) | (6%) | 11% | 11% |\n| Non-operating income (expenses), net | 20 | 0% | (26) | 0% | * | * |\n| INCOME BEFORE INCOME TAXES | 4,151 | 26% | 3,782 | 27% | 10% | 8% |\n| Provision for income taxes | 724 | 4% | 639 | 5% | 13% | 11% |\n| NET INCOME | $3,427 | 22% | $3,143 | 22% | 9% | 7% |\n| EARNINGS PER SHARE: |  |  |  |  |  |  |\n| Basic | $1.22 |  | $1.14 |  |  |  |\n| Diluted | $1.19 |  | $1.11 |  |  |  |\n| WEIGHTED AVERAGE COMMON SHARES OUTSTANDING: |  |  |  |  |  |  |\n| Basic | 2,805 |  | 2,753 |  |  |  |\n| Diluted | 2,871 |  | 2,834 |  |  |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "ORCL",
+   "cik": 1341439,
+   "filing_date": "2025-09-09",
+   "accession_number": "0001193125-25-199175",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312525199175/orcl-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312525199175/orcl-ex99_1.htm",
+     "file": "0001193125-25-199175.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended August 31, 2025 | Three Months Ended August 31, % of Revenues | Three Months Ended August 31, 2024 | Three Months Ended August 31, % of Revenues | % Increase (Decrease) in US $ | % Increase (Decrease) in Constant Currency (1) |\n| --- | --- | --- | --- | --- | --- | --- |\n| REVENUES |  |  |  |  |  |  |\n| Cloud | $7,186 | 48% | $5,623 | 42% | 28% | 27% |\n| Software | 5,721 | 38% | 5,766 | 44% | (1%) | (2%) |\n| Hardware | 670 | 5% | 655 | 5% | 2% | 1% |\n| Services | 1,349 | 9% | 1,263 | 9% | 7% | 5% |\n| Total revenues | 14,926 | 100% | 13,307 | 100% | 12% | 11% |\n| OPERATING EXPENSES |  |  |  |  |  |  |\n| Cloud and software | 3,607 | 24% | 2,597 | 19% | 39% | 38% |\n| Hardware | 178 | 1% | 162 | 1% | 10% | 9% |\n| Services | 1,099 | 7% | 1,147 | 9% | (4%) | (5%) |\n| Sales and marketing | 2,063 | 14% | 2,036 | 15% | 1% | 0% |\n| Research and development | 2,491 | 17% | 2,306 | 17% | 8% | 8% |\n| General and administrative | 376 | 2% | 358 | 3% | 5% | 4% |\n| Amortization of intangible assets | 420 | 3% | 624 | 5% | (33%) | (33%) |\n| Acquisition related and other | 13 | 0% | 13 | 0% | 10% | 8% |\n| Restructuring | 402 | 3% | 73 | 1% | 448% | 439% |\n| Total operating expenses | 10,649 | 71% | 9,316 | 70% | 14% | 14% |\n| OPERATING INCOME | 4,277 | 29% | 3,991 | 30% | 7% | 4% |\n| Interest expense | (923) | (6%) | (842) | (6%) | 10% | 10% |\n| Non-operating income, net | 73 | 0% | 20 | 0% | 250% | 286% |\n| INCOME BEFORE INCOME TAXES | 3,427 | 23% | 3,169 | 24% | 8% | 4% |\n| Provision for income taxes (2) | 500 | 3% | 240 | 2% | 108% | 101% |\n| NET INCOME | $2,927 | 20% | $2,929 | 22% | 0% | (4%) |\n| EARNINGS PER SHARE: |  |  |  |  |  |  |\n| Basic | $1.04 |  | $1.06 |  |  |  |\n| Diluted | $1.01 |  | $1.03 |  |  |  |\n| WEIGHTED AVERAGE COMMON SHARES OUTSTANDING: |  |  |  |  |  |  |\n| Basic | 2,826 |  | 2,761 |  |  |  |\n| Diluted | 2,909 |  | 2,851 |  |  |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "ORCL",
+   "cik": 1341439,
+   "filing_date": "2025-12-10",
+   "accession_number": "0001193125-25-314207",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312525314207/orcl-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312525314207/orcl-ex99_1.htm",
+     "file": "0001193125-25-314207.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended November 30, 2025 | Three Months Ended November 30, % of Revenues | Three Months Ended November 30, 2024 | Three Months Ended November 30, % of Revenues | % Increase (Decrease) in US $ | % Increase (Decrease) in Constant Currency (1) |\n| --- | --- | --- | --- | --- | --- | --- |\n| REVENUES |  |  |  |  |  |  |\n| Cloud | $7,977 | 50% | $5,937 | 42% | 34% | 33% |\n| Software | 5,877 | 36% | 6,064 | 44% | (3%) | (5%) |\n| Hardware | 776 | 5% | 728 | 5% | 7% | 5% |\n| Services | 1,428 | 9% | 1,330 | 9% | 7% | 6% |\n| Total revenues | 16,058 | 100% | 14,059 | 100% | 14% | 13% |\n| OPERATING EXPENSES |  |  |  |  |  |  |\n| Cloud and software | 3,990 | 25% | 2,746 | 19% | 45% | 45% |\n| Hardware | 215 | 1% | 172 | 1% | 25% | 23% |\n| Services | 1,169 | 7% | 1,167 | 8% | 0% | (1%) |\n| Sales and marketing | 2,149 | 13% | 2,190 | 16% | (2%) | (3%) |\n| Research and development | 2,561 | 16% | 2,471 | 18% | 4% | 4% |\n| General and administrative | 409 | 3% | 387 | 3% | 6% | 5% |\n| Amortization of intangible assets | 407 | 3% | 591 | 4% | (31%) | (31%) |\n| Acquisition related and other | 21 | 0% | 31 | 0% | (33%) | (35%) |\n| Restructuring | 406 | 3% | 84 | 1% | 387% | 378% |\n| Total operating expenses | 11,327 | 71% | 9,839 | 70% | 15% | 14% |\n| OPERATING INCOME | 4,731 | 29% | 4,220 | 30% | 12% | 9% |\n| Interest expense | (1,057) | (7%) | (866) | (6%) | 22% | 22% |\n| Non-operating income, net | 2,668 | 17% | 36 | 0% | * | * |\n| INCOME BEFORE INCOME TAXES | 6,342 | 39% | 3,390 | 24% | 87% | 82% |\n| Provision for income taxes | 207 | 1% | 239 | 2% | (14%) | (16%) |\n| NET INCOME | $6,135 | 38% | $3,151 | 22% | 95% | 89% |\n| EARNINGS PER SHARE: |  |  |  |  |  |  |\n| Basic | $2.14 |  | $1.13 |  |  |  |\n| Diluted | $2.10 |  | $1.10 |  |  |  |\n| WEIGHTED AVERAGE COMMON SHARES OUTSTANDING: |  |  |  |  |  |  |\n| Basic | 2,864 |  | 2,790 |  |  |  |\n| Diluted | 2,922 |  | 2,869 |  |  |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "ORCL",
+   "cik": 1341439,
+   "filing_date": "2026-03-10",
+   "accession_number": "0001193125-26-100148",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312526100148/orcl-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312526100148/orcl-ex99_1.htm",
+     "file": "0001193125-26-100148.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended February 28, 2026 | Three Months Ended February 28, % of Revenues | Three Months Ended February 28, 2025 | Three Months Ended February 28, % of Revenues | % Increase (Decrease) in US $ | % Increase (Decrease) in Constant Currency (1) |\n| --- | --- | --- | --- | --- | --- | --- |\n| REVENUES |  |  |  |  |  |  |\n| Cloud | $8,914 | 52% | $6,210 | 44% | 44% | 41% |\n| Software | 6,119 | 36% | 5,926 | 42% | 3% | (1%) |\n| Hardware | 714 | 4% | 703 | 5% | 2% | (2%) |\n| Services | 1,443 | 8% | 1,291 | 9% | 12% | 8% |\n| Total revenues | 17,190 | 100% | 14,130 | 100% | 22% | 18% |\n| OPERATING EXPENSES |  |  |  |  |  |  |\n| Cloud and software | 4,776 | 28% | 2,882 | 20% | 66% | 63% |\n| Hardware | 183 | 1% | 197 | 1% | (7%) | (11%) |\n| Services | 1,133 | 7% | 1,116 | 8% | 2% | (2%) |\n| Sales and marketing | 2,052 | 12% | 2,119 | 15% | (3%) | (6%) |\n| Research and development | 2,607 | 15% | 2,429 | 17% | 7% | 7% |\n| General and administrative | 389 | 2% | 390 | 3% | 0% | (2%) |\n| Amortization of intangible assets | 413 | 2% | 548 | 4% | (25%) | (25%) |\n| Acquisition related and other | 20 | 0% | 28 | 0% | (28%) | (27%) |\n| Restructuring | 153 | 1% | 63 | 1% | 142% | 126% |\n| Total operating expenses | 11,726 | 68% | 9,772 | 69% | 20% | 18% |\n| OPERATING INCOME | 5,464 | 32% | 4,358 | 31% | 25% | 19% |\n| Interest expense | (1,180) | (7%) | (892) | (6%) | 32% | 32% |\n| Non-operating income (expenses), net | 132 | 1% | (18) | 0% | * | * |\n| INCOME BEFORE INCOME TAXES | 4,416 | 26% | 3,448 | 25% | 28% | 20% |\n| Provision for income taxes | 695 | 4% | 512 | 4% | 36% | 27% |\n| NET INCOME | $3,721 | 22% | $2,936 | 21% | 27% | 18% |\n| Preferred stock dividends | 22 |  | \u2014 |  |  |  |\n| NET INCOME AVAILABLE TO COMMON SHAREHOLDERS | $3,699 |  | $2,936 |  |  |  |\n| EARNINGS PER SHARE ATTRIBUTABLE TO COMMON SHAREHOLDERS: |  |  |  |  |  |  |\n| Basic | $1.29 |  | $1.05 |  |  |  |\n| Diluted | $1.27 |  | $1.02 |  |  |  |\n| WEIGHTED AVERAGE COMMON SHARES OUTSTANDING: |  |  |  |  |  |  |\n| Basic | 2,874 |  | 2,799 |  |  |  |\n| Diluted | 2,912 |  | 2,874 |  |  |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "ORCL",
+   "cik": 1341439,
+   "filing_date": "2026-06-10",
+   "accession_number": "0001193125-26-265848",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312526265848/orcl-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312526265848/orcl-ex99_1.htm",
+     "file": "0001193125-26-265848.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended May 31, 2026 | Three Months Ended May 31, % of Revenues | Three Months Ended May 31, 2025 | Three Months Ended May 31, % of Revenues | % Increase (Decrease) in US $ | % Increase (Decrease) in Constant Currency (1) |\n| --- | --- | --- | --- | --- | --- | --- |\n| REVENUES |  |  |  |  |  |  |\n| Cloud | $9,913 | 52% | $6,737 | 43% | 47% | 46% |\n| Software | 6,824 | 35% | 6,968 | 44% | (2%) | (3%) |\n| Hardware | 924 | 5% | 850 | 5% | 9% | 7% |\n| Services | 1,523 | 8% | 1,348 | 8% | 13% | 12% |\n| Total revenues | 19,184 | 100% | 15,903 | 100% | 21% | 20% |\n| OPERATING EXPENSES |  |  |  |  |  |  |\n| Cloud and software | 5,224 | 27% | 3,343 | 21% | 56% | 56% |\n| Hardware | 293 | 2% | 252 | 2% | 16% | 13% |\n| Services | 1,155 | 6% | 1,145 | 7% | 1% | 0% |\n| Sales and marketing | 2,068 | 11% | 2,306 | 15% | (10%) | (12%) |\n| Research and development | 2,613 | 14% | 2,654 | 17% | (2%) | (1%) |\n| General and administrative | 444 | 2% | 467 | 3% | (5%) | (5%) |\n| Amortization of intangible assets | 431 | 2% | 544 | 3% | (21%) | (21%) |\n| Restructuring and other | 823 | 4% | 83 | 0% | 899% | 901% |\n| Total operating expenses | 13,051 | 68% | 10,794 | 68% | 21% | 20% |\n| OPERATING INCOME | 6,133 | 32% | 5,109 | 32% | 20% | 18% |\n| Interest expense | (1,438) | (8%) | (978) | (6%) | 47% | 47% |\n| Non-operating income, net | 675 | 4% | 20 | 0% | * | * |\n| INCOME BEFORE INCOME TAXES | 5,370 | 28% | 4,151 | 26% | 29% | 27% |\n| Provision for income taxes | 1,066 | 6% | 724 | 4% | 47% | 45% |\n| NET INCOME | $4,304 | 22% | $3,427 | 22% | 26% | 23% |\n| Preferred stock dividends | 81 |  | \u2014 |  |  |  |\n| NET INCOME AVAILABLE TO COMMON SHAREHOLDERS | $4,223 |  | $3,427 |  |  |  |\n| EARNINGS PER SHARE ATTRIBUTABLE TO COMMON SHAREHOLDERS: |  |  |  |  |  |  |\n| Basic | $1.47 |  | $1.22 |  |  |  |\n| Diluted | $1.45 |  | $1.19 |  |  |  |\n| WEIGHTED AVERAGE COMMON SHARES OUTSTANDING: |  |  |  |  |  |  |\n| Basic | 2,878 |  | 2,805 |  |  |  |\n| Diluted | 2,915 |  | 2,871 |  |  |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "ORCL",
+   "cik": 1341439,
+   "filing_date": "2026-09-10",
+   "accession_number": "0001193125-26-387905",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312526387905/orcl-ex99_1.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "EX-99.1",
+     "url": "https://www.sec.gov/Archives/edgar/data/1341439/000119312526387905/orcl-ex99_1.htm",
+     "file": "0001193125-26-387905.md",
+     "chosen": true
+    }
+   ]
+  },
+  "markdown": "|  | Three Months Ended August 31, 2026 | Three Months Ended August 31, % of Revenues | Three Months Ended August 31, 2025 | Three Months Ended August 31, % of Revenues | % Increase (Decrease) in US $ | % Increase (Decrease) in Constant Currency (1) |\n| --- | --- | --- | --- | --- | --- | --- |\n| REVENUES |  |  |  |  |  |  |\n| Cloud | $11,607 | 60% | $7,186 | 48% | 62% | 61% |\n| Software | 5,550 | 29% | 5,721 | 38% | (3%) | (3%) |\n| Hardware | 774 | 4% | 670 | 5% | 15% | 16% |\n| Services | 1,414 | 7% | 1,349 | 9% | 5% | 5% |\n| Total revenues | 19,345 | 100% | 14,926 | 100% | 30% | 30% |\n| OPERATING EXPENSES |  |  |  |  |  |  |\n| Cloud and software | 6,400 | 33% | 3,607 | 24% | 77% | 78% |\n| Hardware | 281 | 2% | 178 | 1% | 58% | 57% |\n| Services | 1,052 | 5% | 1,099 | 7% | (4%) | (4%) |\n| Sales and marketing | 1,811 | 9% | 2,063 | 14% | (12%) | (12%) |\n| Research and development | 2,401 | 12% | 2,491 | 17% | (4%) | (3%) |\n| General and administrative | 376 | 2% | 376 | 2% | 0% | 0% |\n| Amortization of intangible assets | 202 | 1% | 420 | 3% | (52%) | (52%) |\n| Restructuring and other | 94 | 1% | 415 | 3% | (77%) | (77%) |\n| Total operating expenses | 12,617 | 65% | 10,649 | 71% | 18% | 19% |\n| OPERATING INCOME | 6,728 | 35% | 4,277 | 29% | 57% | 57% |\n| Interest expense | (1,428) | (8%) | (923) | (6%) | 55% | 55% |\n| Non-operating income, net | 307 | 2% | 73 | 0% | 323% | 331% |\n| INCOME BEFORE INCOME TAXES | 5,607 | 29% | 3,427 | 23% | 64% | 63% |\n| Provision for income taxes (2) | 847 | 4% | 500 | 3% | 69% | 69% |\n| NET INCOME | $4,760 | 25% | $2,927 | 20% | 63% | 62% |\n| Preferred stock dividends | 81 |  | \u2014 |  |  |  |\n| NET INCOME AVAILABLE TO COMMON SHAREHOLDERS | $4,679 |  | $2,927 |  |  |  |\n| EARNINGS PER SHARE ATTRIBUTABLE TO COMMON SHAREHOLDERS: |  |  |  |  |  |  |\n| Basic | $1.58 |  | $1.04 |  |  |  |\n| Diluted | $1.56 |  | $1.01 |  |  |  |\n| WEIGHTED AVERAGE COMMON SHARES OUTSTANDING: |  |  |  |  |  |  |\n| Basic | 2,966 |  | 2,826 |  |  |  |\n| Diluted | 3,000 |  | 2,909 |  |  |  |\n",
+  "markdown_is_excerpt": true
+ },
+ {
+  "record": {
+   "ticker": "XOM",
+   "cik": 2115436,
+   "filing_date": "2026-07-31",
+   "accession_number": "0002115436-26-000006",
+   "exhibit": "EX-99.1",
+   "exhibit_url": "https://www.sec.gov/Archives/edgar/data/2115436/000211543626000006/livef8k2q26991.htm",
+   "exhibits": [
+    {
+     "type": "EX-99.1",
+     "description": "NEWS RELEASE",
+     "url": "https://www.sec.gov/Archives/edgar/data/2115436/000211543626000006/livef8k2q26991.htm",
+     "file": "0002115436-26-000006.md",
+     "chosen": true
+    },
+    {
+     "type": "EX-99.2",
+     "description": "INVESTOR RELATIONS DATA SUMMARY",
+     "url": "https://www.sec.gov/Archives/edgar/data/2115436/000211543626000006/livef8k2q26992.htm",
+     "file": "0002115436-26-000006_EX-99.2.md",
+     "chosen": false
+    }
+   ]
+  },
+  "markdown": "| 2Q26 | 1Q26 | Change vs 1Q26 | Dollars in millions (except per share data) | YTD 2026 | YTD 2025 | Change vs YTD 2025 |\n| --- | --- | --- | --- | --- | --- | --- |\n| Results Summary |  |  |  |  |  |  |\n| 14,525 | 4,183 | +10,342 | Earnings (U.S. GAAP) | 18,708 | 14,795 | +3,913 |\n| 14,680 | 8,772 | +5,908 | Adjusted Earnings/(Loss) (non-GAAP) | 23,452 | 14,555 | +8,897 |\n| 3.48 | 1.00 | +2.48 | Earnings Per Common Share (U.S. GAAP) \u00b9 | 4.47 | 3.40 | +1.07 |\n| 3.52 | 2.09 | +1.43 | Adjusted Earnings/(Loss) Per Common Share (non-GAAP) \u00b9 | 5.60 | 3.35 | +2.25 |\n",
+  "markdown_is_excerpt": true
+ }
+]
