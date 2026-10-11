@@ -38,3 +38,16 @@ and the saved releases (`data/releases/`) of the 10-company release run:
 The filter accepts a release if any one of its tables qualifies, so trimming a
 release to the table it accepted gives the same verdict as the whole markdown.
 `tests/fixtures/links_handchecked.csv` is hand-checked and maintained by hand.
+
+Answer-key fixtures (`tests/test_answers.py`), built 2026-10-11 from the cache
+(company facts fetched 2026-10-11) and `data/links.csv`:
+
+| File | Contents |
+| --- | --- |
+| `answers_links.csv` | `data/links.csv` from the linking run, unchanged (61 rows, 60 linked) |
+| `answers_companyfacts.json` | Responses by URL. `company_tickers.json`: the 10 tickers' entries (original keys). One company facts JSON (https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json) per CIK (the 10 tickers plus XOM's predecessor, 34088): top-level fields kept; `facts` cut to `us-gaap`, and within it to the answer tags (Revenues, RevenueFromContractWithCustomerExcludingAssessedTax, NetIncomeLoss, NetIncomeLossAvailableToCommonStockholdersBasic, ProfitLoss, EarningsPerShareDiluted, EarningsPerShareBasicAndDiluted), NetIncomeLossAttributableToNoncontrollingInterest (ProfitLoss's zero condition) and tags named `Revenue...`/`SalesRevenue...`; each tag keeps its label and description and only the facts whose `accn` is a linked filing in `answers_links.csv` (every fact field kept, SEC's order). An answer tag with none keeps its first fact so it is still known (CAT's NetIncomeLoss is only in a DEF 14A; NFLX's NetIncomeLossAvailableToCommonStockholdersBasic is in no linked filing) |
+
+`secbench.answers` gives the same report and the same `answers.csv` on these fixtures
+as on the full cache. Values are written back as Python floats; every kept value was
+checked to parse to the same decimal as SEC's text.
+`tests/fixtures/answers_handchecked.csv` is hand-checked and maintained by hand.

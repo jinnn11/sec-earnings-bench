@@ -1,0 +1,13 @@
+ticker,linked_accession,field,period_type,expected_value
+AAPL,0000320193-25-000057,revenue,quarter,95359000000
+AAPL,0000320193-25-000057,net_income,quarter,24780000000
+AAPL,0000320193-25-000057,eps_diluted,quarter,1.65
+MSFT,0000950170-25-100235,revenue,full_year,281724000000
+MSFT,0000950170-25-100235,net_income,full_year,101832000000
+MSFT,0000950170-25-100235,eps_diluted,full_year,13.64
+CAT,0000018230-25-000040,revenue,quarter,16569000000
+CAT,0000018230-25-000040,revenue,year_to_date,30818000000
+CAT,0000018230-25-000040,net_income,quarter,2179000000
+CAT,0000018230-25-000040,eps_diluted,quarter,4.62
+XOM,0000034088-26-000093,net_income,quarter,14525000000
+XOM,0000034088-26-000093,eps_diluted,quarter,3.48
