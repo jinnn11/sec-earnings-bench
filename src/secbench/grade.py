@@ -5,7 +5,10 @@ quarter and for the year to date (the full year in a fourth-quarter release), in
 dollars or null. Each figure is graded against data/answers.csv (see
 secbench.answers) only if the answer appears in the release's input text (see
 secbench.inputs); otherwise it is not_in_input and left out of accuracy. A wrong
-figure is classified using the linked filing's other XBRL facts and the input's rows.
+figure is classified using the linked filing's other XBRL facts and the input's rows:
+a figure in another period column of the answer's own row ("1Q26") is a wrong
+period, and a row counts as adjusted by its label, the label-only row above it in its
+table, its column header or the heading above its table.
 
 Usage: uv run python -m secbench.grade runs/<run>/ [--links] [--answers] [--releases]
        uv run python -m secbench.grade --check-inputs [--answers] [--releases]
@@ -106,7 +109,28 @@ UNGRADED = (NOT_IN_INPUT, NO_ANSWER)
 ADJUSTED_LABEL = re.compile(
     r"\badjusted\b|\bnon[-\s]?gaap\b|\bexcluding\b", re.IGNORECASE
 )
+# Says GAAP (not non-GAAP): nearer than an "adjusted" heading, it keeps a row GAAP.
+GAAP_LABEL = re.compile(r"(?<!non-)(?<!non )\bgaap\b", re.IGNORECASE)
 LOSS_LABEL = re.compile(r"\bloss(es)?\b", re.IGNORECASE)
+# A column header naming a period: "1Q26", "YTD 2026", "Three Months Ended June 30".
+PERIOD_HEADER = re.compile(
+    r"\b(19|20)\d\d\b|\b[1-4]Q\d\d\b|\bQ[1-4]\b"
+    r"|\b(quarters?|months?|weeks?|years?|ytd|fiscal|ended)\b",
+    re.IGNORECASE,
+)
+# A word of a period header. Two columns are different periods when their headers
+# differ only in such words ("2Q26"/"1Q26", "Three Months Ended March 29, 2025"/"Six
+# Months Ended March 30, 2024"), not in a measure ("..., Revenue"/"..., Operating
+# Income"), a change ("Change vs 1Q26") or a basis ("GAAP"/"Adjusted").
+PERIOD_WORD = re.compile(
+    r"(19|20)\d\d|\d{1,2}|[1-4]q\d\d|q[1-4]|fy\d{2,4}|ytd|year-to-date|fiscal|full"
+    r"|three|six|nine|twelve|thirteen|fourteen|twenty-six|twenty-seven|thirty-nine"
+    r"|forty|fifty-two|fifty-three|months?|weeks?|ended|ending|quarters?|years?"
+    r"|first|second|third|fourth|jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may"
+    r"|june?|july?|aug(ust)?|sept?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?"
+)
+HEADING_WIDTH = 120  # a longer line above a table is a paragraph, not its heading
+CONTINUED = re.compile(r"\((more|continued)\)", re.IGNORECASE)
 MINUS = "-–−"  # hyphen, en dash, minus sign
 MINUS_CLASS = re.escape(MINUS)  # for use inside [...]
 NUMBER_START = r"(?<![\d,.])"
@@ -261,19 +285,30 @@ class Figure:
     text: str  # as shown: "$(1,234)", "95.4 billion"
     value: Decimal  # signed, in the unit shown
     scale: int | None = None  # from a word ("billion"); None if the unit isn't given
+    column: int | None = None  # a table cell's column; None in prose
 
 
 @dataclass(frozen=True)
 class InputRow:
     """A table body row (labelled by its text cells) or a line of prose (labelled by
-    itself)."""
+    itself). A table row also has its table's header row, the nearest label-only
+    row above it in the table (XOM's "Adjusted Earnings/(Loss) (non-GAAP)") and the
+    heading above the table."""
 
     label: str
     line: str
     figures: tuple[Figure, ...]
+    header: tuple[str, ...] = ()  # header cells, by column
+    section: str = ""
+    heading: str = ""
+
+    def column_header(self, figure: Figure) -> str:
+        if figure.column is None or figure.column >= len(self.header):
+            return ""
+        return self.header[figure.column]
 
 
-def cell_figure(cell: str) -> Figure | None:
+def cell_figure(cell: str, column: int | None = None) -> Figure | None:
     text = clean_label(cell)
     if "%" in text:
         return None
@@ -283,7 +318,7 @@ def cell_figure(cell: str) -> Figure | None:
     prefix, number, decimals = match[1], match[2], match[3] or ""
     value = Decimal(number.replace(",", "") + decimals)
     negative = "(" in prefix or any(c in prefix for c in MINUS)
-    return Figure(text, -value if negative else value)
+    return Figure(text, -value if negative else value, None, column)
 
 
 def prose_figures(line: str) -> tuple[Figure, ...]:
@@ -303,25 +338,55 @@ def prose_figures(line: str) -> tuple[Figure, ...]:
     return tuple(figures)
 
 
+def is_heading(text: str) -> bool:
+    """Short, and not a sentence: "RECONCILIATION OF ADJUSTED DILUTED EARNINGS PER
+    SHARE" or "...are as follows:", not "Please see a reconciliation ... pages 12 and
+    13." or a paragraph."""
+    return 0 < len(text) <= HEADING_WIDTH and not text.endswith(".")
+
+
+def table_heading(lines: list[str], start: int) -> str:
+    """The heading above the table whose header row is lines[start]: the first line
+    above it past blank lines, lines without letters (page numbers), footnotes,
+    "(more)" and tables directly above (a table split across pages), if is_heading."""
+    for line in reversed(lines[:start]):
+        text = clean_label(line).lstrip("# ")
+        if (
+            line.startswith("|")
+            or line.lstrip().startswith("<sup>")
+            or not re.search(r"[A-Za-z]", text)
+            or CONTINUED.fullmatch(text)
+        ):
+            continue
+        return text if is_heading(text) else ""
+    return ""
+
+
 def input_rows(text: str) -> list[InputRow]:
     """The input's table body rows and prose lines, in order. Header rows (the first
-    row of each table) and separator rows are skipped."""
+    row of each table) and separator rows are not rows themselves."""
     rows = []
-    in_table = False
-    for line in text.splitlines():
+    lines = text.splitlines()
+    header: tuple[str, ...] | None = None  # None outside a table
+    section = heading = ""
+    for i, line in enumerate(lines):
         if not line.startswith("|"):
-            in_table = False
+            header = None
             if label := clean_label(line):
                 rows.append(InputRow(label, line, prose_figures(line)))
             continue
         cells = [c.strip().replace(r"\|", "|") for c in CELL_SPLIT.split(line)[1:-1]]
-        if not in_table:
-            in_table = True  # the header row
+        if header is None:
+            header = tuple(clean_label(c) for c in cells)
+            section, heading = "", table_heading(lines, i)
             continue
         if all(c == "---" for c in cells):
             continue
-        figures = tuple(f for c in cells if (f := cell_figure(c)))
-        rows.append(InputRow(" ".join(row_labels(cells)), line, figures))
+        figures = tuple(f for j, c in enumerate(cells) if (f := cell_figure(c, j)))
+        label = " ".join(row_labels(cells))
+        rows.append(InputRow(label, line, figures, header, section, heading))
+        if not figures and is_heading(label):
+            section = label
     return rows
 
 
@@ -405,26 +470,105 @@ def describe_fact(fact: Fact) -> str:
     return f"{fact.tag} {period}: {fact.value}"
 
 
-def match_row(
-    predicted: Decimal, field: str, rows: Iterable[InputRow]
+def figure_units(figure: Figure, field: str) -> tuple[int, ...]:
+    """The units a figure may be in: EPS as shown; USD by its scale word, else
+    dollars, thousands or millions (a table's unit isn't parsed from its heading)."""
+    if field == EPS:
+        return (1,) if figure.scale is None else ()
+    return (figure.scale,) if figure.scale else TABLE_UNITS
+
+
+def match_figure(
+    predicted: Decimal, field: str, candidates: Iterable[tuple[InputRow, Figure]]
 ) -> tuple[InputRow, Figure, int] | None:
-    """The first row figure that equals predicted, in the unit shown (USD figures
-    without a scale word are tried in dollars, thousands and millions)."""
-    for row in rows:
-        for figure in row.figures:
-            if field == EPS:
-                units = (1,) if figure.scale is None else ()
-            else:
-                units = (figure.scale,) if figure.scale else TABLE_UNITS
-            for unit in units:
-                if figure.value * unit == predicted:
-                    return row, figure, unit
+    """The first (row, figure) that equals predicted in one of its units."""
+    for row, figure in candidates:
+        for unit in figure_units(figure, field):
+            if figure.value * unit == predicted:
+                return row, figure, unit
     return None
 
 
+def is_period_column(header: str) -> bool:
+    return bool(PERIOD_HEADER.search(header))
+
+
+def header_words(header: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)*", header.lower()))
+
+
+def other_period(header: str, answer_header: str) -> bool:
+    """Whether header names another period than answer_header: they differ, and only
+    in period words."""
+    differ = header_words(header) ^ header_words(answer_header)
+    return bool(differ) and all(PERIOD_WORD.fullmatch(w) for w in differ)
+
+
+def other_period_column(
+    answer: Decimal, predicted: Decimal, field: str, rows: Iterable[InputRow]
+) -> tuple[InputRow, Figure, int] | None:
+    """predicted in another period column of a table row that shows the answer: a
+    period the filing may not tag (XOM's 1Q26 beside 2Q26). The answer's cell must
+    not be adjusted, and the two column headers must differ only in period words, so
+    columns that are measures (Microsoft's "..., Revenue" and "..., Operating
+    Income") don't count. On a loss row showing the answer unsigned, predicted is
+    read the same way."""
+    for row in rows:
+        periods = [f for f in row.figures if is_period_column(row.column_header(f))]
+        if len(periods) < 2:
+            continue
+        flips = (1, -1) if answer < 0 and LOSS_LABEL.search(row.label) else (1,)
+        for unit in figure_units(periods[0], field):
+            for flip in flips:
+                shown = [
+                    row.column_header(f)
+                    for f in periods
+                    if f.value * unit * flip == answer
+                    and adjusted_context(row, f) is None
+                ]
+                for f in periods:
+                    if f.value * unit * flip == predicted and any(
+                        other_period(row.column_header(f), h) for h in shown
+                    ):
+                        return row, f, unit
+    return None
+
+
+def adjusted_context(row: InputRow, figure: Figure) -> tuple[str, str] | None:
+    """What marks a figure as adjusted, as (where, text): the first of the row's
+    label, its section row, its column header and its table's heading that says
+    adjusted, non-GAAP or excluding. None if none does, or if a nearer one says GAAP
+    (Caterpillar's "... - U.S. GAAP" rows under an adjusted-results heading)."""
+    for where, text in (
+        ("label", row.label),
+        ("section", row.section),
+        ("column", row.column_header(figure)),
+        ("heading", row.heading),
+    ):
+        if ADJUSTED_LABEL.search(text):
+            return where, text
+        if GAAP_LABEL.search(text):
+            return None
+    return None
+
+
+def times(figure: Figure, unit: int) -> str:
+    return f" (x{unit:,})" if unit != 1 and figure.scale is None else ""
+
+
 def describe_match(row: InputRow, figure: Figure, unit: int) -> str:
-    times = f" (x{unit:,})" if unit != 1 and figure.scale is None else ""
-    return f"{shorten(row.label, 60)!r}: {figure.text}{times}"
+    context = adjusted_context(row, figure)
+    where = ""
+    if context and context[0] != "label":
+        where = f" ({context[0]} {shorten(context[1], 60)!r})"
+    return f"{shorten(row.label, 60)!r}{where}: {figure.text}{times(figure, unit)}"
+
+
+def describe_column(row: InputRow, figure: Figure, unit: int) -> str:
+    return (
+        f"{shorten(row.column_header(figure), 60)!r} column of "
+        f"{shorten(row.label, 60)!r}: {figure.text}{times(figure, unit)}"
+    )
 
 
 @dataclass(frozen=True)
@@ -473,6 +617,8 @@ def grade_value(
     for fact in others:
         if close(predicted, fact.value, field):
             return Verdict(WRONG_PERIOD, describe_fact(fact))
+    if found := other_period_column(value, predicted, field, rows):
+        return Verdict(WRONG_PERIOD, describe_column(*found))
     if field == NET_INCOME:
         for fact in filing_facts:
             if (fact.tag, fact.unit, fact.start, fact.end) == (
@@ -485,10 +631,11 @@ def grade_value(
     unit = rounding_unit(value, field, predicted)
     if unit is not None:
         return Verdict(ROUNDED, f"answer rounded to {unit:,}")
-    adjusted = [row for row in rows if ADJUSTED_LABEL.search(row.label)]
-    if found := match_row(predicted, field, adjusted):
+    figures = [(row, figure) for row in rows for figure in row.figures]
+    adjusted = [(r, f) for r, f in figures if adjusted_context(r, f)]
+    if found := match_figure(predicted, field, adjusted):
         return Verdict(ADJUSTED, describe_match(*found))
-    if found := match_row(predicted, field, rows):
+    if found := match_figure(predicted, field, figures):
         return Verdict(WRONG_LINE, describe_match(*found))
     return Verdict(OTHER)
 

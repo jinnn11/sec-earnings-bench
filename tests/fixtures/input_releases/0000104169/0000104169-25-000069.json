@@ -1,0 +1,24 @@
+{
+  "ticker": "WMT",
+  "cik": 104169,
+  "filing_date": "2025-05-15",
+  "accession_number": "0000104169-25-000069",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000069/earningsreleasefy26q1.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "PRESS RELEASE",
+      "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000069/earningsreleasefy26q1.htm",
+      "file": "0000104169-25-000069.md",
+      "chosen": true
+    },
+    {
+      "type": "EX-99.2",
+      "description": "EARNINGS PRESENTATION",
+      "url": "https://www.sec.gov/Archives/edgar/data/104169/000010416925000069/earningspresentationfy26.htm",
+      "file": "0000104169-25-000069_EX-99.2.md",
+      "chosen": false
+    }
+  ]
+}

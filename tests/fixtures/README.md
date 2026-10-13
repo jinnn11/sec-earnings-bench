@@ -53,7 +53,7 @@ checked to parse to the same decimal as SEC's text.
 `tests/fixtures/answers_handchecked.csv` is hand-checked and maintained by hand.
 
 Release-input fixtures (`tests/test_inputs.py`, `tests/test_grade.py`), copied
-2026-10-11 byte for byte from `data/releases/`: `input_releases/{cik10}/` holds four
+2026-10-11 byte for byte from `data/releases/`: `input_releases/{cik10}/` holds five
 saved releases, each record (`<accession>.json`) with every exhibit's markdown.
 
 | Release | Why |
@@ -62,3 +62,4 @@ saved releases, each record (`<accession>.json`) with every exhibit's markdown.
 | AAPL `0000320193-25-000055` (Q2 FY25) | Statements in EX-99.1; three- and six-month columns |
 | CAT `0000018230-25-000037` (Q2 2025) | Statements in EX-99.1, plus an EX-99.2 that is not appended |
 | MSFT `0000950170-25-100226` (FY25) | A fourth-quarter release linked to a 10-K |
+| WMT `0000104169-25-000069` (Q1 FY26) | A real noncontrolling interest: "Consolidated net income" 4,639 (ProfitLoss) beside 4,487 attributable to Walmart |

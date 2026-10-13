@@ -16,6 +16,7 @@ from secbench.edgar import EdgarClient, RateLimiter
 from secbench.grade import (
     ADJUSTED,
     CORRECT,
+    GAAP_LABEL,
     GRADED_COLUMNS,
     MISSING,
     NO_ANSWER,
@@ -44,6 +45,7 @@ from secbench.grade import (
     load_answers,
     load_filing_facts,
     load_predictions,
+    other_period,
     precision,
     prose_figures,
 )
@@ -189,7 +191,19 @@ def test_input_rows() -> None:
         "Adjusted diluted EPS (non-GAAP)",
     ]
     assert [f.value for f in rows[2].figures] == [D(14525), D(7082)]
+    assert [f.column for f in rows[2].figures] == [1, 2]
+    assert rows[2].header == (
+        "",
+        "Three Months Ended June 30, 2026",
+        "Three Months Ended June 30, 2025",
+    )
+    assert (
+        rows[2].column_header(rows[2].figures[1]) == "Three Months Ended June 30, 2025"
+    )
+    # The sentence above the table is not its heading.
+    assert (rows[2].section, rows[2].heading) == ("", "")
     assert rows[0].figures == (Figure("$14,525 million", D(14525), 10**6),)
+    assert rows[0].header == ()
 
 
 def test_input_rows_skip_each_tables_header() -> None:
@@ -503,7 +517,6 @@ def test_adjusted_prose(line) -> None:
     ("predicted", "evidence"),
     [
         ("20000000000", "'Operating cash flow': 20,000 (x1,000,000)"),
-        ("7082000000", "'Net income': 7,082 (x1,000,000)"),  # a column without XBRL
         ("116017000000", "'Total revenues': 116,017 (x1,000,000)"),
     ],
 )
@@ -518,12 +531,10 @@ def test_wrong_line_in_prose() -> None:
     )
 
 
-def test_wrong_line_eps_figures_are_not_scaled() -> None:
+def test_eps_figures_are_not_scaled() -> None:
     expected = answer("3.48", "eps_diluted", "EarningsPerShareDiluted")
-    assert verdict("1.64", expected) == grade.Verdict(
-        WRONG_LINE, "'Diluted earnings per share': 1.64"
-    )
-    assert verdict("0.00164", expected).verdict == OTHER
+    assert verdict("3.52", expected).verdict == ADJUSTED
+    assert verdict("0.00352", expected).verdict == OTHER
 
 
 def test_percentages_are_not_figures() -> None:
@@ -550,6 +561,273 @@ def test_scale_before_wrong_line() -> None:
     assert (
         verdict("14525", text=TEXT + "\nWe have 14,525 employees.\n").verdict == SCALE
     )
+
+
+# Another period column of the answer's row
+
+SUMMARY = """| 2Q26 | 1Q26 | Change vs 1Q26 | Dollars in millions | YTD 2026 | YTD 2025 |
+| --- | --- | --- | --- | --- | --- |
+| Results Summary |  |  |  |  |  |
+| 14,525 | 4,183 | 10,342 | Earnings (U.S. GAAP) | 18,708 | 14,795 |
+| 14,680 | 8,772 | 5,908 | Adjusted earnings (non-GAAP) | 23,452 | 14,555 |
+"""
+
+
+@pytest.mark.parametrize(
+    ("predicted", "evidence"),
+    [
+        ("4183000000", "'1Q26' column of 'Earnings (U.S. GAAP)': 4,183 (x1,000,000)"),
+        (
+            "18708000000",
+            "'YTD 2026' column of 'Earnings (U.S. GAAP)': 18,708 (x1,000,000)",
+        ),
+        (
+            "14795000000",
+            "'YTD 2025' column of 'Earnings (U.S. GAAP)': 14,795 (x1,000,000)",
+        ),
+    ],
+)
+def test_other_period_column(predicted, evidence) -> None:
+    assert verdict(predicted, text=SUMMARY) == grade.Verdict(WRONG_PERIOD, evidence)
+
+
+def test_other_period_column_of_the_answers_row_in_text() -> None:
+    expected = answer("3.48", "eps_diluted", "EarningsPerShareDiluted")
+    assert verdict("1.64", expected) == grade.Verdict(
+        WRONG_PERIOD,
+        "'Three Months Ended June 30, 2025' column of 'Diluted earnings per share': "
+        "1.64",
+    )
+    assert verdict("7082000000") == grade.Verdict(
+        WRONG_PERIOD,
+        "'Three Months Ended June 30, 2025' column of 'Net income': 7,082 (x1,000,000)",
+    )
+
+
+def test_xbrl_period_comes_before_a_column() -> None:
+    facts = (fact("NetIncomeLoss", H1, "18708000000"),)
+    assert verdict("18708000000", text=SUMMARY, facts=facts) == grade.Verdict(
+        WRONG_PERIOD, "NetIncomeLoss 2026-01-01..2026-06-30: 18708000000"
+    )
+
+
+def test_change_column_is_not_a_period() -> None:
+    assert verdict("10342000000", text=SUMMARY) == grade.Verdict(
+        WRONG_LINE, "'Earnings (U.S. GAAP)': 10,342 (x1,000,000)"
+    )
+
+
+def test_adjusted_row_is_not_the_answers_row() -> None:
+    # Adjusted earnings equal GAAP this quarter; its other column is still adjusted.
+    text = (
+        "| 2Q26 | 1Q26 | Dollars in millions |\n| --- | --- | --- |\n"
+        "| 14,525 | 8,772 | Adjusted earnings (non-GAAP) |\n"
+    )
+    assert verdict("8772000000", text=text) == grade.Verdict(
+        ADJUSTED, "'Adjusted earnings (non-GAAP)': 8,772 (x1,000,000)"
+    )
+
+
+def test_measure_columns_are_not_periods() -> None:
+    # Microsoft's reconciliation: one period, a column per measure.
+    revenue = answer(
+        "77673000000", "revenue", "RevenueFromContractWithCustomerExcludingAssessedTax"
+    )
+    text = (
+        "| | Three Months Ended September 30, Revenue "
+        "| Three Months Ended September 30, Operating Income |\n| --- | --- | --- |\n"
+        "| 2025 As Reported (GAAP) | $77,673 | $37,961 |\n"
+    )
+    assert verdict("37961000000", revenue, text) == grade.Verdict(
+        WRONG_LINE, "'2025 As Reported (GAAP)': $37,961 (x1,000,000)"
+    )
+    # Caterpillar's: no period in the column headers at all.
+    profit = answer("2179000000")
+    text = (
+        "| | Operating Profit | Profit Before Taxes | Profit |\n| --- | --- | --- | --- |\n"
+        "| Three Months Ended June 30, 2025 - U.S. GAAP | $2,860 | $2,818 | $2,179 |\n"
+    )
+    assert verdict("2818000000", profit, text).verdict == WRONG_LINE
+
+
+def test_basis_columns_are_not_periods() -> None:
+    text = "| | 2026 GAAP | 2026 Adjusted |\n| --- | --- | --- |\n| Net income | 14,525 | 14,680 |"
+    assert verdict("14680000000", text=text) == grade.Verdict(
+        ADJUSTED, "'Net income' (column '2026 Adjusted'): 14,680 (x1,000,000)"
+    )
+
+
+def test_other_period_on_a_loss_row() -> None:
+    loss = answer("-2500000000")
+    text = "| | 2026 | 2025 |\n| --- | --- | --- |\n| Net loss | 2,500 | 1,200 |"
+    assert verdict("-1200000000", loss, text) == grade.Verdict(
+        WRONG_PERIOD, "'2025' column of 'Net loss': 1,200 (x1,000,000)"
+    )
+
+
+def test_prose_has_no_columns() -> None:
+    line = "Net income was $14,525 million versus $7,082 million."
+    assert verdict("7082000000", text=line) == grade.Verdict(
+        WRONG_LINE, f"{line!r}: $7,082 million"
+    )
+
+
+@pytest.mark.parametrize(
+    ("header", "answer_header", "other"),
+    [
+        ("1Q26", "2Q26", True),
+        ("YTD 2026", "2Q26", True),
+        ("Six Months Ended March 30, 2024", "Three Months Ended March 29, 2025", True),
+        ("Q3 FY25", "Q4 FY25", True),
+        ("Fiscal 2025 Q4", "Fiscal 2026 Q3", True),
+        ("Year Ended May 31, 2025", "Year Ended May 31, 2026", True),
+        ("Fourth Quarter 2024", "Full Year 2025", True),
+        (
+            "Three Months Ended September 30, Operating Income",
+            "Three Months Ended September 30, Revenue",
+            False,
+        ),
+        ("Change vs 1Q26", "2Q26", False),
+        ("2026 Adjusted", "2026 GAAP", False),
+        ("Walmart International 2025", "Walmart U.S. 2025", False),
+        ("2Q26", "2Q26", False),
+    ],
+)
+def test_other_period(header, answer_header, other) -> None:
+    assert other_period(header, answer_header) == other
+
+
+# Adjusted by context: section row, column header, heading above the table
+
+SECTIONS = """| | 2Q26 | 1Q26 |
+| --- | --- | --- |
+| Earnings (U.S. GAAP) |  |  |
+| Upstream | 7,927 | 5,737 |
+| Total | 14,525 | 4,183 |
+| Adjusted earnings (non-GAAP) |  |  |
+| Upstream | 9,189 | 6,265 |
+| Total | 14,680 | 8,772 |
+| Volumes |  |  |
+| Production | 4,514 | 4,594 |
+| Please see the reconciliation on page 12. |  |  |
+| Shares | 4,300 | 4,310 |
+"""
+
+
+@pytest.mark.parametrize(
+    ("predicted", "expected"),
+    [
+        (
+            "9189000000",
+            grade.Verdict(
+                ADJUSTED,
+                "'Upstream' (section 'Adjusted earnings (non-GAAP)'): 9,189 (x1,000,000)",
+            ),
+        ),
+        (
+            "8772000000",
+            grade.Verdict(
+                ADJUSTED,
+                "'Total' (section 'Adjusted earnings (non-GAAP)'): 8,772 (x1,000,000)",
+            ),
+        ),
+        # Under the GAAP section.
+        ("7927000000", grade.Verdict(WRONG_LINE, "'Upstream': 7,927 (x1,000,000)")),
+        # A new section ends the adjusted one.
+        ("4514000000", grade.Verdict(WRONG_LINE, "'Production': 4,514 (x1,000,000)")),
+        # A sentence is not a section.
+        ("4300000000", grade.Verdict(WRONG_LINE, "'Shares': 4,300 (x1,000,000)")),
+    ],
+)
+def test_adjusted_by_section_row(predicted, expected) -> None:
+    assert verdict(predicted, text=SECTIONS) == expected
+
+
+def test_input_rows_context() -> None:
+    text = "Adjusted results\n\n7\n\n" + SECTIONS
+    rows = {
+        (r.label, r.figures[0].text if r.figures else ""): r for r in input_rows(text)
+    }
+    upstream = rows["Upstream", "9,189"]
+    assert upstream.header == ("", "2Q26", "1Q26")
+    assert upstream.section == "Adjusted earnings (non-GAAP)"
+    assert upstream.heading == "Adjusted results"
+    assert rows["Upstream", "7,927"].section == "Earnings (U.S. GAAP)"
+    assert rows["Shares", "4,300"].section == "Volumes"
+
+
+def under_heading(lines_above: str, body: str = "| Total | 14,680 |") -> str:
+    return (
+        f"Net income was $14,525 million.\n\n{lines_above}\n\n"
+        f"| | 2026 |\n| --- | --- |\n{body}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("lines_above", "adjusted"),
+    [
+        ("Adjusted earnings", True),
+        ("RECONCILIATION OF ADJUSTED DILUTED EARNINGS PER SHARE", True),
+        ("Reconciliations of adjusted results to GAAP are as follows:", True),
+        ("Non-GAAP Free Cash Flow", True),
+        ("# EX-99.2: Earnings excluding identified items", True),
+        # Past a page number, a footnote and "(more)".
+        ("Adjusted earnings\n\n7\n\n<sup>1</sup> Restated.\n\n(more)", True),
+        # A table split across pages continues under the same heading.
+        ("Adjusted earnings\n\n| | 2025 |\n| --- | --- |\n| Total | 1 |", True),
+        ("Please see a reconciliation of GAAP to non-GAAP measures on page 12.", False),
+        ("Adjusted " + "results " * 20, False),  # a paragraph
+        ("Results summary", False),
+        ("Adjusted earnings\n\nResults summary", False),  # the nearest line only
+    ],
+)
+def test_adjusted_by_heading(lines_above, adjusted) -> None:
+    got = verdict("14680000000", text=under_heading(lines_above))
+    assert got.verdict == (ADJUSTED if adjusted else WRONG_LINE), got.evidence
+
+
+def test_heading_evidence() -> None:
+    assert verdict("14680000000", text=under_heading("Adjusted earnings")) == (
+        grade.Verdict(
+            ADJUSTED, "'Total' (heading 'Adjusted earnings'): 14,680 (x1,000,000)"
+        )
+    )
+
+
+def test_gaap_label_keeps_a_row_gaap() -> None:
+    # Caterpillar's reconciliation under an adjusted-results heading.
+    body = (
+        "| Three Months Ended June 30, 2025 - U.S. GAAP | 2,818 |\n"
+        "| Three Months Ended June 30, 2025 - Adjusted | 2,874 |"
+    )
+    text = under_heading("Reconciliations of adjusted results are as follows:", body)
+    assert verdict("2818000000", text=text).verdict == WRONG_LINE
+    assert verdict("2874000000", text=text) == grade.Verdict(
+        ADJUSTED, "'Three Months Ended June 30, 2025 - Adjusted': 2,874 (x1,000,000)"
+    )
+
+
+def test_gaap_column_keeps_a_row_gaap() -> None:
+    text = (
+        "Net income was $14,525 million.\n\nAdjusted results\n\n"
+        "| | 2026 GAAP |\n| --- | --- |\n| Total | 3,000 |\n"
+    )
+    assert verdict("3000000000", text=text).verdict == WRONG_LINE
+
+
+@pytest.mark.parametrize(
+    ("text", "gaap"),
+    [
+        ("Earnings (U.S. GAAP)", True),
+        ("GAAP net income", True),
+        ("As Reported (GAAP)", True),
+        ("Non-GAAP net income", False),
+        ("non GAAP", False),
+        ("NON-GAAP", False),
+    ],
+)
+def test_gaap_label(text, gaap) -> None:
+    assert bool(GAAP_LABEL.search(text)) == gaap
 
 
 # Predictions
@@ -1041,7 +1319,7 @@ def test_check_inputs_lists_answers_not_in_input(key_dir, tmp_path, capsys) -> N
 
 
 @pytest.fixture(scope="module")
-def handchecked_context(key_dir):
+def fixture_context(key_dir):
     """Answer key, filing facts and input texts for the releases in input_releases."""
     key = load_answers(key_dir / "answers.csv")
     records = release_records(RELEASES)
@@ -1056,6 +1334,52 @@ def handchecked_context(key_dir):
         for r in releases.values()
     }
     return key, releases, facts, texts
+
+
+WMT = "0000104169-25-000069"  # Q1 FY26
+
+
+def grade_real(context, accession: str, field: str, period: str, predicted: str):
+    key, releases, facts, texts = context
+    release = next(r for r in releases.values() if r.release_accession == accession)
+    text = texts[accession]
+    return grade_value(
+        key[accession, field, period],
+        D(predicted),
+        text,
+        input_rows(text),
+        facts.get(release.linked_accession, set()),
+    )
+
+
+def test_real_noncontrolling_interest_wmt(fixture_context) -> None:
+    # Walmart's "Consolidated net income" (4,639) includes $152 million for
+    # noncontrolling interests; the answer is the line attributable to Walmart.
+    assert "| Consolidated net income | 4,639 |" in fixture_context[3][WMT]
+    assert grade_real(fixture_context, WMT, "net_income", "quarter", "4639000000") == (
+        grade.Verdict(
+            NONCONTROLLING_INTEREST, "ProfitLoss 2025-02-01..2025-04-30: 4639000000"
+        )
+    )
+
+
+def test_real_other_period_column_xom(fixture_context) -> None:
+    # The filing tags Q2 and the half years, not the first quarter.
+    assert grade_real(fixture_context, XOM, "net_income", "quarter", "4183000000") == (
+        grade.Verdict(
+            WRONG_PERIOD, "'1Q26' column of 'Earnings (U.S. GAAP)': 4,183 (x1,000,000)"
+        )
+    )
+
+
+def test_real_adjusted_section_xom(fixture_context) -> None:
+    assert grade_real(fixture_context, XOM, "net_income", "quarter", "9189000000") == (
+        grade.Verdict(
+            ADJUSTED,
+            "'Upstream' (section 'Adjusted Earnings/(Loss) (non-GAAP)'): "
+            "9,189 (x1,000,000)",
+        )
+    )
 
 
 def handchecked_rows() -> list:
@@ -1088,9 +1412,9 @@ def test_handchecked_file_is_well_formed() -> None:
 
 
 @pytest.mark.parametrize("expected", handchecked_rows())
-def test_handchecked_grade(expected, handchecked_context) -> None:
+def test_handchecked_grade(expected, fixture_context) -> None:
     assert expected is not None, f"{HANDCHECKED} is missing"
-    key, releases, facts, texts = handchecked_context
+    key, releases, facts, texts = fixture_context
     ticker, accession, field, period = (
         expected[c].strip() for c in HANDCHECKED_COLUMNS[:4]
     )
