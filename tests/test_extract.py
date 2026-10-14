@@ -1,0 +1,814 @@
+import contextlib
+import hashlib
+import io
+import json
+import re
+import threading
+import time
+from collections import Counter
+from collections.abc import Callable
+from decimal import Decimal
+from pathlib import Path
+
+import httpx
+import pytest
+
+from secbench import answers, extract
+from secbench.answers import FIELDS, FULL_YEAR, QUARTER, YEAR_TO_DATE, load_links
+from secbench.edgar import EdgarClient, RateLimiter
+from secbench.extract import (
+    API_ERROR,
+    INVALID_REPLY,
+    OK,
+    OK_AFTER_RETRY,
+    RETRY_MESSAGE,
+    ChatClient,
+    ReplyError,
+    RunError,
+    Settings,
+    SettingsError,
+    estimated_cost,
+    load_prompt,
+    load_settings,
+    parse_reply,
+    percentile,
+    select_releases,
+)
+from secbench.grade import load_answers
+from secbench.inputs import build_input, release_records
+
+FIXTURES = Path(__file__).parent / "fixtures"
+PROMPTS = Path(__file__).parent.parent / "prompts"
+UA = "Test Runner test@example.com"
+LINKS = FIXTURES / "answers_links.csv"
+COMPANYFACTS = FIXTURES / "answers_companyfacts.json"
+RELEASES = FIXTURES / "input_releases"
+
+# A released prompt is never edited; a changed prompt is a new version.
+RELEASED_PROMPTS = {
+    "extract_v1": "f72b85f60da4e5835404b7c0826053c3d8b6f745a5049650a5c699f4e5b02ac0",
+}
+
+AAPL = "0000320193-25-000055"  # Q2 FY25
+CAT = "0000018230-25-000037"  # Q2 2025
+MSFT = "0000950170-25-100226"  # FY25, a 10-K
+WMT = "0000104169-25-000069"  # Q1 FY26
+XOM = "0002115436-26-000006"  # Q2 2026, statements in EX-99.2
+FIXTURE_RELEASES = [AAPL, CAT, MSFT, WMT, XOM]  # links.csv order
+
+KEY = "sk-test-secret"
+ENVIRON = {
+    "MODEL_BASE_URL": "https://models.test/v1/",
+    "MODEL_NAME": "fake-model",
+    "MODEL_API_KEY": KEY,
+    "MODEL_PRICE_INPUT": "3",
+    "MODEL_PRICE_OUTPUT": "15",
+}
+ENDPOINT = "https://models.test/v1/chat/completions"
+SETTINGS = Settings(
+    "https://models.test/v1/", "fake-model", KEY, price_input=3.0, price_output=15.0
+)
+
+REPLY = {
+    "period_end": "2025-03-29",
+    "quarter": {
+        "revenue": 95359000000,
+        "net_income": 24780000000,
+        "eps_diluted": 1.65,
+    },
+    "year_to_date": {"revenue": None, "net_income": None, "eps_diluted": None},
+}
+
+
+# Prompt
+
+
+def test_released_prompts_are_unchanged() -> None:
+    for version, sha256 in RELEASED_PROMPTS.items():
+        text = (PROMPTS / f"{version}.txt").read_bytes()
+        assert hashlib.sha256(text).hexdigest() == sha256, (
+            f"prompts/{version}.txt was edited; restore it and add a new version"
+        )
+
+
+def test_load_prompt() -> None:
+    prompt = load_prompt("extract_v1", PROMPTS)
+    assert prompt.version == "extract_v1"
+    assert prompt.sha256 == RELEASED_PROMPTS["extract_v1"]
+    assert prompt.text.startswith("You read a US company's earnings press release")
+    with pytest.raises(RunError, match="bad prompt version"):
+        load_prompt("../extract_v1", PROMPTS)
+    with pytest.raises(RunError, match="extract_v9.txt not found"):
+        load_prompt("extract_v9", PROMPTS)
+
+
+# Settings
+
+
+def test_load_settings() -> None:
+    settings = load_settings(ENVIRON)
+    assert settings == SETTINGS
+    assert settings.endpoint == ENDPOINT
+    local = load_settings(
+        {"MODEL_BASE_URL": "http://localhost:8000/v1", "MODEL_NAME": "qwen"}
+    )
+    assert (local.api_key, local.price_input, local.price_output) == ("", None, None)
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        (
+            {"MODEL_BASE_URL": "", "MODEL_NAME": " "},
+            "MODEL_BASE_URL and MODEL_NAME not set",
+        ),
+        ({"MODEL_BASE_URL": "ftp://hidden.example"}, "must start with http"),
+        ({"MODEL_PRICE_INPUT": "three"}, "MODEL_PRICE_INPUT is not a number"),
+        ({"MODEL_PRICE_OUTPUT": "-1"}, "MODEL_PRICE_OUTPUT must be 0 or more"),
+    ],
+)
+def test_bad_settings_name_the_setting_not_its_value(changes, message) -> None:
+    with pytest.raises(SettingsError, match=message) as raised:
+        load_settings({**ENVIRON, **changes})
+    for value in changes.values():
+        if value.strip():
+            assert value not in str(raised.value)
+
+
+# Replies
+
+
+def reply_text(**changes) -> str:
+    return json.dumps({**REPLY, **changes})
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        reply_text(),
+        f"```json\n{reply_text()}\n```",
+        f"```\n{reply_text()}\n```\n",
+        f"<think>The quarter ends March 29. {{}}</think>\n\n{reply_text()}",
+    ],
+)
+def test_parse_reply(content) -> None:
+    prediction = parse_reply(content, AAPL)
+    assert prediction.release_accession == AAPL
+    assert str(prediction.period_end) == "2025-03-29"
+    # Exact decimals, not floats.
+    assert prediction.quarter.eps_diluted == Decimal("1.65")
+    assert str(prediction.quarter.eps_diluted) == "1.65"
+    assert prediction.quarter.revenue == Decimal(95359000000)
+    assert prediction.year_to_date.revenue is None
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        ("", "the reply is empty"),
+        (None, "the reply is empty"),
+        (
+            f"Here are the figures: {reply_text()}",
+            "not valid JSON (Expecting value: line 1 column 1 (char 0))",
+        ),
+        ("[]", "not a JSON object"),
+        (
+            reply_text(release_accession=AAPL),
+            "release_accession: Extra inputs are not permitted",
+        ),
+        (
+            reply_text(quarter={**REPLY["quarter"], "revenue": "95,359"}),
+            'quarter.revenue: Input should be a valid decimal (got "95,359")',
+        ),
+        (
+            reply_text().replace("95359000000", "NaN"),
+            "quarter.revenue: Input should be a finite number (got nan)",
+        ),
+        (
+            reply_text(quarter={**REPLY["quarter"], "gross_margin": 0.47}),
+            "quarter.gross_margin: Extra inputs are not permitted (got 0.47)",
+        ),
+        (
+            json.dumps({"period_end": "2025-03-29", "quarter": REPLY["quarter"]}),
+            "year_to_date: Field required",
+        ),
+        (
+            reply_text(period_end="March 29, 2025"),
+            (
+                "period_end: Input should be a valid date or datetime, invalid "
+                'character in year (got "March 29, 2025")'
+            ),
+        ),
+    ],
+)
+def test_parse_reply_errors(content, message) -> None:
+    with pytest.raises(ReplyError) as raised:
+        parse_reply(content, AAPL)
+    assert str(raised.value) == message
+
+
+# Small pieces
+
+
+def test_percentile() -> None:
+    assert percentile([3.0, 1.0, 2.0, 4.0], 50) == 2.0
+    assert percentile([3.0, 1.0, 2.0, 4.0], 95) == 4.0
+    assert percentile([float(n) for n in range(1, 21)], 95) == 19.0
+    assert percentile([5.0], 50) == 5.0
+    assert percentile([], 50) is None
+
+
+def test_estimated_cost() -> None:
+    # 1,000 input tokens at $3 and 100 output tokens at $15 per million.
+    assert estimated_cost(1000, 100, SETTINGS) == pytest.approx(0.0045)
+    unpriced = Settings("https://models.test/v1", "fake-model", price_input=3.0)
+    assert estimated_cost(1000, 100, unpriced) is None
+
+
+def test_select_releases() -> None:
+    linked = load_links(LINKS)[0]
+    accessions = [r.release_accession for r in linked]
+    assert [r.release_accession for r in select_releases(linked)] == accessions
+    xom = select_releases(linked, tickers=["xom"])
+    assert len(xom) == 6 and {r.ticker for r in xom} == {"XOM"}
+    assert [r.release_accession for r in select_releases(linked, limit=2)] == (
+        accessions[:2]
+    )
+    chosen = select_releases(linked, accessions=[XOM, AAPL])
+    assert [r.release_accession for r in chosen] == [AAPL, XOM]  # links.csv order
+    assert select_releases(linked, tickers=["AAPL"], accessions=[XOM, AAPL]) == [
+        chosen[0]
+    ]
+    with pytest.raises(RunError, match="no linked releases for ZZZZ"):
+        select_releases(linked, tickers=["AAPL", "ZZZZ"])
+    with pytest.raises(RunError, match="not linked: 0000000000-00-000000"):
+        select_releases(linked, accessions=["0000000000-00-000000"])
+    with pytest.raises(RunError, match="no linked release matches every filter"):
+        select_releases(linked, tickers=["AAPL"], accessions=[XOM])
+
+
+# HTTP retries (ChatClient alone)
+
+
+def completion(content: str, input_tokens=1000, output_tokens=100) -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": content},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": input_tokens,
+                "completion_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+            },
+        },
+    )
+
+
+def scripted_client(responses: list, settings: Settings = SETTINGS):
+    """A ChatClient whose server answers with responses in order (an exception is
+    raised instead), and the delays it slept."""
+    queue = list(responses)
+    requests: list[httpx.Request] = []
+    slept: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        response = queue.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    chat = ChatClient(
+        settings,
+        transport=httpx.MockTransport(handler),
+        sleep=slept.append,
+        wall_clock=lambda: 0.0,
+    )
+    return chat, requests, slept
+
+
+BODY = {"model": "fake-model", "messages": [], "temperature": 0}
+
+
+def test_chat_client_sends_the_body_and_key() -> None:
+    chat, requests, slept = scripted_client([completion("{}")])
+    exchange = chat.complete(BODY)
+    assert exchange.content == "{}"
+    assert exchange.tokens == (1000, 100)
+    assert exchange.finish_reason == "stop"
+    assert [a["status"] for a in exchange.attempts] == [200]
+    assert str(requests[0].url) == ENDPOINT
+    assert json.loads(requests[0].content) == BODY
+    assert requests[0].headers["Authorization"] == f"Bearer {KEY}"
+    assert slept == []
+
+
+def test_chat_client_without_a_key_sends_no_authorization() -> None:
+    local = Settings("http://localhost:8000/v1", "qwen")
+    chat, requests, _ = scripted_client([completion("{}")], local)
+    chat.complete(BODY)
+    assert str(requests[0].url) == "http://localhost:8000/v1/chat/completions"
+    assert "Authorization" not in requests[0].headers
+
+
+def test_chat_client_honors_retry_after() -> None:
+    chat, _, slept = scripted_client(
+        [httpx.Response(429, headers={"Retry-After": "3"}), completion("{}")]
+    )
+    exchange = chat.complete(BODY)
+    assert exchange.error == ""
+    assert [a["status"] for a in exchange.attempts] == [429, 200]
+    assert slept == [3.0]
+
+
+def test_chat_client_backs_off_on_5xx_and_connection_errors() -> None:
+    chat, _, slept = scripted_client(
+        [
+            httpx.Response(500),
+            httpx.ConnectError("connection refused"),
+            httpx.Response(503),
+            completion("{}"),
+        ]
+    )
+    exchange = chat.complete(BODY)
+    assert exchange.content == "{}"
+    assert [a["status"] for a in exchange.attempts] == [500, None, 503, 200]
+    assert exchange.attempts[1]["error"] == "ConnectError: connection refused"
+    assert len(slept) == 3
+    for delay, base in zip(slept, (1, 2, 4), strict=True):
+        assert base <= delay <= 1.25 * base
+
+
+def test_chat_client_gives_up_after_5_retries() -> None:
+    chat, requests, slept = scripted_client(
+        [httpx.Response(502, json={"error": {"message": "Bad gateway"}})] * 6
+    )
+    exchange = chat.complete(BODY)
+    assert exchange.response is None and not exchange.abort
+    assert exchange.error == "HTTP 502 (Bad gateway), after 6 attempts"
+    assert len(requests) == 6 and len(slept) == 5
+
+
+def test_chat_client_gives_up_on_a_long_retry_after() -> None:
+    chat, requests, slept = scripted_client(
+        [httpx.Response(429, headers={"Retry-After": "300"})]
+    )
+    exchange = chat.complete(BODY)
+    assert exchange.error == "HTTP 429, and the server asked to wait 300s"
+    assert len(requests) == 1 and slept == []
+
+
+def test_chat_client_does_not_retry_other_4xx() -> None:
+    message = "This model's maximum context length is 8192 tokens."
+    chat, requests, slept = scripted_client(
+        [httpx.Response(400, json={"error": {"message": message}})]
+    )
+    exchange = chat.complete(BODY)
+    assert exchange.error == f"HTTP 400 ({message})"
+    assert not exchange.abort
+    assert exchange.attempts[0]["response"] == {"error": {"message": message}}
+    assert len(requests) == 1 and slept == []
+
+
+@pytest.mark.parametrize("status", [401, 403, 404])
+def test_chat_client_aborts_on_a_wrong_key_model_or_url(status) -> None:
+    body = {"error": {"message": "Incorrect API key provided: sk-test-****cret."}}
+    chat, requests, slept = scripted_client([httpx.Response(status, json=body)])
+    exchange = chat.complete(BODY)
+    assert exchange.abort
+    assert exchange.error == (
+        f"HTTP {status}; check MODEL_BASE_URL, MODEL_NAME and MODEL_API_KEY"
+    )
+    # The body may echo part of the key, so it isn't kept.
+    assert [(a["status"], a["response"]) for a in exchange.attempts] == [(status, None)]
+    assert len(requests) == 1 and slept == []
+
+
+def test_chat_client_rejects_a_body_without_choices() -> None:
+    chat, _, _ = scripted_client([httpx.Response(200, json={"error": "overloaded"})])
+    exchange = chat.complete(BODY)
+    assert exchange.response is None
+    assert exchange.error == "HTTP 200 without choices[0].message"
+
+
+# Runs on the input_releases fixtures, with a fake model server
+
+
+def make_client(cache_dir: Path) -> EdgarClient:
+    """An EDGAR client serving answers_companyfacts.json; other URLs 404."""
+    bodies = json.loads(COMPANYFACTS.read_bytes())
+    routes = {url: json.dumps(body).encode() for url, body in bodies.items()}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = routes.get(str(request.url))
+        return (
+            httpx.Response(404) if body is None else httpx.Response(200, content=body)
+        )
+
+    return EdgarClient(
+        UA,
+        cache_dir,
+        transport=httpx.MockTransport(handler),
+        limiter=RateLimiter(8.0, clock=lambda: 0.0, sleep=lambda s: None),
+    )
+
+
+@pytest.fixture(scope="module")
+def key_dir(tmp_path_factory) -> Path:
+    """A folder with answers.csv built from the answers fixtures."""
+    tmp = tmp_path_factory.mktemp("key")
+    with contextlib.redirect_stdout(io.StringIO()):
+        status = answers.main(
+            ["--links", str(LINKS), "--out", str(tmp / "answers.csv")],
+            client=make_client(tmp / "raw"),
+        )
+    assert status == 0
+    return tmp
+
+
+def number(value: Decimal) -> int | float:
+    """A JSON number for value (1.65 is written 1.65)."""
+    return int(value) if value == value.to_integral_value() else float(value)
+
+
+@pytest.fixture(scope="module")
+def perfect_replies(key_dir) -> dict[str, dict]:
+    """Release accession -> a reply that gives every answer in the key."""
+    key = load_answers(key_dir / "answers.csv")
+    replies = {}
+    for release in load_links(LINKS)[0]:
+        if release.release_accession not in FIXTURE_RELEASES:
+            continue
+        year = FULL_YEAR if release.linked_form == "10-K" else YEAR_TO_DATE
+
+        def group(period: str, accession=release.release_accession) -> dict:
+            return {
+                f.name: number(a.value)
+                if (a := key.get((accession, f.name, period)))
+                else None
+                for f in FIELDS
+            }
+
+        replies[release.release_accession] = {
+            "period_end": str(release.period_end),
+            "quarter": group(QUARTER),
+            "year_to_date": group(year),
+        }
+    return replies
+
+
+class FakeModel:
+    """An OpenAI-compatible chat completions server. script(accession, call,
+    body) gives each response; call counts the release's requests from 1."""
+
+    def __init__(self, script: Callable[[str, int, dict], httpx.Response]) -> None:
+        records = release_records(RELEASES)
+        self.accessions = {build_input(records[a]).text: a for a in FIXTURE_RELEASES}
+        self.script = script
+        self.requests: list[httpx.Request] = []
+        self.calls: Counter[str] = Counter()
+        self._lock = threading.Lock()
+
+    def accession(self, request: httpx.Request) -> str:
+        return self.accessions[json.loads(request.content)["messages"][1]["content"]]
+
+    def requests_for(self, accession: str) -> list[httpx.Request]:
+        return [r for r in self.requests if self.accession(r) == accession]
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST" and str(request.url) == ENDPOINT
+        body = json.loads(request.content)
+        accession = self.accession(request)
+        with self._lock:
+            self.requests.append(request)
+            self.calls[accession] += 1
+            call = self.calls[accession]
+        return self.script(accession, call, body)
+
+
+def run(
+    tmp_path: Path,
+    key_dir: Path,
+    model: FakeModel | None,
+    *args: str,
+    environ=ENVIRON,
+) -> int:
+    transport = httpx.MockTransport(model.handler) if model else None
+    argv = [
+        "--accessions",
+        *FIXTURE_RELEASES,
+        "--run-name",
+        "test",
+        "--links",
+        str(LINKS),
+        "--answers",
+        str(key_dir / "answers.csv"),
+        "--releases",
+        str(RELEASES),
+        "--runs-dir",
+        str(tmp_path / "runs"),
+        "--prompts-dir",
+        str(PROMPTS),
+        *args,
+    ]
+    return extract.main(
+        argv,
+        transport=transport,
+        environ=environ,
+        edgar_client=make_client(tmp_path / "raw"),
+        sleep=lambda s: None,
+    )
+
+
+def read_jsonl(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) -> None:
+    model = FakeModel(lambda a, call, body: completion(json.dumps(perfect_replies[a])))
+    assert run(tmp_path, key_dir, model) == 0
+    out = capsys.readouterr().out
+    run_dir = tmp_path / "runs" / "test"
+
+    # Every answer for the five releases is in its input, and all are correct: AAPL,
+    # CAT and XOM quarter and year to date (6 each), MSFT full year (3), WMT Q1
+    # quarter (3).
+    key = load_answers(key_dir / "answers.csv")
+    answerable = sum(1 for a in key.values() if a.release_accession in FIXTURE_RELEASES)
+    assert answerable == 24
+    assert f"accuracy: {answerable}/{answerable} (100.0%)" in out.splitlines()
+    assert "graded 5 releases" in out
+
+    predictions = read_jsonl(run_dir / "predictions.jsonl")
+    assert [p["release_accession"] for p in predictions] == FIXTURE_RELEASES
+    assert predictions[0]["quarter"]["eps_diluted"] == "1.65"
+    assert (run_dir / "graded.csv").is_file() and (run_dir / "summary.txt").is_file()
+
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["status"] == "complete"
+    assert info["model"] == "fake-model"
+    assert info["prompt_version"] == "extract_v1"
+    assert info["prompt_sha256"] == RELEASED_PROMPTS["extract_v1"]
+    assert info["temperature"] == 0
+    assert info["releases"] == 5
+    assert info["outcomes"] == {
+        OK: 5,
+        OK_AFTER_RETRY: 0,
+        INVALID_REPLY: 0,
+        API_ERROR: 0,
+        "aborted": 0,
+    }
+    assert info["fallbacks"] == []
+    assert info["tokens"] == {"input": 5000, "output": 500, "calls_without_usage": 0}
+    # 5,000 input tokens at $3 and 500 output tokens at $15 per million.
+    assert info["estimated_cost_usd"] == 0.0225
+    assert [c["release_accession"] for c in info["calls"]] == FIXTURE_RELEASES
+    assert all(c["status"] == 200 and c["http_attempts"] == 1 for c in info["calls"])
+    assert all(isinstance(c["latency_s"], float) for c in info["calls"])
+    assert info["latency_s"]["p50"] is not None
+
+    raw = json.loads((run_dir / "raw" / f"{XOM}.json").read_text())
+    assert raw["outcome"] == OK
+    assert raw["input_exhibits"] == ["EX-99.1", "EX-99.2"]
+    [call] = raw["calls"]
+    records = release_records(RELEASES)
+    assert call["request"] == {
+        "model": "fake-model",
+        "messages": [
+            {"role": "system", "content": load_prompt("extract_v1", PROMPTS).text},
+            {"role": "user", "content": build_input(records[XOM]).text},
+        ],
+        "temperature": 0,
+    }
+    assert call["attempts"][0]["response"]["choices"][0]["message"]["content"] == (
+        json.dumps(perfect_replies[XOM])
+    )
+    assert "estimated cost: $0.0225 ($3 input, $15 output per million tokens)" in out
+    assert "invalid replies (all-null predictions, graded as missing): 0" in out
+    assert "API errors (all-null predictions, graded as missing): 0" in out
+
+    # The key is sent, and never saved.
+    assert model.requests[0].headers["Authorization"] == f"Bearer {KEY}"
+    for path in run_dir.rglob("*"):
+        if path.is_file():
+            assert KEY not in path.read_text()
+
+
+def test_an_invalid_reply_is_retried_with_its_errors(
+    tmp_path, key_dir, perfect_replies, capsys
+) -> None:
+    def script(accession, call, body) -> httpx.Response:
+        if accession == CAT and call == 1:
+            bad = json.loads(json.dumps(perfect_replies[CAT]))
+            bad["quarter"]["revenue"] = "$16.6 billion"
+            return completion(json.dumps(bad))
+        return completion(json.dumps(perfect_replies[accession]))
+
+    model = FakeModel(script)
+    assert run(tmp_path, key_dir, model) == 0
+    run_dir = tmp_path / "runs" / "test"
+    raw = json.loads((run_dir / "raw" / f"{CAT}.json").read_text())
+    first, second = (call["request"] for call in raw["calls"])
+    assert [json.loads(r.content) for r in model.requests_for(CAT)] == [first, second]
+    error = 'quarter.revenue: Input should be a valid decimal (got "$16.6 billion")'
+    assert second["messages"][:2] == first["messages"]
+    assert second["messages"][2]["role"] == "assistant"
+    assert '"$16.6 billion"' in second["messages"][2]["content"]
+    assert second["messages"][3] == {
+        "role": "user",
+        "content": RETRY_MESSAGE.format(errors=error),
+    }
+    assert raw["outcome"] == OK_AFTER_RETRY
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["outcomes"][OK_AFTER_RETRY] == 1
+    assert [c["call"] for c in info["calls"] if c["release_accession"] == CAT] == [1, 2]
+    assert info["tokens"]["input"] == 6000
+    out = capsys.readouterr().out
+    assert "accuracy: 24/24 (100.0%)" in out.splitlines()
+
+
+def test_two_invalid_replies_give_an_all_null_prediction(
+    tmp_path, key_dir, perfect_replies, capsys
+) -> None:
+    def script(accession, call, body) -> httpx.Response:
+        if accession == AAPL:
+            return completion("The revenue was $95.4 billion.")
+        return completion(json.dumps(perfect_replies[accession]))
+
+    assert run(tmp_path, key_dir, FakeModel(script)) == 0
+    run_dir = tmp_path / "runs" / "test"
+    predictions = read_jsonl(run_dir / "predictions.jsonl")
+    null = {"revenue": None, "net_income": None, "eps_diluted": None}
+    assert predictions[0] == {
+        "release_accession": AAPL,
+        "period_end": "2025-03-29",  # from links.csv
+        "quarter": null,
+        "year_to_date": null,
+    }
+    reason = "not valid JSON (Expecting value: line 1 column 1 (char 0))"
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["fallbacks"] == [
+        {
+            "ticker": "AAPL",
+            "release_accession": AAPL,
+            "outcome": INVALID_REPLY,
+            "reason": reason,
+        }
+    ]
+    out = capsys.readouterr().out.splitlines()
+    i = out.index("invalid replies (all-null predictions, graded as missing): 1")
+    assert out[i + 1] == f"  AAPL {AAPL}: {reason}"
+    assert "API errors (all-null predictions, graded as missing): 0" in out
+    # Graded as missing: AAPL's six answers.
+    graded = (run_dir / "graded.csv").read_text().splitlines()
+    aapl = [line for line in graded if AAPL in line]
+    assert len(aapl) == 6 and all(",missing," in line for line in aapl)
+
+
+def test_api_errors_are_missing_and_listed_for_a_rerun(
+    tmp_path, key_dir, perfect_replies, capsys
+) -> None:
+    too_long = "This model's maximum context length is 32768 tokens."
+
+    def script(accession, call, body) -> httpx.Response:
+        if accession == CAT:
+            return httpx.Response(400, json={"error": {"message": too_long}})
+        if accession == XOM:
+            return httpx.Response(500)
+        return completion(json.dumps(perfect_replies[accession]))
+
+    model = FakeModel(script)
+    assert run(tmp_path, key_dir, model) == 1
+    assert model.calls == {AAPL: 1, CAT: 1, MSFT: 1, WMT: 1, XOM: 6}
+    run_dir = tmp_path / "runs" / "test"
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["outcomes"][API_ERROR] == 2
+    assert [(f["release_accession"], f["reason"]) for f in info["fallbacks"]] == [
+        (CAT, f"HTTP 400 ({too_long})"),
+        (XOM, "HTTP 500, after 6 attempts"),
+    ]
+    xom = [c for c in info["calls"] if c["release_accession"] == XOM]
+    assert [(c["status"], c["http_attempts"]) for c in xom] == [(500, 6)]
+    # Tokens and cost count only the answered calls.
+    assert info["tokens"] == {"input": 3000, "output": 300, "calls_without_usage": 0}
+    out = capsys.readouterr().out.splitlines()
+    i = out.index("API errors (all-null predictions, graded as missing): 2")
+    assert out[i + 1 : i + 4] == [
+        f"  CAT {CAT}: HTTP 400 ({too_long})",
+        f"  XOM {XOM}: HTTP 500, after 6 attempts",
+        f"rerun the API errors: uv run python -m secbench.extract --accessions {CAT} {XOM}",
+    ]
+    assert len(read_jsonl(run_dir / "predictions.jsonl")) == 5
+    graded = (run_dir / "graded.csv").read_text().splitlines()
+    assert all(",missing," in line for line in graded if CAT in line)
+
+
+def test_a_wrong_key_stops_the_run(tmp_path, key_dir, capsys) -> None:
+    model = FakeModel(lambda a, call, body: httpx.Response(401))
+    assert run(tmp_path, key_dir, model) == 1
+    # The first four calls were in flight; the fifth never started.
+    assert len(model.requests) == 4
+    run_dir = tmp_path / "runs" / "test"
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["status"] == "aborted"
+    assert info["outcomes"]["aborted"] == 4
+    assert info["stop_reason"] == (
+        "HTTP 401; check MODEL_BASE_URL, MODEL_NAME and MODEL_API_KEY"
+    )
+    assert len(list((run_dir / "raw").glob("*.json"))) == 4
+    assert not (run_dir / "predictions.jsonl").exists()
+    assert not (run_dir / "graded.csv").exists()
+    out = capsys.readouterr().out
+    assert "stopped, not graded: HTTP 401; check MODEL_BASE_URL" in out
+
+
+def test_at_most_four_calls_at_once(tmp_path, key_dir, perfect_replies) -> None:
+    # The first four calls wait for each other, so all four must be in flight at
+    # once (a smaller pool times out). They then stay in flight long enough for a
+    # fifth to start if the pool allowed it; it may start only when one finishes.
+    barrier = threading.Barrier(4, timeout=10)
+    lock = threading.Lock()
+    state = {"now": 0, "max": 0, "started": 0}
+
+    def script(accession, call, body) -> httpx.Response:
+        with lock:
+            state["now"] += 1
+            state["started"] += 1
+            state["max"] = max(state["max"], state["now"])
+            first_four = state["started"] <= 4
+        if first_four:
+            barrier.wait()
+            time.sleep(0.2)
+        with lock:
+            state["now"] -= 1
+        return completion(json.dumps(perfect_replies[accession]))
+
+    model = FakeModel(script)
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert run(tmp_path, key_dir, model) == 0
+    assert state["max"] == 4
+    assert sorted(model.calls) == sorted(FIXTURE_RELEASES)
+
+
+def refuse(accession: str, call: int, body: dict) -> httpx.Response:
+    raise AssertionError("a call was made")
+
+
+def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:
+    model = FakeModel(refuse)
+    assert run(tmp_path, key_dir, model, "--dry-run", environ={}) == 0
+    assert model.requests == []
+    assert not (tmp_path / "runs").exists()
+    out = capsys.readouterr().out
+    records = release_records(RELEASES)
+    text = build_input(records[AAPL]).text
+    lines = out.splitlines()
+    assert lines[0] == (
+        f"dry run: AAPL {AAPL} (1 of 5 selected releases); input EX-99.1, "
+        f"{len(text):,} characters"
+    )
+    assert lines[1] == (
+        "POST <MODEL_BASE_URL>/chat/completions, model <MODEL_NAME>, temperature 0"
+    )
+    assert re.fullmatch(
+        r"=== system: .*extract_v1\.txt \(sha256 f72b85f60da4\) ===", lines[2]
+    )
+    prompt = load_prompt("extract_v1", PROMPTS).text
+    assert (
+        out
+        == "\n".join(
+            [
+                *lines[:3],
+                prompt.rstrip("\n"),
+                "=== user: the release input ===",
+                text.rstrip("\n"),
+                "=== end of request; no call made ===",
+            ]
+        )
+        + "\n"
+    )
+
+
+def test_missing_settings_stop_before_any_call(tmp_path, key_dir, capsys) -> None:
+    model = FakeModel(refuse)
+    assert run(tmp_path, key_dir, model, environ={"MODEL_NAME": "x"}) == 1
+    assert model.requests == []
+    assert capsys.readouterr().err == (
+        "error: MODEL_BASE_URL not set; add to .env (see .env.example)\n"
+    )
+
+
+def test_an_existing_run_is_never_overwritten(tmp_path, key_dir, capsys) -> None:
+    (tmp_path / "runs" / "test").mkdir(parents=True)
+    model = FakeModel(refuse)
+    assert run(tmp_path, key_dir, model) == 1
+    assert model.requests == []
+    assert "already exists; choose another --run-name" in capsys.readouterr().err
