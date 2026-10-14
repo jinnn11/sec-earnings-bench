@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses
 import hashlib
 import io
 import json
@@ -10,8 +11,11 @@ from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
 
+import anthropic
 import httpx
+import httpx2
 import pytest
+from anthropic.types import Message
 
 from secbench import answers, extract
 from secbench.answers import FIELDS, FULL_YEAR, QUARTER, YEAR_TO_DATE, load_links
@@ -22,7 +26,8 @@ from secbench.extract import (
     OK,
     OK_AFTER_RETRY,
     RETRY_MESSAGE,
-    ChatClient,
+    AnthropicChat,
+    OpenAIChat,
     ReplyError,
     RunError,
     Settings,
@@ -61,12 +66,18 @@ ENVIRON = {
     "MODEL_BASE_URL": "https://models.test/v1/",
     "MODEL_NAME": "fake-model",
     "MODEL_API_KEY": KEY,
+    "MODEL_TEMPERATURE": "0",
     "MODEL_PRICE_INPUT": "3",
     "MODEL_PRICE_OUTPUT": "15",
 }
 ENDPOINT = "https://models.test/v1/chat/completions"
 SETTINGS = Settings(
-    "https://models.test/v1/", "fake-model", KEY, price_input=3.0, price_output=15.0
+    "https://models.test/v1/",
+    "fake-model",
+    KEY,
+    temperature=0.0,
+    price_input=3.0,
+    price_output=15.0,
 )
 
 REPLY = {
@@ -109,10 +120,17 @@ def test_load_settings() -> None:
     settings = load_settings(ENVIRON)
     assert settings == SETTINGS
     assert settings.endpoint == ENDPOINT
+    assert settings.parameters == {"temperature": 0.0}
+    warm = load_settings({**ENVIRON, "MODEL_TEMPERATURE": " 0.7 "})
+    assert warm.parameters == {"temperature": 0.7}
     local = load_settings(
         {"MODEL_BASE_URL": "http://localhost:8000/v1", "MODEL_NAME": "qwen"}
     )
     assert (local.api_key, local.price_input, local.price_output) == ("", None, None)
+    # No temperature set: none is sent.
+    assert local.temperature is None
+    assert local.parameters == {}
+    assert load_settings({**ENVIRON, "MODEL_TEMPERATURE": ""}).parameters == {}
 
 
 @pytest.mark.parametrize(
@@ -125,6 +143,10 @@ def test_load_settings() -> None:
         ({"MODEL_BASE_URL": "ftp://hidden.example"}, "must start with http"),
         ({"MODEL_PRICE_INPUT": "three"}, "MODEL_PRICE_INPUT is not a number"),
         ({"MODEL_PRICE_OUTPUT": "-1"}, "MODEL_PRICE_OUTPUT must be 0 or more"),
+        ({"MODEL_PROVIDER": "gemini"}, "MODEL_PROVIDER must be openai or anthropic"),
+        ({"MODEL_TEMPERATURE": "warm"}, "MODEL_TEMPERATURE is not a number"),
+        ({"MODEL_TEMPERATURE": "-0.5"}, "MODEL_TEMPERATURE must be 0 or more"),
+        ({"MODEL_TEMPERATURE": "nan"}, "MODEL_TEMPERATURE must be 0 or more"),
     ],
 )
 def test_bad_settings_name_the_setting_not_its_value(changes, message) -> None:
@@ -247,7 +269,7 @@ def test_select_releases() -> None:
         select_releases(linked, tickers=["AAPL"], accessions=[XOM])
 
 
-# HTTP retries (ChatClient alone)
+# HTTP retries (the OpenAI-compatible client alone)
 
 
 def completion(content: str, input_tokens=1000, output_tokens=100) -> httpx.Response:
@@ -273,7 +295,7 @@ def completion(content: str, input_tokens=1000, output_tokens=100) -> httpx.Resp
 
 
 def scripted_client(responses: list, settings: Settings = SETTINGS):
-    """A ChatClient whose server answers with responses in order (an exception is
+    """An OpenAIChat whose server answers with responses in order (an exception is
     raised instead), and the delays it slept."""
     queue = list(responses)
     requests: list[httpx.Request] = []
@@ -286,7 +308,7 @@ def scripted_client(responses: list, settings: Settings = SETTINGS):
             raise response
         return response
 
-    chat = ChatClient(
+    chat = OpenAIChat(
         settings,
         transport=httpx.MockTransport(handler),
         sleep=slept.append,
@@ -352,7 +374,7 @@ def test_chat_client_gives_up_after_5_retries() -> None:
         [httpx.Response(502, json={"error": {"message": "Bad gateway"}})] * 6
     )
     exchange = chat.complete(BODY)
-    assert exchange.response is None and not exchange.abort
+    assert exchange.reply is None and not exchange.abort
     assert exchange.error == "HTTP 502 (Bad gateway), after 6 attempts"
     assert len(requests) == 6 and len(slept) == 5
 
@@ -395,7 +417,7 @@ def test_chat_client_aborts_on_a_wrong_key_model_or_url(status) -> None:
 def test_chat_client_rejects_a_body_without_choices() -> None:
     chat, _, _ = scripted_client([httpx.Response(200, json={"error": "overloaded"})])
     exchange = chat.complete(BODY)
-    assert exchange.response is None
+    assert exchange.reply is None
     assert exchange.error == "HTTP 200 without choices[0].message"
 
 
@@ -500,6 +522,7 @@ def run(
     model: FakeModel | None,
     *args: str,
     environ=ENVIRON,
+    anthropic_client=None,
 ) -> int:
     transport = httpx.MockTransport(model.handler) if model else None
     argv = [
@@ -523,6 +546,7 @@ def run(
         argv,
         transport=transport,
         environ=environ,
+        anthropic_client=anthropic_client,
         edgar_client=make_client(tmp_path / "raw"),
         sleep=lambda s: None,
     )
@@ -554,10 +578,13 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
 
     info = json.loads((run_dir / "run.json").read_text())
     assert info["status"] == "complete"
+    assert info["provider"] == "openai"
     assert info["model"] == "fake-model"
     assert info["prompt_version"] == "extract_v1"
     assert info["prompt_sha256"] == RELEASED_PROMPTS["extract_v1"]
-    assert info["temperature"] == 0
+    assert info["request_parameters"] == {"temperature": 0.0}
+    for request in model.requests:
+        assert json.loads(request.content)["temperature"] == 0
     assert info["releases"] == 5
     assert info["outcomes"] == {
         OK: 5,
@@ -592,6 +619,13 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
         json.dumps(perfect_replies[XOM])
     )
     assert "estimated cost: $0.0225 ($3 input, $15 output per million tokens)" in out
+    assert "provider openai; sent with each request: temperature 0" in (
+        out.splitlines()
+    )
+    assert (
+        "runs/test: 5 releases, provider openai, prompt extract_v1, temperature 0, "
+        "up to 4 calls" in out
+    )
     assert "invalid replies (all-null predictions, graded as missing): 0" in out
     assert "API errors (all-null predictions, graded as missing): 0" in out
 
@@ -711,6 +745,29 @@ def test_api_errors_are_missing_and_listed_for_a_rerun(
     assert all(",missing," in line for line in graded if CAT in line)
 
 
+@pytest.mark.parametrize("temperature", ["", "0.7"])
+def test_temperature_is_sent_only_when_set(
+    tmp_path, key_dir, perfect_replies, capsys, temperature
+) -> None:
+    model = FakeModel(lambda a, call, body: completion(json.dumps(perfect_replies[a])))
+    environ = {**ENVIRON, "MODEL_TEMPERATURE": temperature}
+    assert run(tmp_path, key_dir, model, environ=environ) == 0
+    run_dir = tmp_path / "runs" / "test"
+    sent = {"temperature": 0.7} if temperature else {}
+    bodies = [json.loads(r.content) for r in model.requests]
+    assert len(bodies) == 5
+    for body in bodies:
+        assert set(body) == {"model", "messages", *sent}
+        assert body.get("temperature") == sent.get("temperature")
+    raw = json.loads((run_dir / "raw" / f"{AAPL}.json").read_text())
+    assert set(raw["calls"][0]["request"]) == {"model", "messages", *sent}
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["request_parameters"] == sent
+    shown = "temperature 0.7" if temperature else "no temperature"
+    line = f"provider openai; sent with each request: {shown}"
+    assert line in capsys.readouterr().out.splitlines()
+
+
 def test_a_wrong_key_stops_the_run(tmp_path, key_dir, capsys) -> None:
     model = FakeModel(lambda a, call, body: httpx.Response(401))
     assert run(tmp_path, key_dir, model) == 1
@@ -775,18 +832,27 @@ def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:
         f"dry run: AAPL {AAPL} (1 of 5 selected releases); input EX-99.1, "
         f"{len(text):,} characters"
     )
-    assert lines[1] == (
-        "POST <MODEL_BASE_URL>/chat/completions, model <MODEL_NAME>, temperature 0"
-    )
+    # Both providers' requests: the same system prompt and user message.
+    assert lines[1:3] == [
+        (
+            "openai (the default): POST <MODEL_BASE_URL>/chat/completions, model "
+            "<MODEL_NAME>, temperature <MODEL_TEMPERATURE> (not sent if blank)"
+        ),
+        (
+            "anthropic: messages.create (anthropic SDK), model <MODEL_NAME>, "
+            "max_tokens 16000, effort <MODEL_EFFORT> (not sent if blank), no "
+            "temperature"
+        ),
+    ]
     assert re.fullmatch(
-        r"=== system: .*extract_v1\.txt \(sha256 f72b85f60da4\) ===", lines[2]
+        r"=== system: .*extract_v1\.txt \(sha256 f72b85f60da4\) ===", lines[3]
     )
     prompt = load_prompt("extract_v1", PROMPTS).text
     assert (
         out
         == "\n".join(
             [
-                *lines[:3],
+                *lines[:4],
                 prompt.rstrip("\n"),
                 "=== user: the release input ===",
                 text.rstrip("\n"),
@@ -812,3 +878,423 @@ def test_an_existing_run_is_never_overwritten(tmp_path, key_dir, capsys) -> None
     assert run(tmp_path, key_dir, model) == 1
     assert model.requests == []
     assert "already exists; choose another --run-name" in capsys.readouterr().err
+
+
+# Anthropic: a fake client, and one test through the real SDK over a mock transport
+
+ANTHROPIC_ENVIRON = {
+    "MODEL_PROVIDER": "anthropic",
+    "MODEL_NAME": "claude-opus-5-5",
+    "MODEL_API_KEY": KEY,
+    "MODEL_PRICE_INPUT": "4",
+    "MODEL_PRICE_OUTPUT": "20",
+    # Left from an openai setup: not used, not checked.
+    "MODEL_BASE_URL": "https://models.test/v1/",
+    "MODEL_TEMPERATURE": "0",
+}
+ANTHROPIC_SETTINGS = Settings(
+    "",
+    "claude-opus-5-5",
+    KEY,
+    price_input=4.0,
+    price_output=20.0,
+    provider="anthropic",
+)
+MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+THINKING = {
+    "type": "thinking",
+    "thinking": "Revenue is in the first table.",
+    "signature": "sig-1",
+}
+REFUSAL = {"type": "refusal", "category": "cyber", "explanation": "Declined."}
+
+
+def message(*texts: str, stop_reason="end_turn", stop_details=None) -> Message:
+    """A reply: a thinking block (summarized), then a text block per
+    text."""
+    return Message.model_validate(
+        {
+            "id": "msg_test",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-opus-5-5",
+            "content": [THINKING, *({"type": "text", "text": t} for t in texts)],
+            "stop_reason": stop_reason,
+            "stop_sequence": None,
+            "stop_details": stop_details,
+            "usage": {"input_tokens": 1000, "output_tokens": 100},
+        }
+    )
+
+
+def api_error(cls, status: int, text: str = "", headers=None) -> anthropic.APIError:
+    """What the SDK raises for an HTTP error."""
+    request = httpx2.Request("POST", MESSAGES_URL)
+    body = {"type": "error", "error": {"type": "error", "message": text}}
+    response = httpx2.Response(status, headers=headers, json=body, request=request)
+    return cls(f"Error code: {status}", response=response, body=body)
+
+
+class FakeAnthropic:
+    """Stands in for anthropic.Anthropic: messages.create returns or raises what
+    script(kwargs) gives, and keeps every call's kwargs."""
+
+    def __init__(self, script: Callable[[dict], object]) -> None:
+        self.script = script
+        self.messages = self
+        self.calls: list[dict] = []
+        self.closed = False
+        self._lock = threading.Lock()
+
+    def create(self, **kwargs) -> Message:
+        with self._lock:
+            self.calls.append(kwargs)
+        result = self.script(kwargs)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def scripted_anthropic(results: list):
+    """An AnthropicChat whose fake client gives results in order, and the delays it
+    slept."""
+    queue = list(results)
+    fake = FakeAnthropic(lambda kwargs: queue.pop(0))
+    slept: list[float] = []
+    chat = AnthropicChat(
+        ANTHROPIC_SETTINGS, client=fake, sleep=slept.append, wall_clock=lambda: 0.0
+    )
+    return chat, fake, slept
+
+
+def first_body(chat) -> dict:
+    return chat.first_body(load_prompt("extract_v1", PROMPTS), "the release")
+
+
+def test_load_settings_for_anthropic() -> None:
+    settings = load_settings(ANTHROPIC_ENVIRON)
+    assert settings == ANTHROPIC_SETTINGS
+    # max_tokens, and never a temperature.
+    assert settings.parameters == {"max_tokens": 16000}
+    upper = {**ANTHROPIC_ENVIRON, "MODEL_PROVIDER": " Anthropic "}
+    assert load_settings(upper).provider == "anthropic"
+    # MODEL_BASE_URL and MODEL_TEMPERATURE aren't read.
+    unused = {**ANTHROPIC_ENVIRON, "MODEL_BASE_URL": "", "MODEL_TEMPERATURE": "warm"}
+    assert load_settings(unused) == ANTHROPIC_SETTINGS
+    with pytest.raises(SettingsError, match="^MODEL_API_KEY not set"):
+        load_settings({**ANTHROPIC_ENVIRON, "MODEL_API_KEY": ""})
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_anthropic_effort(effort) -> None:
+    settings = load_settings(
+        {**ANTHROPIC_ENVIRON, "MODEL_EFFORT": f" {effort.upper()} "}
+    )
+    assert settings.effort == effort
+    assert settings.parameters == {
+        "max_tokens": 16000,
+        "output_config": {"effort": effort},
+    }
+
+
+def test_anthropic_effort_is_left_out_when_blank() -> None:
+    for blank in ("", " "):
+        settings = load_settings({**ANTHROPIC_ENVIRON, "MODEL_EFFORT": blank})
+        assert settings.effort is None
+        assert settings.parameters == {"max_tokens": 16000}
+    assert load_settings(ANTHROPIC_ENVIRON).effort is None  # unset
+
+
+def test_a_bad_effort_names_the_setting_not_its_value() -> None:
+    with pytest.raises(SettingsError) as raised:
+        load_settings({**ANTHROPIC_ENVIRON, "MODEL_EFFORT": "extreme"})
+    assert str(raised.value) == ("MODEL_EFFORT must be low, medium, high, xhigh or max")
+
+
+def test_openai_ignores_model_effort() -> None:
+    settings = load_settings({**ENVIRON, "MODEL_EFFORT": "extreme"})
+    assert settings.effort is None
+    assert settings.parameters == {"temperature": 0.0}
+
+
+def test_anthropic_request_and_text_blocks() -> None:
+    chat, fake, slept = scripted_anthropic([message("{", '"a": 1}')])
+    body = first_body(chat)
+    assert body == {
+        "model": "claude-opus-5-5",
+        "max_tokens": 16000,
+        "system": load_prompt("extract_v1", PROMPTS).text,
+        "messages": [{"role": "user", "content": "the release"}],
+    }
+    exchange = chat.complete(body)
+    assert fake.calls == [body]
+    assert exchange.error == ""
+    # The text blocks, joined; not the thinking block.
+    assert exchange.content == '{"a": 1}'
+    assert exchange.finish_reason == "end_turn"
+    assert exchange.tokens == (1000, 100)
+    [attempt] = exchange.attempts
+    assert attempt["status"] == 200
+    # The whole response is kept, thinking block included.
+    assert attempt["response"]["content"] == [
+        THINKING,
+        {"type": "text", "text": "{"},
+        {"type": "text", "text": '"a": 1}'},
+    ]
+    assert slept == []
+
+
+def test_anthropic_retry_sends_the_reply_back_unchanged() -> None:
+    chat, _, _ = scripted_anthropic([message("Here are the figures.")])
+    body = first_body(chat)
+    exchange = chat.complete(body)
+    retry = chat.retry_body(body, exchange.reply, "not valid JSON")
+    assert retry == {
+        **body,
+        "messages": [
+            *body["messages"],
+            {
+                "role": "assistant",
+                "content": [
+                    THINKING,
+                    {"type": "text", "text": "Here are the figures."},
+                ],
+            },
+            {"role": "user", "content": RETRY_MESSAGE.format(errors="not valid JSON")},
+        ],
+    }
+    assert len(body["messages"]) == 1  # the first request is unchanged
+
+
+@pytest.mark.parametrize(
+    ("details", "reason"),
+    [(REFUSAL, "refusal (cyber): Declined."), (None, "refusal")],
+)
+def test_an_anthropic_refusal_is_an_api_error(details, reason) -> None:
+    refused = message(stop_reason="refusal", stop_details=details)
+    chat, fake, slept = scripted_anthropic([refused])
+    exchange = chat.complete(first_body(chat))
+    assert exchange.error == reason
+    assert not exchange.abort
+    assert exchange.finish_reason == "refusal"
+    assert exchange.tokens == (1000, 100)  # billed
+    # Not retried, and no other model is tried.
+    assert len(fake.calls) == 1 and slept == []
+    assert {c["model"] for c in fake.calls} == {"claude-opus-5-5"}
+
+
+def test_anthropic_errors_go_through_the_shared_retries() -> None:
+    chat, fake, slept = scripted_anthropic(
+        [
+            api_error(anthropic.RateLimitError, 429, headers={"retry-after": "3"}),
+            api_error(anthropic.InternalServerError, 500, "Internal server error"),
+            api_error(anthropic.OverloadedError, 529, "Overloaded"),
+            anthropic.APITimeoutError(request=httpx2.Request("POST", MESSAGES_URL)),
+            message("{}"),
+        ]
+    )
+    exchange = chat.complete(first_body(chat))
+    assert exchange.content == "{}"
+    assert [a["status"] for a in exchange.attempts] == [429, 500, 529, None, 200]
+    assert exchange.attempts[1]["response"]["error"]["message"] == (
+        "Internal server error"
+    )
+    assert exchange.attempts[3]["error"].startswith(
+        "APITimeoutError: Request timed out"
+    )
+    assert slept[0] == 3.0  # Retry-After
+    for delay, base in zip(slept[1:], (2, 4, 8), strict=True):
+        assert base <= delay <= 1.25 * base
+    assert len(fake.calls) == 5
+
+
+def test_anthropic_gives_up_after_5_retries() -> None:
+    overloaded = api_error(anthropic.OverloadedError, 529, "Overloaded")
+    chat, fake, slept = scripted_anthropic([overloaded] * 6)
+    exchange = chat.complete(first_body(chat))
+    assert exchange.error == "HTTP 529 (Overloaded), after 6 attempts"
+    assert len(fake.calls) == 6 and len(slept) == 5
+
+
+def test_anthropic_does_not_retry_other_4xx() -> None:
+    too_long = "prompt is too long: 1200000 tokens > 1000000 maximum"
+    chat, fake, slept = scripted_anthropic(
+        [api_error(anthropic.BadRequestError, 400, too_long)]
+    )
+    exchange = chat.complete(first_body(chat))
+    assert exchange.error == f"HTTP 400 ({too_long})"
+    assert not exchange.abort
+    assert len(fake.calls) == 1 and slept == []
+
+
+@pytest.mark.parametrize(
+    ("cls", "status"),
+    [
+        (anthropic.AuthenticationError, 401),
+        (anthropic.PermissionDeniedError, 403),
+        (anthropic.NotFoundError, 404),
+    ],
+)
+def test_anthropic_aborts_on_a_wrong_key_or_model(cls, status) -> None:
+    chat, fake, slept = scripted_anthropic(
+        [api_error(cls, status, "invalid x-api-key")]
+    )
+    exchange = chat.complete(first_body(chat))
+    assert exchange.abort
+    assert exchange.error == f"HTTP {status}; check MODEL_NAME and MODEL_API_KEY"
+    assert [(a["status"], a["response"]) for a in exchange.attempts] == [(status, None)]
+    assert len(fake.calls) == 1 and slept == []
+
+
+def test_anthropic_client_retries_nothing_itself() -> None:
+    chat = AnthropicChat(ANTHROPIC_SETTINGS)
+    assert chat._client.max_retries == 0
+    assert chat._client.api_key == KEY
+
+
+def test_anthropic_through_the_real_sdk() -> None:
+    # The SDK, over a mock transport: what it sends is exactly what raw records,
+    # and a 529 reaches the shared retries (the SDK's own are off).
+    sent: list[httpx2.Request] = []
+    replies = [
+        httpx2.Response(
+            529, json={"type": "error", "error": {"message": "Overloaded"}}
+        ),
+        httpx2.Response(200, json=message("Not JSON").to_dict(mode="json")),
+        httpx2.Response(200, json=message(reply_text()).to_dict(mode="json")),
+    ]
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        sent.append(request)
+        return replies.pop(0)
+
+    client = anthropic.Anthropic(
+        api_key=KEY,
+        max_retries=0,
+        http_client=anthropic.DefaultHttpxClient(
+            transport=httpx2.MockTransport(handler)
+        ),
+    )
+    slept: list[float] = []
+    settings = dataclasses.replace(ANTHROPIC_SETTINGS, effort="high")
+    chat = AnthropicChat(settings, client=client, sleep=slept.append)
+    body = first_body(chat)
+    assert body["output_config"] == {"effort": "high"}
+    first = chat.complete(body)
+    assert [a["status"] for a in first.attempts] == [529, 200]
+    assert len(slept) == 1
+    retry = chat.retry_body(body, first.reply, "not valid JSON")
+    second = chat.complete(retry)
+    assert second.content == reply_text()
+    assert [str(r.url) for r in sent] == [MESSAGES_URL] * 3
+    assert {r.headers["x-api-key"] for r in sent} == {KEY}
+    assert [json.loads(r.content) for r in sent] == [body, body, retry]
+    assert second.attempts[0]["response"] == message(reply_text()).to_dict(mode="json")
+
+
+def by_release(script: Callable[[str, int, dict], object]) -> Callable[[dict], object]:
+    """A FakeAnthropic script from script(accession, call, kwargs); call counts the
+    release's requests from 1."""
+    records = release_records(RELEASES)
+    accessions = {build_input(records[a]).text: a for a in FIXTURE_RELEASES}
+    calls: Counter[str] = Counter()
+    lock = threading.Lock()
+
+    def wrapped(kwargs: dict) -> object:
+        accession = accessions[kwargs["messages"][0]["content"]]
+        with lock:
+            calls[accession] += 1
+            call = calls[accession]
+        return script(accession, call, kwargs)
+
+    return wrapped
+
+
+@pytest.mark.parametrize("effort", ["", "high"])
+def test_run_with_anthropic(tmp_path, key_dir, perfect_replies, capsys, effort) -> None:
+    def script(accession, call, kwargs) -> Message:
+        if accession == XOM:
+            return message(stop_reason="refusal", stop_details=REFUSAL)
+        if accession == CAT and call == 1:
+            return message("The figures are in the table below.")
+        return message(json.dumps(perfect_replies[accession]))
+
+    fake = FakeAnthropic(by_release(script))
+    environ = {**ANTHROPIC_ENVIRON, "MODEL_EFFORT": effort}
+    sent = {"output_config": {"effort": "high"}} if effort else {}
+    # The refusal is an API error, so the run exits 1.
+    assert run(tmp_path, key_dir, None, environ=environ, anthropic_client=fake) == 1
+    assert fake.closed
+    run_dir = tmp_path / "runs" / "test"
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["provider"] == "anthropic"
+    assert info["model"] == "claude-opus-5-5"
+    # What was sent: output_config only with an effort.
+    assert info["request_parameters"] == {"max_tokens": 16000, **sent}
+    assert info["outcomes"] == {
+        OK: 3,
+        OK_AFTER_RETRY: 1,
+        INVALID_REPLY: 0,
+        API_ERROR: 1,
+        "aborted": 0,
+    }
+    assert info["fallbacks"] == [
+        {
+            "ticker": "XOM",
+            "release_accession": XOM,
+            "outcome": API_ERROR,
+            "reason": "refusal (cyber): Declined.",
+        }
+    ]
+    # Six calls, all billed (the refusal too): 6,000 input tokens at $4 and 600
+    # output tokens at $20 per million.
+    assert info["tokens"] == {"input": 6000, "output": 600, "calls_without_usage": 0}
+    assert info["estimated_cost_usd"] == 0.036
+    xom = [c for c in info["calls"] if c["release_accession"] == XOM]
+    assert [(c["status"], c["finish_reason"], c["error"]) for c in xom] == [
+        (200, "refusal", "refusal (cyber): Declined.")
+    ]
+
+    # One model throughout; the prompt is the system parameter; no temperature; an
+    # effort only when set.
+    prompt = load_prompt("extract_v1", PROMPTS).text
+    assert len(fake.calls) == 6
+    for kwargs in fake.calls:
+        assert set(kwargs) == {"model", "max_tokens", "system", "messages", *sent}
+        assert (kwargs["model"], kwargs["max_tokens"]) == ("claude-opus-5-5", 16000)
+        assert kwargs["system"] == prompt
+        assert kwargs.get("output_config") == sent.get("output_config")
+    raw = json.loads((run_dir / "raw" / f"{AAPL}.json").read_text())
+    assert raw["calls"][0]["request"].get("output_config") == sent.get("output_config")
+
+    # CAT's retry sent its first reply back unchanged, thinking block included.
+    raw = json.loads((run_dir / "raw" / f"{CAT}.json").read_text())
+    first, second = raw["calls"]
+    assert second["request"]["messages"][1] == {
+        "role": "assistant",
+        "content": first["attempts"][0]["response"]["content"],
+    }
+    assert second["request"]["messages"][1]["content"][0] == THINKING
+    assert raw["outcome"] == OK_AFTER_RETRY
+
+    out = capsys.readouterr().out.splitlines()
+    shown = f"max_tokens 16000, {'effort high' if effort else 'default effort'}, no "
+    shown += "temperature"
+    assert any(
+        line.endswith(
+            f"runs/test: 5 releases, provider anthropic, prompt extract_v1, {shown}, "
+            "up to 4 calls at a time"
+        )
+        for line in out
+    )
+    assert f"provider anthropic; sent with each request: {shown}" in out
+    # XOM's six answers are missing.
+    assert "accuracy: 18/24 (75.0%)" in out
+    i = out.index("API errors (all-null predictions, graded as missing): 1")
+    assert out[i + 1 : i + 3] == [
+        f"  XOM {XOM}: refusal (cyber): Declined.",
+        f"rerun the API errors: uv run python -m secbench.extract --accessions {XOM}",
+    ]

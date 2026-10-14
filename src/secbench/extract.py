@@ -1,8 +1,9 @@
 """Run a model on the linked releases, save everything it returns, and grade it.
 
-Each linked release in data/links.csv (see secbench.link) goes to an OpenAI-compatible
-chat completions API at temperature 0: the instructions in prompts/<version>.txt as
-the system message, the release's input (see secbench.inputs) as the user message.
+Each linked release in data/links.csv (see secbench.link) goes to one model, through
+an OpenAI-compatible chat completions API or Anthropic's Messages API (the anthropic
+SDK): the instructions in prompts/<version>.txt as the system prompt, the release's
+input (see secbench.inputs) as the user message.
 The reply must be one JSON object of a Prediction (see secbench.grade) without
 release_accession. An invalid reply is retried once with its validation errors. If
 the retry is invalid too, or the API fails, the release gets an all-null prediction
@@ -14,18 +15,26 @@ Usage: uv run python -m secbench.extract [--tickers AAPL ...] [--accessions ...]
            [--limit N] [--run-name NAME] [--prompt extract_v1] [--dry-run]
            [--links] [--answers] [--releases] [--runs-dir] [--prompts-dir]
 
-Settings come from the environment or .env: MODEL_BASE_URL (such as
-http://localhost:8000/v1), MODEL_NAME, MODEL_API_KEY (optional), and
-MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT (optional; dollars per million tokens).
---dry-run prints the full request for the first selected release, without reading
-them or making a call.
+Settings come from the environment or .env: MODEL_PROVIDER (openai, the default, or
+anthropic), MODEL_NAME, MODEL_API_KEY, and MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT
+(optional; dollars per million tokens). openai also reads MODEL_BASE_URL (such as
+http://localhost:8000/v1) and MODEL_TEMPERATURE (optional; if blank, no temperature
+is sent and the server's default applies); its key is optional. anthropic needs the
+key, sends max_tokens 16000, MODEL_EFFORT as output_config.effort (optional: low,
+medium, high, xhigh or max; if blank, none is sent and the model's default applies)
+and never a temperature, reads only the text blocks of a reply (not thinking
+blocks), and counts a refusal as an API error; there is no
+fallback to another model, which would mix two models in one run. run.json records
+the provider and the request parameters sent. --dry-run prints the full request for
+the first selected release, without reading them or making a call.
 
 A run writes runs/<run>/raw/<accession>.json (every HTTP attempt's request body and
 response; no headers) as each release finishes, then predictions.jsonl and run.json
 (model, prompt version, token counts, latency per call, estimated cost, fallbacks),
 grades the run (see secbench.grade) and prints the summary. At most 4 calls run at a
-time; 429, 5xx, timeouts and connection errors are retried with backoff. HTTP 401,
-403 or 404 (wrong key, model or URL) stops the run without grading it.
+time; for both providers, 429, 5xx, timeouts and connection errors are retried with
+the same backoff (the SDK's own retries are off). HTTP 401, 403 or 404 (wrong key,
+model or URL) stops the run without grading it.
 """
 
 from __future__ import annotations
@@ -49,6 +58,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Self
 
+import anthropic
 import httpx
 from dotenv import find_dotenv, load_dotenv
 from pydantic import ValidationError
@@ -78,7 +88,6 @@ RUNS_DIR = Path("runs")
 RAW = "raw"
 RUN_INFO = "run.json"
 MAX_PARALLEL = 4
-TEMPERATURE = 0
 # Generous: a local server can take minutes on a 70,000-character release.
 TIMEOUT = httpx.Timeout(600.0, connect=10.0)
 ABORT_STATUSES = (401, 403, 404)  # wrong key, model or URL: every call would fail
@@ -96,10 +105,19 @@ OUTCOMES = (OK, OK_AFTER_RETRY, INVALID_REPLY, API_ERROR)
 
 COMPLETE = "complete"  # run status; or ABORTED
 
+OPENAI = "openai"
+ANTHROPIC = "anthropic"
+PROVIDERS = (OPENAI, ANTHROPIC)
+ANTHROPIC_MAX_TOKENS = 16000
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
 SETTINGS = (
+    "MODEL_PROVIDER",
     "MODEL_BASE_URL",
     "MODEL_NAME",
     "MODEL_API_KEY",
+    "MODEL_TEMPERATURE",
+    "MODEL_EFFORT",
     "MODEL_PRICE_INPUT",
     "MODEL_PRICE_OUTPUT",
 )
@@ -124,27 +142,41 @@ class SettingsError(RunError):
 
 @dataclass(frozen=True)
 class Settings:
-    base_url: str
+    base_url: str  # openai only
     model: str
-    api_key: str = ""  # blank: no Authorization header (a local server)
+    api_key: str = ""  # openai: blank sends no Authorization header (a local server)
+    temperature: float | None = None  # openai only; None: not sent
     price_input: float | None = None  # dollars per million tokens
     price_output: float | None = None
+    provider: str = OPENAI
+    effort: str | None = None  # anthropic only; None: not sent
 
     @property
     def endpoint(self) -> str:
         return self.base_url.rstrip("/") + "/chat/completions"
 
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """What every request sends besides the model, system prompt and messages:
+        anthropic, max_tokens, output_config.effort only if MODEL_EFFORT is set, and
+        never a temperature; openai, temperature only if MODEL_TEMPERATURE is set."""
+        if self.provider == ANTHROPIC:
+            effort = {"output_config": {"effort": self.effort}} if self.effort else {}
+            return {"max_tokens": ANTHROPIC_MAX_TOKENS, **effort}
+        return {} if self.temperature is None else {"temperature": self.temperature}
 
-def parse_price(name: str, value: str) -> float | None:
+
+def parse_number(name: str, value: str) -> float | None:
+    """A setting that is 0 or more; None if blank."""
     if not value:
         return None
     try:
-        price = float(value)
+        number = float(value)
     except ValueError:
         raise SettingsError(f"{name} is not a number") from None
-    if not math.isfinite(price) or price < 0:
-        raise SettingsError(f"{name} must be 0 or more dollars per million tokens")
-    return price
+    if not math.isfinite(number) or number < 0:
+        raise SettingsError(f"{name} must be 0 or more")
+    return number
 
 
 def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
@@ -154,19 +186,39 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
         load_dotenv(find_dotenv(usecwd=True))
         environ = os.environ
     values = {name: environ.get(name, "").strip() for name in SETTINGS}
-    missing = [name for name in SETTINGS[:2] if not values[name]]
+    provider = values["MODEL_PROVIDER"].lower() or OPENAI
+    if provider not in PROVIDERS:
+        raise SettingsError("MODEL_PROVIDER must be openai or anthropic")
+    # anthropic ignores MODEL_BASE_URL and MODEL_TEMPERATURE, and openai ignores
+    # MODEL_EFFORT, so .env can switch providers by MODEL_PROVIDER alone.
+    is_openai = provider == OPENAI
+    required = (
+        ("MODEL_BASE_URL", "MODEL_NAME")
+        if is_openai
+        else ("MODEL_NAME", "MODEL_API_KEY")
+    )
+    missing = [name for name in required if not values[name]]
     if missing:
         raise SettingsError(
             f"{' and '.join(missing)} not set; add to .env (see .env.example)"
         )
-    if not re.match(r"https?://", values["MODEL_BASE_URL"], re.IGNORECASE):
+    if is_openai and not re.match(
+        r"https?://", values["MODEL_BASE_URL"], re.IGNORECASE
+    ):
         raise SettingsError("MODEL_BASE_URL must start with http:// or https://")
+    temperature = values["MODEL_TEMPERATURE"] if is_openai else ""
+    effort = "" if is_openai else values["MODEL_EFFORT"].lower()
+    if effort and effort not in EFFORTS:
+        raise SettingsError(f"MODEL_EFFORT must be {', '.join(EFFORTS[:-1])} or max")
     return Settings(
-        base_url=values["MODEL_BASE_URL"],
+        base_url=values["MODEL_BASE_URL"] if is_openai else "",
         model=values["MODEL_NAME"],
         api_key=values["MODEL_API_KEY"],
-        price_input=parse_price("MODEL_PRICE_INPUT", values["MODEL_PRICE_INPUT"]),
-        price_output=parse_price("MODEL_PRICE_OUTPUT", values["MODEL_PRICE_OUTPUT"]),
+        temperature=parse_number("MODEL_TEMPERATURE", temperature),
+        price_input=parse_number("MODEL_PRICE_INPUT", values["MODEL_PRICE_INPUT"]),
+        price_output=parse_number("MODEL_PRICE_OUTPUT", values["MODEL_PRICE_OUTPUT"]),
+        provider=provider,
+        effort=effort or None,
     )
 
 
@@ -189,29 +241,7 @@ def load_prompt(version: str, prompts_dir: Path = PROMPTS_DIR) -> Prompt:
     return Prompt(version, path.read_text(encoding="utf-8"))
 
 
-# Requests and replies
-
-
-def first_messages(prompt: Prompt, input_text: str) -> list[dict[str, str]]:
-    return [
-        {"role": "system", "content": prompt.text},
-        {"role": "user", "content": input_text},
-    ]
-
-
-def retry_messages(
-    messages: list[dict[str, str]], reply: str, errors: str
-) -> list[dict[str, str]]:
-    """The conversation so far, the invalid reply, and what was wrong with it."""
-    return [
-        *messages,
-        {"role": "assistant", "content": reply},
-        {"role": "user", "content": RETRY_MESSAGE.format(errors=errors)},
-    ]
-
-
-def request_body(model: str, messages: list[dict[str, str]]) -> dict[str, Any]:
-    return {"model": model, "messages": messages, "temperature": TEMPERATURE}
+# Replies
 
 
 class ReplyError(ValueError):
@@ -279,45 +309,62 @@ def null_prediction(release: LinkedRelease) -> Prediction:
     )
 
 
-# HTTP
+# Providers
 
 
 def count(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+@dataclass(frozen=True)
+class Reply:
+    """A model's reply, as its provider reads it."""
+
+    content: str | None  # the text (anthropic: the text blocks, joined)
+    finish_reason: str | None  # anthropic: stop_reason
+    tokens: tuple[int | None, int | None]  # (input, output), from usage
+    assistant: dict[str, Any]  # the reply as a message, sent back on a retry
+    refusal: str = ""  # why the model declined; "" if it didn't
+
+
+@dataclass
+class Attempt:
+    """One HTTP attempt, as a provider reports it: its status, what raw keeps of it
+    ({"response": body} or {"error": ...}), and either the reply or why it failed
+    and whether to retry."""
+
+    status: int | None  # None: no HTTP response (timeout, connection error)
+    saved: dict[str, Any]
+    reply: Reply | None = None
+    problem: str = ""
+    retry: bool = False  # 429, 5xx, timeout or connection error
+    retry_after: float | None = None  # seconds, from Retry-After
+    abort: bool = False  # wrong key, model or URL: every call would fail
+
+
 @dataclass
 class Exchange:
-    """One chat completion request and every HTTP attempt it took. response is the
-    successful body; without one, error says why, and abort whether the run must
-    stop."""
+    """One request to the model and every HTTP attempt it took. reply is the model's
+    reply, a refusal included; error says why the call failed (no reply, or a
+    refusal), and abort whether the run must stop."""
 
     request: dict[str, Any]
     attempts: list[dict[str, Any]] = field(default_factory=list)
-    response: dict[str, Any] | None = None
+    reply: Reply | None = None
     error: str = ""
     abort: bool = False
 
     @property
     def content(self) -> str | None:
-        if self.response is None:
-            return None
-        content = self.response["choices"][0]["message"].get("content")
-        return content if isinstance(content, str) else None
+        return self.reply.content if self.reply else None
 
     @property
     def finish_reason(self) -> str | None:
-        if self.response is None:
-            return None
-        return self.response["choices"][0].get("finish_reason")
+        return self.reply.finish_reason if self.reply else None
 
     @property
     def tokens(self) -> tuple[int | None, int | None]:
-        """(input, output) tokens from the response's usage, if it has them."""
-        usage = (self.response or {}).get("usage")
-        if not isinstance(usage, dict):
-            return None, None
-        return count(usage.get("prompt_tokens")), count(usage.get("completion_tokens"))
+        return self.reply.tokens if self.reply else (None, None)
 
     @property
     def latency_s(self) -> float | None:
@@ -333,6 +380,125 @@ def response_body(response: httpx.Response) -> Any:
         return response.text
 
 
+def error_message(body: Any) -> str:
+    """A provider's error message: {"error": {"message": ...}} (OpenAI, Anthropic),
+    {"message": ...} (vLLM) or {"error": "..."}."""
+    if not isinstance(body, dict):
+        return ""
+    error = body.get("error")
+    if isinstance(error, dict):
+        error = error.get("message")
+    message = error if isinstance(error, str) else body.get("message")
+    return shorten(message.strip(), ERROR_WIDTH) if isinstance(message, str) else ""
+
+
+def failed_attempt(
+    status: int, body: Any, retry_after: str | None, now: float
+) -> Attempt:
+    """An HTTP error other than 401, 403 or 404: 429 and 5xx are retried."""
+    problem = f"HTTP {status}"
+    if message := error_message(body):
+        problem += f" ({message})"
+    retry = status == 429 or status >= 500
+    return Attempt(
+        status,
+        {"response": body},
+        problem=problem,
+        retry=retry,
+        retry_after=parse_retry_after(retry_after, now) if retry else None,
+    )
+
+
+def backoff(attempt: int) -> float:
+    base = 2.0**attempt  # 1, 2, 4, 8, 16 s
+    return base + random.uniform(0, 0.25 * base)
+
+
+class ChatClient:
+    """The retry loop every provider shares: retries 429, 5xx, timeouts and
+    connection errors up to max_retries times (1-16 s backoff, Retry-After honored;
+    asked to wait over 120 s, it gives up). A provider builds request bodies and
+    makes one HTTP attempt (_send). Safe to share between threads."""
+
+    provider = ""
+
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.perf_counter,
+        wall_clock: Callable[[], float] = time.time,
+        max_retries: int = MAX_RETRIES,
+    ) -> None:
+        self.settings = settings
+        self._sleep = sleep
+        self._clock = clock
+        self._wall_clock = wall_clock
+        self.max_retries = max_retries
+
+    def close(self) -> None:
+        pass
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
+
+    def first_body(self, prompt: Prompt, input_text: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def retry_body(
+        self, body: dict[str, Any], reply: Reply, errors: str
+    ) -> dict[str, Any]:
+        """The request so far, plus the invalid reply as sent back (append-only) and
+        what was wrong with it."""
+        retry = {"role": "user", "content": RETRY_MESSAGE.format(errors=errors)}
+        return {**body, "messages": [*body["messages"], reply.assistant, retry]}
+
+    def _send(self, body: dict[str, Any]) -> Attempt:
+        raise NotImplementedError
+
+    def complete(self, body: dict[str, Any]) -> Exchange:
+        exchange = Exchange(body)
+        attempts = self.max_retries + 1
+        for attempt in range(attempts):
+            start = self._clock()
+            result = self._send(body)
+            latency = round(self._clock() - start, 3)
+            exchange.attempts.append(
+                {"status": result.status, "latency_s": latency, **result.saved}
+            )
+            if result.reply is not None:
+                exchange.reply = result.reply
+                exchange.error = result.reply.refusal  # a refusal isn't retried
+                return exchange
+            if not result.retry:
+                exchange.error, exchange.abort = result.problem, result.abort
+                return exchange
+            if attempt + 1 == attempts:
+                exchange.error = f"{result.problem}, after {attempts} attempts"
+                return exchange
+            delay = result.retry_after
+            if delay is None:
+                delay = backoff(attempt)
+            if delay > MAX_RETRY_WAIT:
+                exchange.error = (
+                    f"{result.problem}, and the server asked to wait {delay:.0f}s"
+                )
+                return exchange
+            log.warning(
+                "%s; retry %d/%d in %.1fs",
+                result.problem,
+                attempt + 1,
+                self.max_retries,
+                delay,
+            )
+            self._sleep(delay)
+        raise AssertionError("unreachable")
+
+
 def is_completion(body: Any) -> bool:
     if not isinstance(body, dict):
         return False
@@ -345,122 +511,176 @@ def is_completion(body: Any) -> bool:
     )
 
 
-def error_message(body: Any) -> str:
-    """A provider's error message: {"error": {"message": ...}} (OpenAI),
-    {"message": ...} (vLLM) or {"error": "..."}."""
-    if not isinstance(body, dict):
-        return ""
-    error = body.get("error")
-    if isinstance(error, dict):
-        error = error.get("message")
-    message = error if isinstance(error, str) else body.get("message")
-    return shorten(message.strip(), ERROR_WIDTH) if isinstance(message, str) else ""
+def openai_reply(body: dict[str, Any]) -> Reply:
+    choice = body["choices"][0]
+    content = choice["message"].get("content")
+    text = content if isinstance(content, str) else None
+    usage = body.get("usage")
+    tokens = (
+        (count(usage.get("prompt_tokens")), count(usage.get("completion_tokens")))
+        if isinstance(usage, dict)
+        else (None, None)
+    )
+    assistant = {"role": "assistant", "content": text or ""}
+    return Reply(text, choice.get("finish_reason"), tokens, assistant)
 
 
-def backoff(attempt: int) -> float:
-    base = 2.0**attempt  # 1, 2, 4, 8, 16 s
-    return base + random.uniform(0, 0.25 * base)
+class OpenAIChat(ChatClient):
+    """Any OpenAI-compatible chat completions API, at the settings' endpoint. The
+    prompt is the first message, with role system."""
 
-
-class ChatClient:
-    """Posts chat completions to the settings' endpoint. Retries 429, 5xx, timeouts
-    and connection errors up to max_retries times (1-16 s backoff, Retry-After
-    honored; asked to wait over 120 s, it gives up). Safe to share between
-    threads."""
+    provider = OPENAI
 
     def __init__(
         self,
         settings: Settings,
         *,
         transport: httpx.BaseTransport | None = None,
-        sleep: Callable[[float], None] = time.sleep,
-        clock: Callable[[], float] = time.perf_counter,
-        wall_clock: Callable[[], float] = time.time,
-        max_retries: int = MAX_RETRIES,
+        **options: Any,
     ) -> None:
+        super().__init__(settings, **options)
         headers = {}
         if settings.api_key:
             headers["Authorization"] = f"Bearer {settings.api_key}"
-        self._endpoint = settings.endpoint
         self._http = httpx.Client(headers=headers, timeout=TIMEOUT, transport=transport)
-        self._sleep = sleep
-        self._clock = clock
-        self._wall_clock = wall_clock
-        self.max_retries = max_retries
 
     def close(self) -> None:
         self._http.close()
 
-    def __enter__(self) -> Self:
-        return self
+    def first_body(self, prompt: Prompt, input_text: str) -> dict[str, Any]:
+        return {
+            "model": self.settings.model,
+            "messages": [
+                {"role": "system", "content": prompt.text},
+                {"role": "user", "content": input_text},
+            ],
+            **self.settings.parameters,
+        }
 
-    def __exit__(self, *exc_info: object) -> None:
-        self.close()
-
-    def complete(self, body: dict[str, Any]) -> Exchange:
-        exchange = Exchange(body)
-        attempts = self.max_retries + 1
-        for attempt in range(attempts):
-            retry_after = None
-            start = self._clock()
-            try:
-                response = self._http.post(self._endpoint, json=body)
-            except httpx.TransportError as exc:
-                problem = f"{type(exc).__name__}: {exc}"
-                exchange.attempts.append(
-                    {"status": None, "latency_s": self._since(start), "error": problem}
-                )
-            else:
-                status = response.status_code
-                record: dict[str, Any] = {
-                    "status": status,
-                    "latency_s": self._since(start),
-                }
-                exchange.attempts.append(record)
-                if status in ABORT_STATUSES:
-                    # Not kept: the body can echo part of the key (OpenAI's 401 does).
-                    record["response"] = None
-                    exchange.error = (
-                        f"HTTP {status}; check MODEL_BASE_URL, MODEL_NAME and "
-                        "MODEL_API_KEY"
-                    )
-                    exchange.abort = True
-                    return exchange
-                record["response"] = response_body(response)
-                if response.is_success:
-                    if is_completion(record["response"]):
-                        exchange.response = record["response"]
-                    else:
-                        exchange.error = f"HTTP {status} without choices[0].message"
-                    return exchange
-                problem = f"HTTP {status}"
-                if message := error_message(record["response"]):
-                    problem += f" ({message})"
-                if status != 429 and status < 500:
-                    exchange.error = problem
-                    return exchange
-                retry_after = parse_retry_after(
-                    response.headers.get("Retry-After"), self._wall_clock()
-                )
-            if attempt + 1 == attempts:
-                exchange.error = f"{problem}, after {attempts} attempts"
-                return exchange
-            delay = retry_after if retry_after is not None else backoff(attempt)
-            if delay > MAX_RETRY_WAIT:
-                exchange.error = f"{problem}, and the server asked to wait {delay:.0f}s"
-                return exchange
-            log.warning(
-                "%s; retry %d/%d in %.1fs",
-                problem,
-                attempt + 1,
-                self.max_retries,
-                delay,
+    def _send(self, body: dict[str, Any]) -> Attempt:
+        try:
+            response = self._http.post(self.settings.endpoint, json=body)
+        except httpx.TransportError as exc:
+            problem = f"{type(exc).__name__}: {exc}"
+            return Attempt(None, {"error": problem}, problem=problem, retry=True)
+        status = response.status_code
+        if status in ABORT_STATUSES:
+            # Not kept: the body can echo part of the key (OpenAI's 401 does).
+            return Attempt(
+                status,
+                {"response": None},
+                problem=f"HTTP {status}; check MODEL_BASE_URL, MODEL_NAME and "
+                "MODEL_API_KEY",
+                abort=True,
             )
-            self._sleep(delay)
-        raise AssertionError("unreachable")
+        data = response_body(response)
+        if not response.is_success:
+            return failed_attempt(
+                status, data, response.headers.get("Retry-After"), self._wall_clock()
+            )
+        if not is_completion(data):
+            return Attempt(
+                status,
+                {"response": data},
+                problem=f"HTTP {status} without choices[0].message",
+            )
+        return Attempt(status, {"response": data}, reply=openai_reply(data))
 
-    def _since(self, start: float) -> float:
-        return round(self._clock() - start, 3)
+
+def refusal_reason(message: anthropic.types.Message) -> str:
+    """'refusal (cyber): <explanation>', as much as stop_details gives."""
+    reason = "refusal"
+    details = message.stop_details
+    if details and details.category:
+        reason += f" ({details.category})"
+    if details and details.explanation:
+        reason += f": {shorten(details.explanation, ERROR_WIDTH)}"
+    return reason
+
+
+def anthropic_reply(message: anthropic.types.Message) -> Reply:
+    """The text blocks, joined; thinking blocks are ignored, but sent back unchanged
+    with the rest of the content on a retry, as the API expects."""
+    text = "".join(block.text for block in message.content if block.type == "text")
+    content = [block.to_dict(mode="json") for block in message.content]
+    return Reply(
+        text,
+        message.stop_reason,
+        (message.usage.input_tokens, message.usage.output_tokens),
+        {"role": "assistant", "content": content},
+        refusal_reason(message) if message.stop_reason == "refusal" else "",
+    )
+
+
+class AnthropicChat(ChatClient):
+    """Anthropic's Messages API through the anthropic SDK, with its own retries off
+    (max_retries=0) so the shared loop applies. The prompt is the system parameter;
+    max_tokens is 16000, effort is MODEL_EFFORT's if set, and no temperature or
+    thinking setting is sent, so the model's defaults apply to the rest."""
+
+    provider = ANTHROPIC
+
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        client: anthropic.Anthropic | None = None,
+        **options: Any,
+    ) -> None:
+        super().__init__(settings, **options)
+        self._client = client or anthropic.Anthropic(
+            api_key=settings.api_key, max_retries=0
+        )
+
+    def close(self) -> None:
+        self._client.close()
+
+    def first_body(self, prompt: Prompt, input_text: str) -> dict[str, Any]:
+        return {
+            "model": self.settings.model,
+            **self.settings.parameters,
+            "system": prompt.text,
+            "messages": [{"role": "user", "content": input_text}],
+        }
+
+    def _send(self, body: dict[str, Any]) -> Attempt:
+        try:
+            message = self._client.messages.create(**body)
+        except anthropic.APIStatusError as exc:
+            status = exc.status_code
+            if status in ABORT_STATUSES:
+                return Attempt(
+                    status,
+                    {"response": None},
+                    problem=f"HTTP {status}; check MODEL_NAME and MODEL_API_KEY",
+                    abort=True,
+                )
+            return failed_attempt(
+                status,
+                exc.body,
+                exc.response.headers.get("retry-after"),
+                self._wall_clock(),
+            )
+        except anthropic.APIConnectionError as exc:  # a timeout too
+            problem = f"{type(exc).__name__}: {shorten(str(exc), ERROR_WIDTH)}"
+            return Attempt(None, {"error": problem}, problem=problem, retry=True)
+        return Attempt(
+            200,
+            {"response": message.to_dict(mode="json")},
+            reply=anthropic_reply(message),
+        )
+
+
+def make_chat(
+    settings: Settings,
+    *,
+    transport: httpx.BaseTransport | None = None,
+    anthropic_client: anthropic.Anthropic | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> ChatClient:
+    if settings.provider == ANTHROPIC:
+        return AnthropicChat(settings, client=anthropic_client, sleep=sleep)
+    return OpenAIChat(settings, transport=transport, sleep=sleep)
 
 
 # One release
@@ -478,20 +698,20 @@ class ReleaseResult:
 
 def extract_release(
     chat: ChatClient,
-    model: str,
     prompt: Prompt,
     release: LinkedRelease,
     release_input: ReleaseInput,
 ) -> ReleaseResult:
     """Ask for the release's figures; retry an invalid reply once with its errors.
-    An API error, or a second invalid reply, gives an all-null prediction."""
-    messages = first_messages(prompt, release_input.text)
+    An API error (a refusal included), or a second invalid reply, gives an all-null
+    prediction."""
+    body = chat.first_body(prompt, release_input.text)
     exchanges: list[Exchange] = []
     invalid = ""  # why the last reply was invalid
     for call in (1, 2):
-        exchange = chat.complete(request_body(model, messages))
+        exchange = chat.complete(body)
         exchanges.append(exchange)
-        if exchange.response is None:
+        if exchange.reply is None or exchange.error:
             reason = exchange.error
             if invalid:
                 reason += f", on the retry of an invalid reply ({invalid})"
@@ -511,7 +731,7 @@ def extract_release(
             prediction = parse_reply(exchange.content, release.release_accession)
         except ReplyError as exc:
             invalid = str(exc)
-            messages = retry_messages(messages, exchange.content or "", invalid)
+            body = chat.retry_body(body, exchange.reply, invalid)
             continue
         outcome = OK if call == 1 else OK_AFTER_RETRY
         return ReleaseResult(
@@ -605,7 +825,6 @@ def progress_line(done: int, total: int, result: ReleaseResult) -> str:
 
 def run_releases(
     chat: ChatClient,
-    model: str,
     prompt: Prompt,
     work: list[tuple[LinkedRelease, ReleaseInput]],
     raw_dir: Path,
@@ -623,7 +842,7 @@ def run_releases(
         def submit_next() -> bool:
             for release, release_input in queue:
                 future = pool.submit(
-                    extract_release, chat, model, prompt, release, release_input
+                    extract_release, chat, prompt, release, release_input
                 )
                 running[future] = release.release_accession
                 return True
@@ -682,7 +901,7 @@ def call_rows(results: list[ReleaseResult]) -> list[dict[str, Any]]:
                     "latency_s": exchange.latency_s,
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
-                    "finish_reason": exchange.finish_reason,
+                    "finish_reason": exchange.finish_reason,  # anthropic: stop_reason
                     "error": exchange.error,
                 }
             )
@@ -701,7 +920,8 @@ def run_info(
     results: list[ReleaseResult],
 ) -> dict[str, Any]:
     """run.json."""
-    answered = [e for r in results for e in r.exchanges if e.response is not None]
+    # Every reply is billed, a refusal too.
+    answered = [e for r in results for e in r.exchanges if e.reply is not None]
     tokens = [e.tokens for e in answered]
     without_usage = sum(1 for t in tokens if None in t)
     input_tokens = sum(t[0] or 0 for t in tokens)
@@ -716,11 +936,13 @@ def run_info(
         "run_name": run_name,
         "status": status,
         "stop_reason": stopped[0].reason if stopped else "",
+        "provider": settings.provider,
         "model": settings.model,
         "prompt_version": prompt.version,
         "prompt_sha256": prompt.sha256,
         "retry_message": RETRY_MESSAGE,
-        "temperature": TEMPERATURE,
+        # Sent with every request besides the model, system prompt and messages.
+        "request_parameters": settings.parameters,
         "max_parallel": MAX_PARALLEL,
         "started": started.isoformat(timespec="seconds"),
         "finished": finished.isoformat(timespec="seconds"),
@@ -757,6 +979,21 @@ def run_info(
     }
 
 
+def describe_parameters(provider: str, parameters: dict[str, Any]) -> str:
+    """Like "temperature 0", or "max_tokens 16000, effort high, no temperature"."""
+    parts = []
+    for name, value in parameters.items():
+        if name == "output_config":
+            parts.extend(f"{key} {setting}" for key, setting in value.items())
+        else:
+            parts.append(f"{name} {value:g}")
+    if provider == ANTHROPIC and "output_config" not in parameters:
+        parts.append("default effort")
+    if "temperature" not in parameters:
+        parts.append("no temperature")
+    return ", ".join(parts)
+
+
 def format_run_summary(info: dict[str, Any], run_dir: Path) -> str:
     """The run's outcomes, tokens, cost and latency, and every fallback: invalid
     replies, then API errors with a command to rerun them."""
@@ -766,7 +1003,13 @@ def format_run_summary(info: dict[str, Any], run_dir: Path) -> str:
         for o in (*OUTCOMES, ABORTED)
         if outcomes[o]
     )
-    lines = [f"run {run_dir}: {plural(info['releases'], 'release')} ({counts})"]
+    lines = [
+        f"run {run_dir}: {plural(info['releases'], 'release')} ({counts})",
+        (
+            f"provider {info['provider']}; sent with each request: "
+            f"{describe_parameters(info['provider'], info['request_parameters'])}"
+        ),
+    ]
     if info["status"] == ABORTED:
         lines.append(f"stopped, not graded: {info['stop_reason']}")
     tokens = info["tokens"]
@@ -834,8 +1077,13 @@ def format_dry_run(
                 f"{len(text):,} characters"
             ),
             (
-                "POST <MODEL_BASE_URL>/chat/completions, model <MODEL_NAME>, "
-                f"temperature {TEMPERATURE}"
+                "openai (the default): POST <MODEL_BASE_URL>/chat/completions, model "
+                "<MODEL_NAME>, temperature <MODEL_TEMPERATURE> (not sent if blank)"
+            ),
+            (
+                "anthropic: messages.create (anthropic SDK), model <MODEL_NAME>, "
+                f"max_tokens {ANTHROPIC_MAX_TOKENS}, effort <MODEL_EFFORT> (not sent "
+                "if blank), no temperature"
             ),
             (
                 f"=== system: {prompts_dir / prompt.version}.txt (sha256 "
@@ -870,6 +1118,7 @@ def main(
     *,
     transport: httpx.BaseTransport | None = None,
     environ: Mapping[str, str] | None = None,
+    anthropic_client: anthropic.Anthropic | None = None,
     edgar_client: EdgarClient | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
@@ -923,13 +1172,15 @@ def main(
         return 1
 
     print(
-        f"{run_dir}: {plural(len(work), 'release')}, prompt {prompt.version}, "
-        f"up to {MAX_PARALLEL} calls at a time"
+        f"{run_dir}: {plural(len(work), 'release')}, provider {settings.provider}, "
+        f"prompt {prompt.version}, "
+        f"{describe_parameters(settings.provider, settings.parameters)}, up to "
+        f"{MAX_PARALLEL} calls at a time"
     )
-    with ChatClient(settings, transport=transport, sleep=sleep) as chat:
-        results, status = run_releases(
-            chat, settings.model, prompt, work, run_dir / RAW
-        )
+    with make_chat(
+        settings, transport=transport, anthropic_client=anthropic_client, sleep=sleep
+    ) as chat:
+        results, status = run_releases(chat, prompt, work, run_dir / RAW)
     info = run_info(
         run_name=run_name,
         status=status,
