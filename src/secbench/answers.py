@@ -314,7 +314,10 @@ def expected_periods(form: str, filing_facts: set[Fact], period_end: date) -> li
 
 @dataclass(frozen=True)
 class Answer:
-    """One row of answers.csv."""
+    """One row of answers.csv: a fact of the linked filing, or a derived row whose
+    value is the full year in full_year_accession minus the nine months in
+    nine_months_accession, both facts of tag starting on fiscal_year_start (the
+    last three are blank on other rows)."""
 
     ticker: str
     release_accession: str
@@ -326,6 +329,10 @@ class Answer:
     value: Decimal
     unit: str
     tag: str
+    derived: bool = False
+    full_year_accession: str = ""
+    nine_months_accession: str = ""
+    fiscal_year_start: date | None = None
 
 
 COLUMNS = [f.name for f in fields(Answer)]
@@ -544,13 +551,14 @@ def answers_csv(answers: list[Answer]) -> str:
     writer = csv.DictWriter(buffer, fieldnames=COLUMNS, lineterminator="\n")
     writer.writeheader()
     for answer in answers:
-        writer.writerow(
-            {
-                key: value.isoformat() if isinstance(value, date) else str(value)
-                for key, value in asdict(answer).items()
-            }
-        )
+        writer.writerow({key: csv_cell(value) for key, value in asdict(answer).items()})
     return buffer.getvalue()
+
+
+def csv_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    return value.isoformat() if isinstance(value, date) else str(value)
 
 
 def plural(count: int, word: str) -> str:

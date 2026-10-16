@@ -731,11 +731,11 @@ def test_values_are_parsed_exactly(tmp_path) -> None:
         ",".join(COLUMNS),
         (
             "TEST,0000000001-26-000009,0000000001-26-000010,net_income,quarter,"
-            "2026-04-01,2026-06-30,94036000000,USD,NetIncomeLoss"
+            "2026-04-01,2026-06-30,94036000000,USD,NetIncomeLoss,False,,,"
         ),
         (
             "TEST,0000000001-26-000009,0000000001-26-000010,eps_diluted,quarter,"
-            "2026-04-01,2026-06-30,0.1,USD/shares,EarningsPerShareDiluted"
+            "2026-04-01,2026-06-30,0.1,USD/shares,EarningsPerShareDiluted,False,,,"
         ),
     ]
 
@@ -871,6 +871,10 @@ def test_cli_answers_csv_on_fixtures(fixture_run) -> None:
         "value": "116017000000",
         "unit": "USD",
         "tag": REV,
+        "derived": "False",
+        "full_year_accession": "",
+        "nine_months_accession": "",
+        "fiscal_year_start": "",
     }
     assert len(xom) == 6
     full_year = [r for r in rows if r["period_type"] == "full_year"]

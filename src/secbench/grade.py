@@ -37,6 +37,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from secbench.answers import COLUMNS as ANSWER_COLUMNS
 from secbench.answers import DEFAULT_OUT as DEFAULT_ANSWERS
 from secbench.answers import (
     FIELDS,
@@ -222,9 +223,21 @@ def period_type(group: str, form: str) -> str:
 def load_answers(path: Path) -> dict[tuple[str, str, str], Answer]:
     """answers.csv by (release accession, field, period type)."""
     with path.open(newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    if reader.fieldnames != ANSWER_COLUMNS:
+        raise GradeError(
+            f"{path} has columns {reader.fieldnames}, not {ANSWER_COLUMNS}; rerun "
+            "secbench.answers"
+        )
     key = {}
-    for row in rows:
+    for number, row in enumerate(rows, 2):
+        if row["derived"] not in ("True", "False"):
+            raise GradeError(
+                f"{path} line {number}: derived is {row['derived']!r}, not True or "
+                "False"
+            )
+        start = row["fiscal_year_start"]
         answer = Answer(
             ticker=row["ticker"],
             release_accession=row["release_accession"],
@@ -236,6 +249,10 @@ def load_answers(path: Path) -> dict[tuple[str, str, str], Answer]:
             value=Decimal(row["value"]),
             unit=row["unit"],
             tag=row["tag"],
+            derived=row["derived"] == "True",
+            full_year_accession=row["full_year_accession"],
+            nine_months_accession=row["nine_months_accession"],
+            fiscal_year_start=date.fromisoformat(start) if start else None,
         )
         key[answer.release_accession, answer.field, answer.period_type] = answer
     return key

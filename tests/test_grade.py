@@ -31,6 +31,7 @@ from secbench.grade import (
     WRONG_PERIOD,
     Figure,
     Graded,
+    GradeError,
     Prediction,
     PredictionsError,
     RunNotes,
@@ -969,6 +970,53 @@ def test_answers_without_a_prediction_are_missing() -> None:
     )
     graded = grade_prediction(prediction, linked_release(), key, set(), TEXT)
     assert [(g.field, g.verdict) for g in graded] == [("net_income", MISSING)]
+
+
+def test_load_answers_reads_what_answers_writes(tmp_path) -> None:
+    derived = Answer(
+        "TEST",
+        RELEASE,
+        FILING,
+        "revenue",
+        "quarter",
+        date(2025, 10, 1),
+        date(2025, 12, 31),
+        D("320"),
+        "USD",
+        "Revenues",
+        derived=True,
+        full_year_accession=FILING,
+        nine_months_accession="0000000001-25-000030",
+        fiscal_year_start=date(2025, 1, 1),
+    )
+    path = tmp_path / "answers.csv"
+    path.write_text(answers.answers_csv([answer(), derived]))
+    assert path.read_text().splitlines()[1:] == [
+        (
+            f"TEST,{RELEASE},{FILING},net_income,quarter,2026-04-01,2026-06-30,"
+            "14525000000,USD,NetIncomeLoss,False,,,"
+        ),
+        (
+            f"TEST,{RELEASE},{FILING},revenue,quarter,2025-10-01,2025-12-31,320,USD,"
+            f"Revenues,True,{FILING},0000000001-25-000030,2025-01-01"
+        ),
+    ]
+    assert load_answers(path) == {
+        (RELEASE, "net_income", "quarter"): answer(),
+        (RELEASE, "revenue", "quarter"): derived,
+    }
+
+
+def test_load_answers_rejects_other_columns(tmp_path) -> None:
+    path = tmp_path / "answers.csv"
+    lines = answers.answers_csv([answer()]).splitlines()
+    # answers.csv from before the derived columns
+    path.write_text("\n".join(line.rsplit(",", 4)[0] for line in lines) + "\n")
+    with pytest.raises(GradeError, match="rerun secbench.answers"):
+        load_answers(path)
+    path.write_text("\n".join([lines[0], lines[1].replace(",False,", ",yes,")]))
+    with pytest.raises(GradeError, match="line 2: derived is 'yes', not True or"):
+        load_answers(path)
 
 
 def test_check_key() -> None:
