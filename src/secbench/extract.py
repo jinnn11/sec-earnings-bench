@@ -1221,7 +1221,11 @@ def write_json(path: Path, data: Any) -> None:
 
 
 def default_run_name(model: str, prompt: Prompt, now: datetime) -> str:
-    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", model).strip("-.") or "model"
+    """time_model_prompt. A model ID's "/" becomes "--" (Qwen/Qwen3-8B as
+    Qwen--Qwen3-8B, keeping the organization apart from the model); other characters
+    outside A-Z, a-z, 0-9, ".", "_" and "-" become "-"."""
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", model.replace("/", "--"))
+    slug = slug.strip("-.") or "model"
     return f"{now:%Y-%m-%dT%H%M%S}_{slug}_{prompt.version}"
 
 

@@ -33,6 +33,7 @@ from secbench.extract import (
     RunError,
     Settings,
     SettingsError,
+    default_run_name,
     describe_parameters,
     estimated_cost,
     format_run_summary,
@@ -397,6 +398,24 @@ def test_token_cost_basis() -> None:
 def test_anthropic_ignores_gpu_hourly() -> None:
     environ = {**ANTHROPIC_ENVIRON, "MODEL_GPU_HOURLY": "2.5"}  # with token prices
     assert load_settings(environ) == ANTHROPIC_SETTINGS
+
+
+@pytest.mark.parametrize(
+    ("model", "slug"),
+    [
+        ("Qwen/Qwen3-8B", "Qwen--Qwen3-8B"),
+        ("meta-llama/Llama-3.1-8B-Instruct", "meta-llama--Llama-3.1-8B-Instruct"),
+        ("/models/Qwen3-8B", "models--Qwen3-8B"),  # vLLM serving a local path
+        ("qwen3:8b", "qwen3-8b"),
+        ("claude-opus-5-5", "claude-opus-5-5"),
+        ("///", "model"),
+    ],
+)
+def test_default_run_name(model, slug) -> None:
+    now = datetime(2026, 10, 15, 12, 0, 5, tzinfo=UTC)
+    name = default_run_name(model, load_prompt("extract_v1", PROMPTS), now)
+    assert name == f"2026-10-15T120005_{slug}_extract_v1"
+    assert extract.NAME.fullmatch(name)
 
 
 def test_select_releases() -> None:
@@ -1061,6 +1080,42 @@ def test_run_with_gpu_hour_cost(tmp_path, key_dir, perfect_replies, capsys) -> N
         )
         for line in capsys.readouterr().out.splitlines()
     )
+
+
+def test_default_run_name_for_a_model_id_with_a_slash(
+    tmp_path, key_dir, perfect_replies
+) -> None:
+    model = FakeModel(lambda a, call, body: completion(json.dumps(perfect_replies[a])))
+    runs = tmp_path / "runs"
+    argv = [
+        "--accessions",
+        AAPL,
+        "--links",
+        str(LINKS),
+        "--answers",
+        str(key_dir / "answers.csv"),
+        "--releases",
+        str(RELEASES),
+        "--runs-dir",
+        str(runs),
+        "--prompts-dir",
+        str(PROMPTS),
+    ]
+    with contextlib.redirect_stdout(io.StringIO()):
+        status = extract.main(
+            argv,
+            transport=httpx.MockTransport(model.handler),
+            environ={**ENVIRON, "MODEL_NAME": "Qwen/Qwen3-8B"},
+            edgar_client=make_client(tmp_path / "raw"),
+            sleep=lambda s: None,
+        )
+    assert status == 0
+    [folder] = runs.iterdir()  # one folder, not runs/<time>_Qwen/...
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d{6}_Qwen--Qwen3-8B_extract_v1", folder.name)
+    info = json.loads((folder / "run.json").read_text())
+    assert (info["run_name"], info["model"]) == (folder.name, "Qwen/Qwen3-8B")
+    # The model ID is sent unchanged.
+    assert json.loads(model.requests[0].content)["model"] == "Qwen/Qwen3-8B"
 
 
 def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:
