@@ -21,8 +21,11 @@ only from that file (read literally; the environment and .env are not used for t
 and a setting the file leaves out is blank): MODEL_PROVIDER (openai, the default, or
 anthropic), MODEL_NAME, MODEL_API_KEY, and MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT
 (optional; dollars per million tokens). openai also reads MODEL_BASE_URL (such as
-http://localhost:8000/v1) and MODEL_TEMPERATURE (optional; if blank, no temperature
-is sent and the server's default applies); its key is optional. anthropic needs the
+http://localhost:8000/v1), MODEL_TEMPERATURE (optional; if blank, no temperature is
+sent and the server's default applies) and MODEL_EXTRA_BODY (optional; a JSON object
+merged into every request body, such as {"reasoning_effort": "medium"}; it can't set
+model, messages, stream or temperature, and if blank nothing more is sent); its key
+is optional. anthropic needs the
 key, sends max_tokens 16000, MODEL_EFFORT as output_config.effort (optional: low,
 medium, high, xhigh or max; if blank, none is sent and the model's default applies)
 and never a temperature, reads only the text blocks of a reply (not thinking
@@ -113,6 +116,9 @@ ANTHROPIC = "anthropic"
 PROVIDERS = (OPENAI, ANTHROPIC)
 ANTHROPIC_MAX_TOKENS = 16000
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# Request body keys MODEL_EXTRA_BODY can't set: the runner sets the first two, a
+# streamed reply can't be parsed, and MODEL_TEMPERATURE sets the temperature.
+RESERVED_BODY_KEYS = ("model", "messages", "stream", "temperature")
 
 SETTINGS = (
     "MODEL_PROVIDER",
@@ -120,6 +126,7 @@ SETTINGS = (
     "MODEL_NAME",
     "MODEL_API_KEY",
     "MODEL_TEMPERATURE",
+    "MODEL_EXTRA_BODY",
     "MODEL_EFFORT",
     "MODEL_PRICE_INPUT",
     "MODEL_PRICE_OUTPUT",
@@ -153,6 +160,7 @@ class Settings:
     price_output: float | None = None
     provider: str = OPENAI
     effort: str | None = None  # anthropic only; None: not sent
+    extra_body: dict[str, Any] | None = None  # openai only; merged into each body
 
     @property
     def endpoint(self) -> str:
@@ -162,11 +170,15 @@ class Settings:
     def parameters(self) -> dict[str, Any]:
         """What every request sends besides the model, system prompt and messages:
         anthropic, max_tokens, output_config.effort only if MODEL_EFFORT is set, and
-        never a temperature; openai, temperature only if MODEL_TEMPERATURE is set."""
+        never a temperature; openai, temperature only if MODEL_TEMPERATURE is set,
+        then MODEL_EXTRA_BODY's keys."""
         if self.provider == ANTHROPIC:
             effort = {"output_config": {"effort": self.effort}} if self.effort else {}
             return {"max_tokens": ANTHROPIC_MAX_TOKENS, **effort}
-        return {} if self.temperature is None else {"temperature": self.temperature}
+        temperature = (
+            {} if self.temperature is None else {"temperature": self.temperature}
+        )
+        return {**temperature, **(self.extra_body or {})}
 
 
 def parse_number(name: str, value: str) -> float | None:
@@ -180,6 +192,30 @@ def parse_number(name: str, value: str) -> float | None:
     if not math.isfinite(number) or number < 0:
         raise SettingsError(f"{name} must be 0 or more")
     return number
+
+
+def parse_extra_body(value: str) -> dict[str, Any] | None:
+    """MODEL_EXTRA_BODY: a JSON object without RESERVED_BODY_KEYS; None if blank."""
+    if not value:
+        return None
+
+    def no_constant(name: str) -> None:
+        raise ValueError(name)  # NaN and Infinity aren't JSON
+
+    try:
+        body = json.loads(value, parse_constant=no_constant)
+    except ValueError:
+        raise SettingsError("MODEL_EXTRA_BODY is not valid JSON") from None
+    if not isinstance(body, dict):
+        raise SettingsError("MODEL_EXTRA_BODY must be a JSON object")
+    reserved = [key for key in RESERVED_BODY_KEYS if key in body]
+    if reserved:
+        raise SettingsError(
+            f"MODEL_EXTRA_BODY can't set {' or '.join(reserved)} (the runner sets "
+            "model and messages, a reply can't be streamed, and MODEL_TEMPERATURE "
+            "sets the temperature)"
+        )
+    return body
 
 
 def load_settings(
@@ -199,8 +235,9 @@ def load_settings(
     provider = values["MODEL_PROVIDER"].lower() or OPENAI
     if provider not in PROVIDERS:
         raise SettingsError("MODEL_PROVIDER must be openai or anthropic")
-    # anthropic ignores MODEL_BASE_URL and MODEL_TEMPERATURE, and openai ignores
-    # MODEL_EFFORT, so .env can switch providers by MODEL_PROVIDER alone.
+    # anthropic ignores MODEL_BASE_URL, MODEL_TEMPERATURE and MODEL_EXTRA_BODY, and
+    # openai ignores MODEL_EFFORT, so .env can switch providers by MODEL_PROVIDER
+    # alone.
     is_openai = provider == OPENAI
     required = (
         ("MODEL_BASE_URL", "MODEL_NAME")
@@ -218,6 +255,7 @@ def load_settings(
     ):
         raise SettingsError("MODEL_BASE_URL must start with http:// or https://")
     temperature = values["MODEL_TEMPERATURE"] if is_openai else ""
+    extra_body = parse_extra_body(values["MODEL_EXTRA_BODY"] if is_openai else "")
     effort = "" if is_openai else values["MODEL_EFFORT"].lower()
     if effort and effort not in EFFORTS:
         raise SettingsError(f"MODEL_EFFORT must be {', '.join(EFFORTS[:-1])} or max")
@@ -230,6 +268,7 @@ def load_settings(
         price_output=parse_number("MODEL_PRICE_OUTPUT", values["MODEL_PRICE_OUTPUT"]),
         provider=provider,
         effort=effort or None,
+        extra_body=extra_body,
     )
 
 
@@ -956,6 +995,7 @@ def run_info(
         "retry_message": RETRY_MESSAGE,
         # Sent with every request besides the model, system prompt and messages.
         "request_parameters": settings.parameters,
+        "extra_body": settings.extra_body,  # MODEL_EXTRA_BODY, part of the above
         "max_parallel": MAX_PARALLEL,
         "started": started.isoformat(timespec="seconds"),
         "finished": finished.isoformat(timespec="seconds"),
@@ -992,14 +1032,24 @@ def run_info(
     }
 
 
+def describe_value(value: Any) -> str:
+    """0.0 as 0, a string as itself, anything else as JSON."""
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, str):
+        return value
+    return json.dumps(value)
+
+
 def describe_parameters(provider: str, parameters: dict[str, Any]) -> str:
-    """Like "temperature 0", or "max_tokens 16000, effort high, no temperature"."""
+    """Like "temperature 0, reasoning_effort medium", or "max_tokens 16000, effort
+    high, no temperature"."""
     parts = []
     for name, value in parameters.items():
-        if name == "output_config":
+        if provider == ANTHROPIC and name == "output_config":
             parts.extend(f"{key} {setting}" for key, setting in value.items())
         else:
-            parts.append(f"{name} {value:g}")
+            parts.append(f"{name} {describe_value(value)}")
     if provider == ANTHROPIC and "output_config" not in parameters:
         parts.append("default effort")
     if "temperature" not in parameters:
@@ -1091,7 +1141,8 @@ def format_dry_run(
             ),
             (
                 "openai (the default): POST <MODEL_BASE_URL>/chat/completions, model "
-                "<MODEL_NAME>, temperature <MODEL_TEMPERATURE> (not sent if blank)"
+                "<MODEL_NAME>, temperature <MODEL_TEMPERATURE> (not sent if blank), "
+                "<MODEL_EXTRA_BODY> merged into the body (if set)"
             ),
             (
                 "anthropic: messages.create (anthropic SDK), model <MODEL_NAME>, "

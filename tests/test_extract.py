@@ -32,6 +32,7 @@ from secbench.extract import (
     RunError,
     Settings,
     SettingsError,
+    describe_parameters,
     estimated_cost,
     load_prompt,
     load_settings,
@@ -148,6 +149,20 @@ def test_load_settings() -> None:
         ({"MODEL_TEMPERATURE": "warm"}, "MODEL_TEMPERATURE is not a number"),
         ({"MODEL_TEMPERATURE": "-0.5"}, "MODEL_TEMPERATURE must be 0 or more"),
         ({"MODEL_TEMPERATURE": "nan"}, "MODEL_TEMPERATURE must be 0 or more"),
+        (
+            {"MODEL_EXTRA_BODY": "{reasoning_effort: medium}"},
+            "MODEL_EXTRA_BODY is not valid JSON",
+        ),
+        ({"MODEL_EXTRA_BODY": '{"top_p": NaN}'}, "MODEL_EXTRA_BODY is not valid JSON"),
+        ({"MODEL_EXTRA_BODY": '["medium"]'}, "MODEL_EXTRA_BODY must be a JSON object"),
+        (
+            {"MODEL_EXTRA_BODY": '{"stream": true, "model": "other-model"}'},
+            "MODEL_EXTRA_BODY can't set model or stream ",
+        ),
+        (
+            {"MODEL_EXTRA_BODY": '{"temperature": 0.2}'},
+            "MODEL_EXTRA_BODY can't set temperature ",
+        ),
     ],
 )
 def test_bad_settings_name_the_setting_not_its_value(changes, message) -> None:
@@ -156,6 +171,40 @@ def test_bad_settings_name_the_setting_not_its_value(changes, message) -> None:
     for value in changes.values():
         if value.strip():
             assert value not in str(raised.value)
+
+
+def test_extra_body() -> None:
+    extra = '{"reasoning_effort": "medium", "max_tokens": 4096}'
+    settings = load_settings({**ENVIRON, "MODEL_EXTRA_BODY": f" {extra} "})
+    assert settings.extra_body == {"reasoning_effort": "medium", "max_tokens": 4096}
+    assert settings.parameters == {
+        "temperature": 0.0,
+        "reasoning_effort": "medium",
+        "max_tokens": 4096,
+    }
+    assert describe_parameters("openai", settings.parameters) == (
+        "temperature 0, reasoning_effort medium, max_tokens 4096"
+    )
+    # Blank or unset: nothing more is sent.
+    for environ in (ENVIRON, {**ENVIRON, "MODEL_EXTRA_BODY": " "}):
+        assert load_settings(environ).extra_body is None
+        assert load_settings(environ).parameters == {"temperature": 0.0}
+    vllm = load_settings(
+        {
+            "MODEL_BASE_URL": "http://localhost:8000/v1",
+            "MODEL_NAME": "qwen",
+            "MODEL_EXTRA_BODY": '{"chat_template_kwargs": {"enable_thinking": false}}',
+        }
+    )
+    assert vllm.parameters == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert describe_parameters("openai", vllm.parameters) == (
+        'chat_template_kwargs {"enable_thinking": false}, no temperature'
+    )
+
+
+def test_anthropic_ignores_extra_body() -> None:
+    environ = {**ANTHROPIC_ENVIRON, "MODEL_EXTRA_BODY": "{not json"}
+    assert load_settings(environ) == ANTHROPIC_SETTINGS
 
 
 def test_env_file_is_the_only_source(tmp_path) -> None:
@@ -612,6 +661,7 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
     assert info["provider"] == "openai"
     assert info["model"] == "fake-model"
     assert info["env_file"] is None
+    assert info["extra_body"] is None
     assert info["prompt_version"] == "extract_v1"
     assert info["prompt_sha256"] == RELEASED_PROMPTS["extract_v1"]
     assert info["request_parameters"] == {"temperature": 0.0}
@@ -875,6 +925,39 @@ def test_run_with_an_env_file(tmp_path, key_dir, perfect_replies, capsys) -> Non
     assert KEY not in out and KEY not in json.dumps(info)
 
 
+def test_run_with_an_extra_body(tmp_path, key_dir, perfect_replies, capsys) -> None:
+    def script(accession, call, body) -> httpx.Response:
+        if accession == CAT and call == 1:
+            return completion("The figures are below.")  # retried
+        return completion(json.dumps(perfect_replies[accession]))
+
+    model = FakeModel(script)
+    extra = '{"reasoning_effort": "medium", "max_tokens": 4096}'
+    environ = {**ENVIRON, "MODEL_EXTRA_BODY": extra}
+    assert run(tmp_path, key_dir, model, environ=environ) == 0
+    bodies = [json.loads(r.content) for r in model.requests]
+    assert len(bodies) == 6  # five releases, one retried
+    for body in bodies:
+        assert list(body)[:2] == ["model", "messages"]
+        assert {k: v for k, v in body.items() if k not in ("model", "messages")} == {
+            "temperature": 0,
+            "reasoning_effort": "medium",
+            "max_tokens": 4096,
+        }
+    info = json.loads((tmp_path / "runs" / "test" / "run.json").read_text())
+    assert info["extra_body"] == {"reasoning_effort": "medium", "max_tokens": 4096}
+    assert info["request_parameters"] == {
+        "temperature": 0.0,
+        "reasoning_effort": "medium",
+        "max_tokens": 4096,
+    }
+    assert info["outcomes"][OK_AFTER_RETRY] == 1
+    assert (
+        "provider openai; sent with each request: temperature 0, reasoning_effort "
+        "medium, max_tokens 4096"
+    ) in capsys.readouterr().out.splitlines()
+
+
 def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:
     model = FakeModel(refuse)
     assert run(tmp_path, key_dir, model, "--dry-run", environ={}) == 0
@@ -892,7 +975,8 @@ def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:
     assert lines[1:3] == [
         (
             "openai (the default): POST <MODEL_BASE_URL>/chat/completions, model "
-            "<MODEL_NAME>, temperature <MODEL_TEMPERATURE> (not sent if blank)"
+            "<MODEL_NAME>, temperature <MODEL_TEMPERATURE> (not sent if blank), "
+            "<MODEL_EXTRA_BODY> merged into the body (if set)"
         ),
         (
             "anthropic: messages.create (anthropic SDK), model <MODEL_NAME>, "
