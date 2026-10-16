@@ -30,7 +30,7 @@ from collections import Counter, defaultdict
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import asdict, dataclass, fields
 from dataclasses import field as dataclass_field
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Annotated
@@ -259,13 +259,19 @@ def load_answers(path: Path) -> dict[tuple[str, str, str], Answer]:
 
 
 def load_filing_facts(
-    client: EdgarClient, releases: Iterable[LinkedRelease]
+    client: EdgarClient,
+    releases: Iterable[LinkedRelease],
+    answers: Iterable[Answer] = (),
 ) -> dict[str, set[Fact]]:
-    """Linked accession -> the us-gaap facts of that filing, from the cached
-    company facts of every CIK of each ticker."""
+    """Accession -> the us-gaap facts of that filing, from the cached company facts
+    of every CIK of each ticker: each release's linked filing, and the nine-month
+    10-Q of each derived answer."""
     by_ticker: dict[str, set[str]] = defaultdict(set)
     for release in releases:
         by_ticker[release.ticker].add(release.linked_accession)
+    for answer in answers:
+        if answer.derived:
+            by_ticker[answer.ticker].add(answer.nine_months_accession)
     facts: dict[str, set[Fact]] = {}
     for ticker, accessions in sorted(by_ticker.items()):
         documents = [
@@ -276,22 +282,71 @@ def load_filing_facts(
 
 
 def check_key(answers: Iterable[Answer], facts: dict[str, set[Fact]]) -> list[str]:
-    """Answers whose value isn't the linked filing's fact for its tag and period
-    (answers.csv older than the company facts)."""
+    """Answers that don't match the company facts (answers.csv older than them). An
+    answer from one fact must be the linked filing's fact for its tag and period; a
+    derived answer is recomputed (see derived_mismatch)."""
     problems = []
     for a in answers:
-        values = {
-            f.value
-            for f in facts.get(a.linked_accession, ())
-            if (f.tag, f.unit, f.start, f.end) == (a.tag, a.unit, a.start, a.end)
-        }
-        if values != {a.value}:
-            got = ", ".join(map(str, sorted(values))) or "no fact"
+        if a.derived:
+            mismatch = derived_mismatch(a, facts)
+        else:
+            values = tagged_values(facts, a.linked_accession, a, a.start, a.end)
+            mismatch = None if values == [a.value] else f"company facts {show(values)}"
+        if mismatch:
             problems.append(
                 f"{a.release_accession} {a.field} {a.period_type}: answers.csv has "
-                f"{a.value}, company facts {got}"
+                f"{a.value}, {mismatch}"
             )
     return problems
+
+
+def derived_mismatch(a: Answer, facts: dict[str, set[Fact]]) -> str | None:
+    """How a derived answer differs from the linked filing's full year minus the
+    nine months in its nine_months_accession (both of its tag, from its
+    fiscal_year_start, the nine months ending the day before its start), or None."""
+    if a.full_year_accession != a.linked_accession:
+        return (
+            f"derived from {a.full_year_accession or 'no filing'}, not the linked one"
+        )
+    if a.fiscal_year_start is None:
+        return "derived without a fiscal_year_start"
+    full_year = tagged_values(
+        facts, a.full_year_accession, a, a.fiscal_year_start, a.end
+    )
+    nine_months = tagged_values(
+        facts,
+        a.nine_months_accession,
+        a,
+        a.fiscal_year_start,
+        a.start - timedelta(days=1),
+    )
+    text = (
+        f"company facts full year {show(full_year)} ({a.full_year_accession}) minus "
+        f"nine months {show(nine_months)} ({a.nine_months_accession or 'no filing'})"
+    )
+    if len(full_year) == 1 and len(nine_months) == 1:
+        difference = full_year[0] - nine_months[0]
+        if difference == a.value:
+            return None
+        text += f" = {difference}"
+    return text
+
+
+def tagged_values(
+    facts: dict[str, set[Fact]], accession: str, a: Answer, start: date, end: date
+) -> list[Decimal]:
+    """The values of a's tag and unit for start..end in a filing."""
+    return sorted(
+        {
+            f.value
+            for f in facts.get(accession, ())
+            if (f.tag, f.unit, f.start, f.end) == (a.tag, a.unit, start, end)
+        }
+    )
+
+
+def show(values: list[Decimal]) -> str:
+    return ", ".join(map(str, values)) or "no fact"
 
 
 # Input rows
@@ -859,14 +914,13 @@ def grade_run(
     notes.without_prediction = len(linked) - notes.graded_releases
 
     releases = [release for _, release in graded_predictions]
+    accessions = {r.release_accession for r in releases}
+    answers = [a for a in key.values() if a.release_accession in accessions]
     try:
-        facts = load_filing_facts(client or default_client(), releases)
+        facts = load_filing_facts(client or default_client(), releases, answers)
     except EdgarError as exc:
         raise GradeError(f"company facts: {exc}") from None
-    accessions = {r.release_accession for r in releases}
-    problems = check_key(
-        (a for a in key.values() if a.release_accession in accessions), facts
-    )
+    problems = check_key(answers, facts)
     if problems:
         raise GradeError(
             f"{answers_path} doesn't match the company facts; rerun secbench.answers: "

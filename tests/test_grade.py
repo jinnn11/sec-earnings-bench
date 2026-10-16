@@ -1,5 +1,6 @@
 import contextlib
 import csv
+import dataclasses
 import io
 import json
 import shutil
@@ -1036,6 +1037,90 @@ def test_check_key() -> None:
     ]
 
 
+# A fourth quarter derived from a 10-K (FILING) and its third-quarter 10-Q.
+NINE_MONTHS_FILING = "0000000001-25-000030"
+FULL_YEAR_25 = (date(2025, 1, 1), date(2025, 12, 31))
+NINE_MONTHS_25 = (date(2025, 1, 1), date(2025, 9, 30))
+Q4_25 = (date(2025, 10, 1), date(2025, 12, 31))
+
+
+def derived_answer(value: str = "320", **changes) -> Answer:
+    return dataclasses.replace(
+        Answer(
+            "TEST",
+            RELEASE,
+            FILING,
+            "revenue",
+            "quarter",
+            *Q4_25,
+            D(value),
+            "USD",
+            "Revenues",
+            derived=True,
+            full_year_accession=FILING,
+            nine_months_accession=NINE_MONTHS_FILING,
+            fiscal_year_start=FULL_YEAR_25[0],
+        ),
+        **changes,
+    )
+
+
+def test_check_key_recomputes_derived_answers() -> None:
+    facts = {
+        # The 10-K's own fourth-quarter fact (321) is not what a derived row checks.
+        FILING: {
+            fact("Revenues", FULL_YEAR_25, "1200"),
+            fact("Revenues", Q4_25, "321"),
+        },
+        NINE_MONTHS_FILING: {fact("Revenues", NINE_MONTHS_25, "880")},
+    }
+    assert check_key([derived_answer()], facts) == []
+    has = f"{RELEASE} revenue quarter: answers.csv has"
+    other_10q = "0000000001-25-000031"
+    assert check_key(
+        [
+            derived_answer("321"),
+            derived_answer(nine_months_accession=other_10q),
+            derived_answer(fiscal_year_start=date(2025, 1, 2)),
+            derived_answer(start=date(2025, 9, 1)),  # nine months end 2025-08-31
+            derived_answer(full_year_accession=NINE_MONTHS_FILING),
+            derived_answer(fiscal_year_start=None),
+            derived_answer(tag="RevenueFromContractWithCustomerExcludingAssessedTax"),
+        ],
+        facts,
+    ) == [
+        (
+            f"{has} 321, company facts full year 1200 ({FILING}) minus nine months "
+            f"880 ({NINE_MONTHS_FILING}) = 320"
+        ),
+        (
+            f"{has} 320, company facts full year 1200 ({FILING}) minus nine months "
+            f"no fact ({other_10q})"
+        ),
+        (
+            f"{has} 320, company facts full year no fact ({FILING}) minus nine months "
+            f"no fact ({NINE_MONTHS_FILING})"
+        ),
+        (
+            f"{has} 320, company facts full year 1200 ({FILING}) minus nine months "
+            f"no fact ({NINE_MONTHS_FILING})"
+        ),
+        f"{has} 320, derived from {NINE_MONTHS_FILING}, not the linked one",
+        f"{has} 320, derived without a fiscal_year_start",
+        (
+            f"{has} 320, company facts full year no fact ({FILING}) minus nine months "
+            f"no fact ({NINE_MONTHS_FILING})"
+        ),
+    ]
+    facts[NINE_MONTHS_FILING].add(fact("Revenues", NINE_MONTHS_25, "881"))
+    assert check_key([derived_answer()], facts) == [
+        (
+            f"{has} 320, company facts full year 1200 ({FILING}) minus nine months "
+            f"880, 881 ({NINE_MONTHS_FILING})"
+        )
+    ]
+
+
 def graded_row(
     verdict: str, ticker: str = "AAPL", field: str = "revenue", period="quarter"
 ):
@@ -1298,6 +1383,47 @@ def test_cli_errors(key_dir, tmp_path, capsys) -> None:
 
     assert f"no saved release {XOM} in" in run_error(run, "--releases", str(empty))
     assert not (run / "graded.csv").exists()
+
+
+MSFT_10K = "0000950170-25-100235"
+MSFT_Q3_10Q = "0000950170-25-061046"  # its fiscal year's third-quarter 10-Q
+RFC = "RevenueFromContractWithCustomerExcludingAssessedTax"
+
+
+def test_cli_checks_a_derived_answer(key_dir, tmp_path, capsys) -> None:
+    # Microsoft's fourth-quarter FY25 revenue: 281,724 for the year minus 205,283
+    # for nine months. The nine months come from a filing not linked to this run.
+    def key_with(value: str) -> Path:
+        lines = [
+            line
+            for line in (key_dir / "answers.csv").read_text().splitlines()
+            if not line.startswith(f"MSFT,{MSFT},{MSFT_10K},revenue,quarter,")
+        ]
+        lines.append(
+            f"MSFT,{MSFT},{MSFT_10K},revenue,quarter,2025-04-01,2025-06-30,{value},"
+            f"USD,{RFC},True,{MSFT_10K},{MSFT_Q3_10Q},2024-07-01"
+        )
+        path = tmp_path / f"answers_{value}.csv"
+        path.write_text("\n".join(lines) + "\n")
+        return path
+
+    client = make_client(key_dir / "raw")
+    run = write_run(tmp_path / "run", [RUN_PREDICTIONS[3]])  # MSFT only
+    argv = grade_args(run, key_dir, "--answers", str(key_with("76441000000")))
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert grade.main(argv, client=client) == 0
+    with (run / "graded.csv").open(newline="") as f:
+        rows = {(r["field"], r["period_type"]): r for r in csv.DictReader(f)}
+    assert rows["revenue", "quarter"]["verdict"] == CORRECT
+    assert rows["revenue", "quarter"]["answer_tag"] == RFC
+
+    argv = grade_args(run, key_dir, "--answers", str(key_with("76442000000")))
+    assert grade.main(argv, client=client) == 1
+    assert (
+        f"{MSFT} revenue quarter: answers.csv has 76442000000, company facts full "
+        f"year 281724000000 ({MSFT_10K}) minus nine months 205283000000 "
+        f"({MSFT_Q3_10Q}) = 76441000000"
+    ) in capsys.readouterr().err
 
 
 def test_cli_company_facts_unavailable(key_dir, tmp_path, capsys) -> None:
