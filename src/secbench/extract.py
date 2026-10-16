@@ -13,9 +13,12 @@ changed prompt is a new version (extract_v2).
 
 Usage: uv run python -m secbench.extract [--tickers AAPL ...] [--accessions ...]
            [--limit N] [--run-name NAME] [--prompt extract_v1] [--dry-run]
-           [--links] [--answers] [--releases] [--runs-dir] [--prompts-dir]
+           [--env-file .env.vllm] [--links] [--answers] [--releases] [--runs-dir]
+           [--prompts-dir]
 
-Settings come from the environment or .env: MODEL_PROVIDER (openai, the default, or
+Settings come from the environment or .env (the environment wins), or with --env-file
+only from that file (read literally; the environment and .env are not used for them,
+and a setting the file leaves out is blank): MODEL_PROVIDER (openai, the default, or
 anthropic), MODEL_NAME, MODEL_API_KEY, and MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT
 (optional; dollars per million tokens). openai also reads MODEL_BASE_URL (such as
 http://localhost:8000/v1) and MODEL_TEMPERATURE (optional; if blank, no temperature
@@ -60,7 +63,7 @@ from typing import Any, Self
 
 import anthropic
 import httpx
-from dotenv import find_dotenv, load_dotenv
+from dotenv import dotenv_values, find_dotenv, load_dotenv
 from pydantic import ValidationError
 
 from secbench import grade
@@ -179,10 +182,17 @@ def parse_number(name: str, value: str) -> float | None:
     return number
 
 
-def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
-    """The MODEL_* settings from environ, or else from the environment and .env
-    (the environment wins)."""
-    if environ is None:
+def load_settings(
+    environ: Mapping[str, str] | None = None, env_file: Path | None = None
+) -> Settings:
+    """The MODEL_* settings from env_file alone (environ is then not used), else
+    from environ, or else from the environment and .env (the environment wins)."""
+    if env_file is not None:
+        if not env_file.is_file():
+            raise SettingsError(f"{env_file} not found")
+        file_values = dotenv_values(env_file, interpolate=False)
+        environ = {name: value or "" for name, value in file_values.items()}
+    elif environ is None:
         load_dotenv(find_dotenv(usecwd=True))
         environ = os.environ
     values = {name: environ.get(name, "").strip() for name in SETTINGS}
@@ -200,7 +210,8 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
     missing = [name for name in required if not values[name]]
     if missing:
         raise SettingsError(
-            f"{' and '.join(missing)} not set; add to .env (see .env.example)"
+            f"{' and '.join(missing)} not set; add to {env_file or '.env'} (see "
+            ".env.example)"
         )
     if is_openai and not re.match(
         r"https?://", values["MODEL_BASE_URL"], re.IGNORECASE
@@ -913,6 +924,7 @@ def run_info(
     run_name: str,
     status: str,
     settings: Settings,
+    env_file: Path | None = None,
     prompt: Prompt,
     started: datetime,
     finished: datetime,
@@ -938,6 +950,7 @@ def run_info(
         "stop_reason": stopped[0].reason if stopped else "",
         "provider": settings.provider,
         "model": settings.model,
+        "env_file": None if env_file is None else str(env_file),  # the path only
         "prompt_version": prompt.version,
         "prompt_sha256": prompt.sha256,
         "retry_message": RETRY_MESSAGE,
@@ -1137,7 +1150,13 @@ def main(
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="print the full request for the first release; make no calls",
+        help="print the full request for the first release; make no calls (reads "
+        "no settings)",
+    )
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        help="read the MODEL_* settings from this file only (such as .env.vllm)",
     )
     parser.add_argument("--links", type=Path, default=DEFAULT_LINKS)
     parser.add_argument("--answers", type=Path, default=DEFAULT_ANSWERS)
@@ -1158,7 +1177,7 @@ def main(
         if args.dry_run:
             print(format_dry_run(prompt, *work[0], len(work), args.prompts_dir))
             return 0
-        settings = load_settings(environ)
+        settings = load_settings(environ, args.env_file)
         started = datetime.now(UTC)
         run_name = args.run_name or default_run_name(settings.model, prompt, started)
         if not NAME.fullmatch(run_name):
@@ -1176,6 +1195,7 @@ def main(
         f"prompt {prompt.version}, "
         f"{describe_parameters(settings.provider, settings.parameters)}, up to "
         f"{MAX_PARALLEL} calls at a time"
+        + (f"; settings from {args.env_file}" if args.env_file else "")
     )
     with make_chat(
         settings, transport=transport, anthropic_client=anthropic_client, sleep=sleep
@@ -1185,6 +1205,7 @@ def main(
         run_name=run_name,
         status=status,
         settings=settings,
+        env_file=args.env_file,
         prompt=prompt,
         started=started,
         finished=datetime.now(UTC),

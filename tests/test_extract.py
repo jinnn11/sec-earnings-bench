@@ -158,6 +158,33 @@ def test_bad_settings_name_the_setting_not_its_value(changes, message) -> None:
             assert value not in str(raised.value)
 
 
+def test_env_file_is_the_only_source(tmp_path) -> None:
+    env_file = tmp_path / ".env.vllm"
+    env_file.write_text(
+        "# a local vLLM server\n"
+        'MODEL_BASE_URL="http://localhost:8000/v1"\n'
+        "MODEL_NAME=qwen3-4b\n"
+        'MODEL_API_KEY="key-${HOME}"\n'
+        "MODEL_TEMPERATURE=\n"
+    )
+    # ENVIRON's settings are not used, even those the file leaves out (prices); the
+    # file is read literally.
+    assert load_settings(ENVIRON, env_file) == Settings(
+        "http://localhost:8000/v1", "qwen3-4b", "key-${HOME}"
+    )
+
+
+def test_env_file_problems(tmp_path) -> None:
+    with pytest.raises(SettingsError, match="none.env not found"):
+        load_settings(ENVIRON, tmp_path / "none.env")
+    env_file = tmp_path / ".env.openai"
+    env_file.write_text("MODEL_NAME=gpt-test\n")
+    with pytest.raises(
+        SettingsError, match=f"MODEL_BASE_URL not set; add to {env_file} "
+    ):
+        load_settings(ENVIRON, env_file)
+
+
 # Replies
 
 
@@ -584,6 +611,7 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
     assert info["status"] == "complete"
     assert info["provider"] == "openai"
     assert info["model"] == "fake-model"
+    assert info["env_file"] is None
     assert info["prompt_version"] == "extract_v1"
     assert info["prompt_sha256"] == RELEASED_PROMPTS["extract_v1"]
     assert info["request_parameters"] == {"temperature": 0.0}
@@ -821,6 +849,30 @@ def test_at_most_four_calls_at_once(tmp_path, key_dir, perfect_replies) -> None:
 
 def refuse(accession: str, call: int, body: dict) -> httpx.Response:
     raise AssertionError("a call was made")
+
+
+def test_run_with_an_env_file(tmp_path, key_dir, perfect_replies, capsys) -> None:
+    env_file = tmp_path / ".env.openai"
+    env_file.write_text(
+        "MODEL_BASE_URL=https://models.test/v1/\nMODEL_NAME=file-model\n"
+        f"MODEL_API_KEY={KEY}\n"
+    )
+    model = FakeModel(lambda a, call, body: completion(json.dumps(perfect_replies[a])))
+    environ = {**ENVIRON, "MODEL_NAME": "environment-model"}  # not used
+    assert (
+        run(tmp_path, key_dir, model, "--env-file", str(env_file), environ=environ) == 0
+    )
+    assert {json.loads(r.content)["model"] for r in model.requests} == {"file-model"}
+    # The file sets no temperature and no prices.
+    assert all("temperature" not in json.loads(r.content) for r in model.requests)
+    info = json.loads((tmp_path / "runs" / "test" / "run.json").read_text())
+    assert (info["model"], info["env_file"]) == ("file-model", str(env_file))
+    assert (info["request_parameters"], info["estimated_cost_usd"]) == ({}, None)
+    out = capsys.readouterr().out
+    assert out.splitlines()[0].endswith(
+        f"no temperature, up to 4 calls at a time; settings from {env_file}"
+    )
+    assert KEY not in out and KEY not in json.dumps(info)
 
 
 def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:

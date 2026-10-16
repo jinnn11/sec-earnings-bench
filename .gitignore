@@ -13,8 +13,10 @@ wheels/
 .pytest_cache/
 .ruff_cache/
 
-# Secrets
+# Secrets: .env and per-setup settings files (.env.openai, .env.vllm)
 .env
+.env.*
+!.env.example
 
 # Downloaded SEC data and evaluation runs
 data/
