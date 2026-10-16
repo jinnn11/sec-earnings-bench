@@ -8,6 +8,7 @@ import threading
 import time
 from collections import Counter
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -34,10 +35,12 @@ from secbench.extract import (
     SettingsError,
     describe_parameters,
     estimated_cost,
+    format_run_summary,
     load_prompt,
     load_settings,
     parse_reply,
     percentile,
+    run_info,
     select_releases,
 )
 from secbench.grade import load_answers
@@ -155,6 +158,12 @@ def test_load_settings() -> None:
         ),
         ({"MODEL_EXTRA_BODY": '{"top_p": NaN}'}, "MODEL_EXTRA_BODY is not valid JSON"),
         ({"MODEL_EXTRA_BODY": '["medium"]'}, "MODEL_EXTRA_BODY must be a JSON object"),
+        ({"MODEL_GPU_HOURLY": "cheap"}, "MODEL_GPU_HOURLY is not a number"),
+        ({"MODEL_GPU_HOURLY": "-2.5"}, "MODEL_GPU_HOURLY must be 0 or more"),
+        (
+            {"MODEL_GPU_HOURLY": "2.5"},  # ENVIRON has token prices
+            "set MODEL_GPU_HOURLY or MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT, not both",
+        ),
         ({"MODEL_CONCURRENCY": "four"}, "MODEL_CONCURRENCY is not a whole number"),
         ({"MODEL_CONCURRENCY": "2.5"}, "MODEL_CONCURRENCY is not a whole number"),
         ({"MODEL_CONCURRENCY": "0"}, "MODEL_CONCURRENCY must be 1 or more"),
@@ -335,6 +344,59 @@ def test_estimated_cost() -> None:
     assert estimated_cost(1000, 100, SETTINGS) == pytest.approx(0.0045)
     unpriced = Settings("https://models.test/v1", "fake-model", price_input=3.0)
     assert estimated_cost(1000, 100, unpriced) is None
+
+
+VLLM_ENVIRON = {
+    "MODEL_BASE_URL": "https://models.test/v1/",
+    "MODEL_NAME": "qwen3-4b",
+    "MODEL_GPU_HOURLY": "2.5",
+}
+
+
+def cost_info(settings: Settings, seconds: float) -> dict:
+    started = datetime(2026, 10, 15, 12, 0, 0, tzinfo=UTC)
+    return run_info(
+        run_name="cost",
+        status="complete",
+        settings=settings,
+        prompt=load_prompt("extract_v1", PROMPTS),
+        started=started,
+        finished=started + timedelta(seconds=seconds),
+        selection={},
+        results=[],
+    )
+
+
+def test_gpu_hour_cost() -> None:
+    settings = load_settings(VLLM_ENVIRON)
+    assert (settings.gpu_hourly, settings.price_input) == (2.5, None)
+    info = cost_info(settings, 72)
+    # $2.50 per hour for 72 s: 2.5 x 72 / 3,600 = $0.05.
+    assert (info["cost_basis"], info["gpu_hourly_usd"], info["wall_time_s"]) == (
+        "gpu_hours",
+        2.5,
+        72.0,
+    )
+    assert info["estimated_cost_usd"] == 0.05
+    assert (
+        "estimated cost: $0.0500 ($2.5 per GPU-hour for 72.0 s of wall-clock time)"
+        in format_run_summary(info, Path("runs/cost")).splitlines()
+    )
+    # 90 minutes at $2.50 per hour: $3.75.
+    assert cost_info(settings, 5400)["estimated_cost_usd"] == 3.75
+
+
+def test_token_cost_basis() -> None:
+    info = cost_info(SETTINGS, 72)
+    assert (info["cost_basis"], info["gpu_hourly_usd"]) == ("tokens", None)
+    assert info["estimated_cost_usd"] == 0.0  # no calls
+    unpriced = cost_info(load_settings({**VLLM_ENVIRON, "MODEL_GPU_HOURLY": ""}), 72)
+    assert (unpriced["cost_basis"], unpriced["estimated_cost_usd"]) == (None, None)
+
+
+def test_anthropic_ignores_gpu_hourly() -> None:
+    environ = {**ANTHROPIC_ENVIRON, "MODEL_GPU_HOURLY": "2.5"}  # with token prices
+    assert load_settings(environ) == ANTHROPIC_SETTINGS
 
 
 def test_select_releases() -> None:
@@ -979,6 +1041,26 @@ def test_run_with_an_extra_body(tmp_path, key_dir, perfect_replies, capsys) -> N
         "provider openai; sent with each request: temperature 0, reasoning_effort "
         "medium, max_tokens 4096"
     ) in capsys.readouterr().out.splitlines()
+
+
+def test_run_with_gpu_hour_cost(tmp_path, key_dir, perfect_replies, capsys) -> None:
+    model = FakeModel(lambda a, call, body: completion(json.dumps(perfect_replies[a])))
+    environ = {**VLLM_ENVIRON, "MODEL_GPU_HOURLY": "3.6"}  # $0.001 a second
+    assert run(tmp_path, key_dir, model, environ=environ) == 0
+    info = json.loads((tmp_path / "runs" / "test" / "run.json").read_text())
+    assert (info["cost_basis"], info["gpu_hourly_usd"]) == ("gpu_hours", 3.6)
+    # From the unrounded wall time; run.json rounds it to 0.1 s.
+    assert info["estimated_cost_usd"] == pytest.approx(
+        info["wall_time_s"] * 0.001, abs=0.00005
+    )
+    assert info["tokens"] == {"input": 5000, "output": 500, "calls_without_usage": 0}
+    assert any(
+        line.startswith("estimated cost: $")
+        and line.endswith(
+            f"($3.6 per GPU-hour for {info['wall_time_s']:.1f} s of wall-clock time)"
+        )
+        for line in capsys.readouterr().out.splitlines()
+    )
 
 
 def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:

@@ -19,19 +19,22 @@ Usage: uv run python -m secbench.extract [--tickers AAPL ...] [--accessions ...]
 Settings come from the environment or .env (the environment wins), or with --env-file
 only from that file (read literally; the environment and .env are not used for them,
 and a setting the file leaves out is blank): MODEL_PROVIDER (openai, the default, or
-anthropic), MODEL_NAME, MODEL_API_KEY, and MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT
-(optional; dollars per million tokens). openai also reads MODEL_BASE_URL (such as
+anthropic), MODEL_NAME, MODEL_API_KEY, MODEL_CONCURRENCY (optional; calls at once,
+default 4), and MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT (optional; dollars per
+million tokens, for the cost estimate). openai also reads MODEL_BASE_URL (such as
 http://localhost:8000/v1), MODEL_TEMPERATURE (optional; if blank, no temperature is
-sent and the server's default applies) and MODEL_EXTRA_BODY (optional; a JSON object
+sent and the server's default applies), MODEL_EXTRA_BODY (optional; a JSON object
 merged into every request body, such as {"reasoning_effort": "medium"}; it can't set
-model, messages, stream or temperature, and if blank nothing more is sent); its key
-is optional. anthropic needs the
-key, sends max_tokens 16000, MODEL_EFFORT as output_config.effort (optional: low,
-medium, high, xhigh or max; if blank, none is sent and the model's default applies)
-and never a temperature, reads only the text blocks of a reply (not thinking
-blocks), and counts a refusal as an API error; there is no
-fallback to another model, which would mix two models in one run. run.json records
-the provider and the request parameters sent. --dry-run prints the full request for
+model, messages, stream or temperature, and if blank nothing more is sent) and
+MODEL_GPU_HOURLY (optional; for a self-hosted model, dollars per hour for its GPUs:
+the cost estimate is then that times the run's wall-clock time, and token prices
+can't be set too); its key is optional. anthropic needs the key, sends max_tokens
+16000, MODEL_EFFORT as output_config.effort (optional: low, medium, high, xhigh or
+max; if blank, none is sent and the model's default applies) and never a temperature,
+reads only the text blocks of a reply (not thinking blocks), and counts a refusal as
+an API error; there is no fallback to another model, which would mix two models in
+one run. run.json records the provider, the request parameters sent and the cost
+basis. --dry-run prints the full request for
 the first selected release, without reading them or making a call.
 
 A run writes runs/<run>/raw/<accession>.json (every HTTP attempt's request body and
@@ -112,6 +115,10 @@ OUTCOMES = (OK, OK_AFTER_RETRY, INVALID_REPLY, API_ERROR)
 
 COMPLETE = "complete"  # run status; or ABORTED
 
+# The cost estimate's basis: token prices, or GPU dollars per hour times wall time.
+TOKENS = "tokens"
+GPU_HOURS = "gpu_hours"
+
 OPENAI = "openai"
 ANTHROPIC = "anthropic"
 PROVIDERS = (OPENAI, ANTHROPIC)
@@ -132,6 +139,7 @@ SETTINGS = (
     "MODEL_CONCURRENCY",
     "MODEL_PRICE_INPUT",
     "MODEL_PRICE_OUTPUT",
+    "MODEL_GPU_HOURLY",
 )
 # A reasoning model's leading <think>...</think> block, and a ``` or ```json fence
 # around the whole reply, are not part of the JSON.
@@ -164,6 +172,7 @@ class Settings:
     effort: str | None = None  # anthropic only; None: not sent
     extra_body: dict[str, Any] | None = None  # openai only; merged into each body
     concurrency: int = DEFAULT_CONCURRENCY  # calls at once
+    gpu_hourly: float | None = None  # openai only; dollars per hour, not per token
 
     @property
     def endpoint(self) -> str:
@@ -275,6 +284,15 @@ def load_settings(
     effort = "" if is_openai else values["MODEL_EFFORT"].lower()
     if effort and effort not in EFFORTS:
         raise SettingsError(f"MODEL_EFFORT must be {', '.join(EFFORTS[:-1])} or max")
+    gpu_hourly = parse_number(
+        "MODEL_GPU_HOURLY", values["MODEL_GPU_HOURLY"] if is_openai else ""
+    )
+    if gpu_hourly is not None and (
+        values["MODEL_PRICE_INPUT"] or values["MODEL_PRICE_OUTPUT"]
+    ):
+        raise SettingsError(
+            "set MODEL_GPU_HOURLY or MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT, not both"
+        )
     return Settings(
         base_url=values["MODEL_BASE_URL"] if is_openai else "",
         model=values["MODEL_NAME"],
@@ -288,6 +306,7 @@ def load_settings(
         concurrency=parse_count(
             "MODEL_CONCURRENCY", values["MODEL_CONCURRENCY"], DEFAULT_CONCURRENCY
         ),
+        gpu_hourly=gpu_hourly,
     )
 
 
@@ -996,9 +1015,18 @@ def run_info(
     without_usage = sum(1 for t in tokens if None in t)
     input_tokens = sum(t[0] or 0 for t in tokens)
     output_tokens = sum(t[1] or 0 for t in tokens)
-    cost = (
-        None if without_usage else estimated_cost(input_tokens, output_tokens, settings)
-    )
+    wall_time_s = (finished - started).total_seconds()
+    if settings.gpu_hourly is not None:
+        # Assumes the GPUs serve only this run; model loading and idle time aren't in.
+        cost: float | None = settings.gpu_hourly * wall_time_s / 3600
+        cost_basis: str | None = GPU_HOURS
+    else:
+        cost = (
+            None
+            if without_usage
+            else estimated_cost(input_tokens, output_tokens, settings)
+        )
+        cost_basis = None if cost is None else TOKENS
     latencies = [e.latency_s for e in answered if e.latency_s is not None]
     outcomes = Counter(r.outcome for r in results)
     stopped = [r for r in results if r.outcome == ABORTED]
@@ -1018,7 +1046,7 @@ def run_info(
         "max_parallel": settings.concurrency,
         "started": started.isoformat(timespec="seconds"),
         "finished": finished.isoformat(timespec="seconds"),
-        "wall_time_s": round((finished - started).total_seconds(), 1),
+        "wall_time_s": round(wall_time_s, 1),
         "selection": selection,
         "releases": len(results),
         "outcomes": {outcome: outcomes[outcome] for outcome in (*OUTCOMES, ABORTED)},
@@ -1041,6 +1069,8 @@ def run_info(
             "input": settings.price_input,
             "output": settings.price_output,
         },
+        "gpu_hourly_usd": settings.gpu_hourly,
+        "cost_basis": cost_basis,  # TOKENS, GPU_HOURS, or None without an estimate
         "estimated_cost_usd": None if cost is None else round(cost, 6),
         "latency_s": {
             "p50": percentile(latencies, 50),
@@ -1102,7 +1132,13 @@ def format_run_summary(info: dict[str, Any], run_dir: Path) -> str:
         )
     lines.append(line)
     prices = info["price_per_million_tokens"]
-    if info["estimated_cost_usd"] is not None:
+    if info["cost_basis"] == GPU_HOURS:
+        lines.append(
+            f"estimated cost: ${info['estimated_cost_usd']:.4f} "
+            f"(${info['gpu_hourly_usd']:g} per GPU-hour for {info['wall_time_s']:.1f} s "
+            "of wall-clock time)"
+        )
+    elif info["estimated_cost_usd"] is not None:
         lines.append(
             f"estimated cost: ${info['estimated_cost_usd']:.4f} "
             f"(${prices['input']:g} input, ${prices['output']:g} output per million tokens)"
