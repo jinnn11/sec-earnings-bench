@@ -57,6 +57,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 UA = "Test Runner test@example.com"
 LINKS = FIXTURES / "answers_links.csv"
 COMPANYFACTS = FIXTURES / "answers_companyfacts.json"
+SUBMISSIONS = FIXTURES / "link_submissions.json"
 RELEASES = FIXTURES / "input_releases"
 # Maintained by hand.
 HANDCHECKED = FIXTURES / "grade_handchecked.csv"
@@ -1173,9 +1174,11 @@ def test_format_summary() -> None:
 
 
 def make_client(cache_dir: Path, routes: dict[str, bytes] | None = None) -> EdgarClient:
-    """A client serving answers_companyfacts.json (URL -> JSON); other URLs 404."""
+    """A client serving link_submissions.json and answers_companyfacts.json (URL ->
+    JSON); other URLs 404."""
     if routes is None:
-        bodies = json.loads(COMPANYFACTS.read_bytes())
+        bodies = json.loads(SUBMISSIONS.read_bytes())
+        bodies |= json.loads(COMPANYFACTS.read_bytes())
         routes = {url: json.dumps(body).encode() for url, body in bodies.items()}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -1286,29 +1289,30 @@ def test_cli_summary(graded_run) -> None:
     status, stdout, run = graded_run
     assert status == 0
     lines = stdout.splitlines()
+    # MSFT's quarter is its derived fourth quarter: revenue correct, net income
+    # missing.
     counts = {
-        CORRECT: 14,
-        MISSING: 4,
+        CORRECT: 15,
+        MISSING: 5,
         WRONG_PERIOD: 1,
         ROUNDED: 1,
         ADJUSTED: 1,
-        NO_ANSWER: 1,
     }
     assert lines == [
-        "graded 4 releases, 22 figures (0 not in input, 1 without an answer)",
-        "accuracy: 14/21 (66.7%)",
+        "graded 4 releases, 23 figures (0 not in input, 0 without an answer)",
+        "accuracy: 15/23 (65.2%)",
         "by field:",
-        "  revenue       4/7 (57.1%)",
-        "  net_income    5/7 (71.4%)",
+        "  revenue       5/8 (62.5%)",
+        "  net_income    5/8 (62.5%)",
         "  eps_diluted   5/7 (71.4%)",
         "by period type:",
-        "  quarter       5/9 (55.6%)",
+        "  quarter       6/11 (54.5%)",
         "  year_to_date  6/9 (66.7%)",
         "  full_year     3/3 (100.0%)",
         "by ticker:",
         "  AAPL          1/6 (16.7%)",
         "  CAT           5/6 (83.3%)",
-        "  MSFT          3/3 (100.0%)",
+        "  MSFT          4/5 (80.0%)",
         "  XOM           5/6 (83.3%)",
         "verdicts:",
         *(f"  {v:<24}{counts.get(v, 0):>6}" for v in VERDICTS),
@@ -1321,7 +1325,7 @@ def test_cli_summary(graded_run) -> None:
         "predictions for releases not linked (not graded): 1",
         f"  {NKE_CFO_NEWS}",
         "linked releases without a prediction: 56",
-        f"wrote 22 rows to {run / 'graded.csv'}",
+        f"wrote 23 rows to {run / 'graded.csv'}",
     ]
     assert (run / "summary.txt").read_text() == "\n".join(lines[:-1]) + "\n"
 
@@ -1331,7 +1335,7 @@ def test_cli_graded_csv(graded_run) -> None:
     with (run / "graded.csv").open(newline="") as f:
         rows = list(csv.DictReader(f))
     assert list(rows[0]) == GRADED_COLUMNS
-    assert len(rows) == 22
+    assert len(rows) == 23
     by_key = {(r["release_accession"], r["field"], r["period_type"]): r for r in rows}
     assert by_key[XOM, "net_income", "quarter"] == {
         "ticker": "XOM",
@@ -1353,7 +1357,9 @@ def test_cli_graded_csv(graded_run) -> None:
     assert by_key[CAT, "revenue", "quarter"]["evidence"] == (
         "Revenues 2025-01-01..2025-06-30: 30818000000"
     )
-    assert by_key[MSFT, "revenue", "quarter"]["verdict"] == NO_ANSWER
+    assert by_key[MSFT, "revenue", "quarter"]["verdict"] == CORRECT  # derived
+    assert by_key[MSFT, "net_income", "quarter"]["verdict"] == MISSING
+    assert (MSFT, "eps_diluted", "quarter") not in by_key  # EPS isn't derived
     assert by_key[MSFT, "net_income", "full_year"]["verdict"] == CORRECT
 
 
@@ -1458,7 +1464,7 @@ def test_check_inputs(key_dir, tmp_path, capsys) -> None:
     argv = ["--check-inputs", "--answers", str(fixture_answers(key_dir, tmp_path))]
     assert grade.main([*argv, "--releases", str(RELEASES)]) == 0
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0] == "answers in input: 21 of 21"
+    assert lines[0] == "answers in input: 23 of 23"
     assert lines[-1] == "not in input: 0"
 
 
@@ -1475,7 +1481,7 @@ def test_check_inputs_lists_answers_not_in_input(key_dir, tmp_path, capsys) -> N
     argv = ["--check-inputs", "--answers", str(fixture_answers(key_dir, tmp_path))]
     assert grade.main([*argv, "--releases", str(releases)]) == 1
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0] == "answers in input: 19 of 21"
+    assert lines[0] == "answers in input: 21 of 23"
     assert lines[-3:] == [
         "not in input: 2",
         (
@@ -1554,6 +1560,14 @@ def test_real_adjusted_section_xom(fixture_context) -> None:
             "9,189 (x1,000,000)",
         )
     )
+
+
+def test_real_full_year_in_a_derived_quarter_msft(fixture_context) -> None:
+    # The quarter's answer is derived; the 10-K's full year is another period of
+    # its tag.
+    assert grade_real(
+        fixture_context, MSFT, "revenue", "quarter", "281724000000"
+    ) == grade.Verdict(WRONG_PERIOD, f"{RFC} 2024-07-01..2025-06-30: 281724000000")
 
 
 def handchecked_rows() -> list:

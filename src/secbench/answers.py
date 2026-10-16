@@ -4,7 +4,10 @@ For each linked release in links.csv (see secbench.link), reads the XBRL company
 of every CIK of the ticker and keeps only us-gaap facts from the linked 10-Q or 10-K
 (matched on accession number) that end on its period end. A 10-Q gives the
 three-month value and, if the filing reports a longer period ending then, the
-year-to-date value; a 10-K gives the full-year value.
+year-to-date value; a 10-K gives the full-year value. A 10-K's fourth-quarter
+revenue and net income are derived: the full year minus the nine months (same tag,
+same start) reported by that fiscal year's third-quarter 10-Q, the 10-Q whose period
+ends one quarter before the 10-K's (from the cached submissions). EPS is not derived.
 
 Usage: uv run python -m secbench.answers [--links data/links.csv]
        [--out data/answers.csv] [--refresh]
@@ -23,14 +26,16 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, fields
 from dataclasses import field as dataclass_field
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from secbench.edgar import EdgarClient, EdgarError, default_client, format_cik
 from secbench.link import DEFAULT_OUT as DEFAULT_LINKS
-from secbench.link import LINKED
+from secbench.link import LINKED, ticker_filings
 from secbench.releases import write_text
 
 log = logging.getLogger(__name__)
@@ -100,6 +105,16 @@ CONDITION_NOT_MET = "condition not met"  # see ZERO_REQUIRED
 CONFLICTING = "conflicting values"
 REASONS = (NO_TAG, NO_FACT, NO_PERIOD, CONDITION_NOT_MET, CONFLICTING)
 PERIODS_IN_DETAIL = 4
+
+# A 10-K's fourth quarter is derived for these fields (EPS doesn't subtract).
+DERIVED_FIELDS = (REVENUE, NET_INCOME)
+# Why a derived fourth quarter has none: no third-quarter 10-Q, else the furthest
+# any tag got: "full year: <reason>", "nine months: <reason>" or different starts.
+NO_THIRD_QUARTER = "no third-quarter 10-Q"
+SEVERAL_THIRD_QUARTERS = "several third-quarter 10-Qs"
+FULL_YEAR_PART = "full year"
+NINE_MONTHS_PART = "nine months"
+STARTS_DIFFER = "starts differ"
 
 
 # Company facts
@@ -312,6 +327,116 @@ def expected_periods(form: str, filing_facts: set[Fact], period_end: date) -> li
     return [HEADLINE[form]]
 
 
+# Fourth quarters
+
+
+@dataclass(frozen=True)
+class ThirdQuarter:
+    """A 10-K's third-quarter 10-Q: the 10-Q whose period ends one quarter before the
+    10-K's. accession is None when there is none (reason and detail say why)."""
+
+    accession: str | None
+    period_end: date | None
+    reason: str = ""
+    detail: str = ""
+
+
+def find_third_quarter(filings: pd.DataFrame, period_end: date) -> ThirdQuarter:
+    """The filing of form exactly "10-Q" (not "10-Q/A") whose report date leaves a
+    quarter to period_end: the day after it to period_end is a quarter by
+    classify_period. filings is a submissions table (see link.ticker_filings)."""
+    candidates = filings[(filings["form"] == "10-Q") & filings["report_date"].notna()]
+    found = sorted(
+        (accession, end.date())
+        for accession, end in zip(
+            candidates["accession_number"], candidates["report_date"], strict=True
+        )
+        if classify_period(end.date() + timedelta(days=1), period_end) == QUARTER
+    )
+    if len(found) == 1:
+        return ThirdQuarter(*found[0])
+    if not found:
+        return ThirdQuarter(
+            None,
+            None,
+            NO_THIRD_QUARTER,
+            f"no 10-Q's period ends a quarter before {period_end}",
+        )
+    return ThirdQuarter(
+        None,
+        None,
+        SEVERAL_THIRD_QUARTERS,
+        ", ".join(f"{accession} (ends {end})" for accession, end in found),
+    )
+
+
+@dataclass(frozen=True)
+class Derived:
+    """The full year and nine months a fourth quarter is derived from, or why there
+    are none."""
+
+    full_year: Fact | None
+    nine_months: Fact | None
+    reason: str = ""
+    detail: str = ""
+
+
+def derive_quarter(
+    field: Field,
+    filing_facts: set[Fact],
+    period_end: date,
+    third_quarter: ThirdQuarter,
+    nine_month_facts: set[Fact],
+    known: set[tuple[str, str]],
+) -> Derived:
+    """The first of field's tags with one full-year value in the 10-K (filing_facts,
+    ending on period_end) and one nine-month value from the same start in its
+    third-quarter 10-Q (nine_month_facts), each found as lookup finds a period (its
+    ZERO_REQUIRED tag 0 too). Conflicting values stop the search."""
+    if third_quarter.accession is None:
+        return Derived(None, None, third_quarter.reason, third_quarter.detail)
+    assert third_quarter.period_end is not None
+    notes = []
+    furthest = (-1, "")  # (progress, reason): full year, then nine months, then start
+    for tag in field.tags:
+        one_tag = Field(field.name, (tag,), field.unit)
+        full = lookup(one_tag, FULL_YEAR, filing_facts, period_end, known)
+        if full.fact is None:
+            progress = REASONS.index(full.reason)
+            reason = f"{FULL_YEAR_PART}: {full.reason}"
+            note = f"{FULL_YEAR_PART} {full.detail}"
+            stop = full.reason == CONFLICTING
+        else:
+            nine = lookup(
+                one_tag,
+                YEAR_TO_DATE,
+                nine_month_facts,
+                third_quarter.period_end,
+                known,
+            )
+            if nine.fact is None:
+                progress = len(REASONS) + REASONS.index(nine.reason)
+                reason = f"{NINE_MONTHS_PART}: {nine.reason}"
+                note = f"{NINE_MONTHS_PART} {nine.detail}"
+                stop = nine.reason == CONFLICTING
+            elif nine.fact.start != full.fact.start:
+                progress = 2 * len(REASONS)
+                reason = STARTS_DIFFER
+                note = (
+                    f"{tag}: full year starts {full.fact.start}, nine months "
+                    f"{nine.fact.start}"
+                )
+                stop = False
+            else:
+                return Derived(full.fact, nine.fact)
+        furthest = max(furthest, (progress, reason))
+        notes.append(note)
+        if stop:
+            break
+    detail = f"10-Q {third_quarter.accession}: " + "; ".join(notes)
+    return Derived(None, None, furthest[1], detail)
+
+
 @dataclass(frozen=True)
 class Answer:
     """One row of answers.csv: a fact of the linked filing, or a derived row whose
@@ -391,13 +516,31 @@ class Results:
         self.fallback_checks.extend(other.fallback_checks)
 
 
-def answer_release(release: LinkedRelease, index: FactIndex) -> Results:
-    """Answers for every field and expected period of one linked release."""
+def answer_release(
+    release: LinkedRelease,
+    index: FactIndex,
+    third_quarter: ThirdQuarter | None = None,
+) -> Results:
+    """Answers for every field and expected period of one linked release. A 10-K
+    release needs its third_quarter (see find_third_quarter): its derived fourth
+    quarters come first in their field, as quarters do in a 10-Q's."""
     filing_facts = index.by_accession.get(release.linked_accession, set())
+    if release.linked_form == "10-K" and third_quarter is None:
+        raise ValueError(
+            f"{release.release_accession}: a 10-K release needs its third quarter"
+        )
     results = Results()
     headline_revenue: Fact | None = None
     periods = expected_periods(release.linked_form, filing_facts, release.period_end)
     for field in FIELDS:
+        if third_quarter is not None and field in DERIVED_FIELDS:
+            derived, missing = derive_answer(
+                release, field, filing_facts, third_quarter, index
+            )
+            if derived:
+                results.answers.append(derived)
+            if missing:
+                results.missing.append(missing)
         for period in periods:
             found = lookup(field, period, filing_facts, release.period_end, index.known)
             if found.fact is None:
@@ -436,6 +579,55 @@ def answer_release(release: LinkedRelease, index: FactIndex) -> Results:
     for period in periods:
         results.fallback_checks.extend(check_fallbacks(release, filing_facts, period))
     return results
+
+
+def derive_answer(
+    release: LinkedRelease,
+    field: Field,
+    filing_facts: set[Fact],
+    third_quarter: ThirdQuarter,
+    index: FactIndex,
+) -> tuple[Answer | None, Missing | None]:
+    """A 10-K release's derived fourth quarter for field, or why it has none."""
+    nine_month_facts = index.by_accession.get(third_quarter.accession or "", set())
+    found = derive_quarter(
+        field,
+        filing_facts,
+        release.period_end,
+        third_quarter,
+        nine_month_facts,
+        index.known,
+    )
+    if found.full_year is None or found.nine_months is None:
+        return None, Missing(
+            release.ticker,
+            release.release_accession,
+            release.linked_form,
+            release.linked_accession,
+            field.name,
+            QUARTER,
+            found.reason,
+            found.detail,
+        )
+    full_year, nine_months = found.full_year, found.nine_months
+    start = nine_months.end + timedelta(days=1)
+    assert classify_period(start, full_year.end) == QUARTER  # see find_third_quarter
+    return Answer(
+        release.ticker,
+        release.release_accession,
+        release.linked_accession,
+        field.name,
+        QUARTER,
+        start,
+        full_year.end,
+        full_year.value - nine_months.value,
+        field.unit,
+        full_year.tag,
+        derived=True,
+        full_year_accession=release.linked_accession,
+        nine_months_accession=third_quarter.accession or "",
+        fiscal_year_start=full_year.start,
+    ), None
 
 
 def check_fallbacks(
@@ -505,15 +697,28 @@ def answer_ticker(
     refresh: bool = False,
 ) -> Results:
     """Answers for one ticker's linked releases, from the company facts of every
-    CIK in edgar.TICKER_CIKS; refresh re-downloads them."""
+    CIK in edgar.TICKER_CIKS, and for a 10-K, its third-quarter 10-Q from their
+    submissions; refresh re-downloads both."""
     companyfacts = [
         load_company_facts(client, cik, refresh=refresh)
         for cik in client.ticker_to_ciks(ticker)
     ]
-    index = index_facts(companyfacts, {r.linked_accession for r in releases})
+    third_quarters: dict[str, ThirdQuarter] = {}
+    tenks = [r for r in releases if r.linked_form == "10-K"]
+    if tenks:
+        filings = ticker_filings(client, ticker, refresh=refresh)
+        third_quarters = {
+            r.release_accession: find_third_quarter(filings, r.period_end)
+            for r in tenks
+        }
+    accessions = {r.linked_accession for r in releases} | {
+        q.accession for q in third_quarters.values() if q.accession
+    }
+    index = index_facts(companyfacts, accessions)
     results = Results()
     for release in releases:
-        results.extend(answer_release(release, index))
+        third_quarter = third_quarters.get(release.release_accession)
+        results.extend(answer_release(release, index, third_quarter))
     return results
 
 
@@ -566,13 +771,16 @@ def plural(count: int, word: str) -> str:
 
 
 def format_report(releases: list[LinkedRelease], results: Results) -> str:
-    """Headline answers per ticker and field, year-to-date counts, every missing
-    answer with its reason, and the revenue-like tags not used."""
+    """Headline answers per ticker and field, year-to-date and derived fourth-quarter
+    counts, every missing answer with its reason, and the revenue-like tags not
+    used."""
     names = [field.name for field in FIELDS]
     tickers = sorted({r.ticker for r in releases})
     linked = Counter(r.ticker for r in releases)
     headline = Counter(
-        (a.ticker, a.field) for a in results.answers if a.period_type != YEAR_TO_DATE
+        (a.ticker, a.field)
+        for a in results.answers
+        if a.period_type != YEAR_TO_DATE and not a.derived
     )
 
     def line(name: str, values: list[Any]) -> str:
@@ -596,6 +804,26 @@ def format_report(releases: list[LinkedRelease], results: Results) -> str:
         f"year to date ({plural(len(ytd_filings), '10-Q')} report one): "
         + ", ".join(f"{n} {ytd[n]}" for n in names)
     )
+
+    tenks = sum(r.linked_form == "10-K" for r in releases)
+    derived = [a for a in results.answers if a.derived]
+    counts = Counter(a.field for a in derived)
+    lines.append(
+        f"fourth quarter derived ({plural(tenks, '10-K')}): "
+        + ", ".join(f"{f.name} {counts[f.name]}" for f in DERIVED_FIELDS)
+    )
+    full_year_tags = {
+        (a.release_accession, a.field): a.tag
+        for a in results.answers
+        if a.period_type == FULL_YEAR
+    }
+    for a in derived:
+        full_year_tag = full_year_tags.get((a.release_accession, a.field))
+        if a.tag != full_year_tag:
+            lines.append(
+                f"  {a.ticker} {a.linked_accession} {a.field}: {a.tag} "
+                f"(full-year answer {full_year_tag})"
+            )
 
     lines.append(f"missing: {len(results.missing)}")
     for m in results.missing:

@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import httpx
+import pandas as pd
 import pytest
 
 from secbench import answers
@@ -19,24 +20,31 @@ from secbench.answers import (
     NO_FACT,
     NO_PERIOD,
     NO_TAG,
+    NO_THIRD_QUARTER,
     PERIOD_TYPES,
     QUARTER,
+    SEVERAL_THIRD_QUARTERS,
+    STARTS_DIFFER,
     YEAR_TO_DATE,
     Answer,
     LinkedRelease,
+    ThirdQuarter,
     answer_release,
     answers_csv,
     classify_period,
+    find_third_quarter,
     format_report,
     index_facts,
     load_company_facts,
     load_links,
 )
-from secbench.edgar import EdgarClient, RateLimiter
+from secbench.edgar import EdgarClient, RateLimiter, parse_submissions
 
 FIXTURES = Path(__file__).parent / "fixtures"
 UA = "Test Runner test@example.com"
 COMPANYFACTS = FIXTURES / "answers_companyfacts.json"
+# Submissions (10-Q and 10-K rows since 2025-01-01), for third-quarter 10-Qs.
+SUBMISSIONS = FIXTURES / "link_submissions.json"
 LINKS = FIXTURES / "answers_links.csv"
 HANDCHECKED = FIXTURES / "answers_handchecked.csv"
 HANDCHECKED_COLUMNS = [
@@ -72,8 +80,12 @@ H1 = ("2026-01-01", "2026-06-30")
 Q2_PRIOR = ("2025-04-01", "2025-06-30")
 H1_PRIOR = ("2025-01-01", "2025-06-30")
 Q1 = ("2026-01-01", "2026-03-31")
+# A 10-K (ACCN, ending 2025-12-31) and its fiscal year's third-quarter 10-Q.
 FY = ("2025-01-01", "2025-12-31")
 Q4 = ("2025-10-01", "2025-12-31")
+NINE_MONTHS = ("2025-01-01", "2025-09-30")
+Q3_10Q = "0000000001-25-000030"
+THIRD_QUARTER = ThirdQuarter(Q3_10Q, date(2025, 9, 30))
 
 
 def fact(
@@ -117,8 +129,18 @@ def linked(form: str = "10-Q", end: str = "2026-06-30", accn: str = ACCN):
     )
 
 
-def run(release: LinkedRelease, *documents: dict) -> answers.Results:
-    return answer_release(release, index_facts(documents, {release.linked_accession}))
+def run(
+    release: LinkedRelease,
+    *documents: dict,
+    third_quarter: ThirdQuarter | None = None,
+) -> answers.Results:
+    """Answers for release; a 10-K's third quarter is THIRD_QUARTER unless given."""
+    if release.linked_form == "10-K" and third_quarter is None:
+        third_quarter = THIRD_QUARTER
+    accessions = {release.linked_accession}
+    if third_quarter is not None and third_quarter.accession:
+        accessions.add(third_quarter.accession)
+    return answer_release(release, index_facts(documents, accessions), third_quarter)
 
 
 def values(results: answers.Results) -> dict[tuple[str, str], tuple[str, str]]:
@@ -277,28 +299,287 @@ def test_year_to_date_expected_when_any_usd_fact_has_one() -> None:
     }
 
 
-def test_10k_gives_full_year_only() -> None:
-    # Some 10-Ks also report the fourth quarter; the answer is the full year.
-    document = companyfacts(
-        {
+# Fourth quarters
+
+
+def fiscal_year(**overrides: dict[str, list[dict]]) -> dict:
+    """A 10-K (ACCN) with each field for the full year and the prior year, and its
+    third-quarter 10-Q (Q3_10Q) with each for the nine months."""
+    tags = {
+        REV: {
+            USD: [
+                fact(FY, 1200),
+                fact(("2024-01-01", "2024-12-31"), 1100),
+                fact(NINE_MONTHS, 880, accn=Q3_10Q),
+            ]
+        },
+        NI: {USD: [fact(FY, 120), fact(NINE_MONTHS, 87, accn=Q3_10Q)]},
+        EPS: {PER_SHARE: [fact(FY, 6.7), fact(NINE_MONTHS, 4.9, accn=Q3_10Q)]},
+    }
+    return companyfacts(tags | overrides)
+
+
+def ten_k() -> LinkedRelease:
+    return linked(form="10-K", end="2025-12-31")
+
+
+def test_10k_gives_full_year_and_derived_fourth_quarter() -> None:
+    results = run(ten_k(), fiscal_year())
+    assert values(results) == {
+        ("revenue", QUARTER): ("320", REV),
+        ("revenue", FULL_YEAR): ("1200", REV),
+        ("net_income", QUARTER): ("33", NI),
+        ("net_income", FULL_YEAR): ("120", NI),
+        ("eps_diluted", FULL_YEAR): ("6.7", EPS),  # EPS doesn't subtract
+    }
+    assert results.missing == []
+    assert [(a.field, a.period_type) for a in results.answers] == [
+        ("revenue", QUARTER),
+        ("revenue", FULL_YEAR),
+        ("net_income", QUARTER),
+        ("net_income", FULL_YEAR),
+        ("eps_diluted", FULL_YEAR),
+    ]
+    assert results.answers[0] == Answer(
+        ticker="TEST",
+        release_accession="0000000001-26-000009",
+        linked_accession=ACCN,
+        field="revenue",
+        period_type=QUARTER,
+        start=date(2025, 10, 1),
+        end=date(2025, 12, 31),
+        value=Decimal(320),
+        unit=USD,
+        tag=REV,
+        derived=True,
+        full_year_accession=ACCN,
+        nine_months_accession=Q3_10Q,
+        fiscal_year_start=date(2025, 1, 1),
+    )
+    assert not results.answers[1].derived
+
+
+def test_10ks_own_fourth_quarter_is_not_the_answer() -> None:
+    # Some 10-Ks also report the fourth quarter; the quarter is still derived.
+    document = fiscal_year(
+        **{
             REV: {
                 USD: [
                     fact(FY, 1200),
-                    fact(Q4, 320),
-                    fact(("2024-01-01", "2024-12-31"), 1100),
+                    fact(Q4, 321),
+                    fact(NINE_MONTHS, 880, accn=Q3_10Q),
                 ]
             },
-            NI: {USD: [fact(FY, 120), fact(Q4, 33)]},
             EPS: {PER_SHARE: [fact(FY, 6.7), fact(Q4, 1.8)]},
         }
     )
-    results = run(linked(form="10-K", end="2025-12-31"), document)
-    assert values(results) == {
-        ("revenue", FULL_YEAR): ("1200", REV),
-        ("net_income", FULL_YEAR): ("120", NI),
-        ("eps_diluted", FULL_YEAR): ("6.7", EPS),
+    got = values(run(ten_k(), document))
+    assert got["revenue", QUARTER] == ("320", REV)
+    assert ("eps_diluted", QUARTER) not in got
+
+
+def test_nine_months_come_from_the_third_quarter_10q() -> None:
+    # A later 10-Q repeats the nine months as a comparative (here restated).
+    document = fiscal_year(
+        **{
+            REV: {
+                USD: [
+                    fact(FY, 1200),
+                    fact(NINE_MONTHS, 870, accn=LATER),
+                    fact(NINE_MONTHS, 880, accn=Q3_10Q),
+                ]
+            },
+            NI: {USD: [fact(FY, 120), fact(NINE_MONTHS, 86, accn=LATER)]},
+        }
+    )
+    results = run(ten_k(), document)
+    assert values(results)["revenue", QUARTER] == ("320", REV)
+    assert missing(results) == {
+        ("net_income", QUARTER): (
+            f"nine months: {NO_FACT}",
+            (
+                f"10-Q {Q3_10Q}: nine months {NI}: none from this filing; "
+                f"full year {AVAIL}: no USD facts in company facts; "
+                f"full year {PL}: no USD facts in company facts"
+            ),
+        )
     }
-    assert results.missing == []
+
+
+def test_derived_quarter_needs_the_same_start() -> None:
+    document = fiscal_year(
+        **{
+            REV: {
+                USD: [fact(FY, 1200), fact(("2025-01-02", "2025-09-30"), 880, Q3_10Q)]
+            },
+        }
+    )
+    assert missing(run(ten_k(), document)) == {
+        ("revenue", QUARTER): (
+            STARTS_DIFFER,
+            (
+                f"10-Q {Q3_10Q}: {REV}: full year starts 2025-01-01, nine months "
+                f"2025-01-02; full year {RFC}: no USD facts in company facts"
+            ),
+        )
+    }
+
+
+def test_derived_tag_falls_back_per_period() -> None:
+    # Oracle: its 10-K tags both revenue tags, its 10-Qs only the second.
+    document = fiscal_year(
+        **{
+            REV: {USD: [fact(FY, 1200)]},
+            RFC: {USD: [fact(FY, 1200), fact(NINE_MONTHS, 880, accn=Q3_10Q)]},
+        }
+    )
+    results = run(ten_k(), document)
+    got = values(results)
+    assert (got["revenue", QUARTER], got["revenue", FULL_YEAR]) == (
+        ("320", RFC),
+        ("1200", REV),
+    )
+    lines = format_report([ten_k()], results).splitlines()
+    assert lines[4:6] == [
+        "fourth quarter derived (1 10-K): revenue 1, net_income 1",
+        f"  TEST {ACCN} revenue: {RFC} (full-year answer {REV})",
+    ]
+
+
+def test_derived_conflicting_values_stop_the_search() -> None:
+    document = fiscal_year(
+        **{
+            REV: {
+                USD: [
+                    fact(FY, 1200),
+                    fact(NINE_MONTHS, 880, accn=Q3_10Q),
+                    fact(NINE_MONTHS, 881, accn=Q3_10Q),
+                ]
+            },
+            RFC: {USD: [fact(FY, 1200), fact(NINE_MONTHS, 880, accn=Q3_10Q)]},
+        }
+    )
+    assert missing(run(ten_k(), document)) == {
+        ("revenue", QUARTER): (
+            f"nine months: {CONFLICTING}",
+            f"10-Q {Q3_10Q}: nine months {REV}: values 880, 881",
+        )
+    }
+
+
+@pytest.mark.parametrize(
+    ("nine_month_noncontrolling", "expected"),
+    [(0, ("35", PL)), (2, None)],
+)
+def test_derived_profit_loss_needs_zero_noncontrolling_in_both(
+    nine_month_noncontrolling, expected
+) -> None:
+    document = fiscal_year(
+        **{
+            PL: {USD: [fact(FY, 125), fact(NINE_MONTHS, 90, accn=Q3_10Q)]},
+            NCI: {
+                USD: [
+                    fact(FY, 0),
+                    fact(NINE_MONTHS, nine_month_noncontrolling, accn=Q3_10Q),
+                ]
+            },
+        }
+    )
+    del document["facts"]["us-gaap"][NI]
+    results = run(ten_k(), document)
+    assert values(results).get(("net_income", QUARTER)) == expected
+    if expected is None:
+        assert missing(results)["net_income", QUARTER] == (
+            f"nine months: {CONDITION_NOT_MET}",
+            (
+                f"10-Q {Q3_10Q}: full year {NI}: no USD facts in company facts; "
+                f"full year {AVAIL}: no USD facts in company facts; nine months "
+                f"{PL}: 90, but {NCI} is 2 for that period"
+            ),
+        )
+
+
+def test_no_third_quarter_10q() -> None:
+    none = ThirdQuarter(None, None, NO_THIRD_QUARTER, "no 10-Q's period ends ...")
+    results = run(ten_k(), fiscal_year(), third_quarter=none)
+    assert set(values(results)) == {(f, FULL_YEAR) for f in FIELD_NAMES}
+    assert missing(results) == {
+        ("revenue", QUARTER): (NO_THIRD_QUARTER, "no 10-Q's period ends ..."),
+        ("net_income", QUARTER): (NO_THIRD_QUARTER, "no 10-Q's period ends ..."),
+    }
+
+
+def test_10k_release_needs_its_third_quarter() -> None:
+    index = index_facts([fiscal_year()], {ACCN})
+    with pytest.raises(ValueError, match="a 10-K release needs its third quarter"):
+        answer_release(ten_k(), index)
+
+
+def filings(*rows: tuple[str, str, str]) -> pd.DataFrame:
+    """A submissions table of (accession, form, report date or "") rows."""
+    return parse_submissions(
+        [
+            {
+                "accessionNumber": [r[0] for r in rows],
+                "form": [r[1] for r in rows],
+                "filingDate": ["2026-02-01"] * len(rows),
+                "reportDate": [r[2] for r in rows],
+                "items": [""] * len(rows),
+                "primaryDocument": ["x.htm"] * len(rows),
+            }
+        ]
+    )
+
+
+def test_find_third_quarter() -> None:
+    table = filings(
+        ("a", "10-Q", "2025-09-30"),  # third quarter
+        ("b", "10-Q", "2026-09-30"),  # next year's, with this year as comparative
+        ("c", "10-Q", "2025-06-30"),
+        ("d", "10-Q/A", "2025-09-30"),
+        ("e", "10-K", "2025-12-31"),
+        ("f", "8-K", ""),
+    )
+    assert find_third_quarter(table, date(2025, 12, 31)) == ThirdQuarter(
+        "a", date(2025, 9, 30)
+    )
+
+
+@pytest.mark.parametrize(
+    ("report_date", "found"),
+    [
+        ("2025-06-28", True),  # 13-week fourth quarter, ends 2025-09-27
+        ("2025-06-21", True),  # 14 weeks
+        ("2025-06-18", True),  # 101 days before: a 100-day quarter
+        ("2025-06-17", False),
+        ("2025-07-08", True),  # 81 days before: an 80-day quarter
+        ("2025-07-09", False),
+    ],
+)
+def test_third_quarter_leaves_a_quarter(report_date, found) -> None:
+    got = find_third_quarter(
+        filings(("a", "10-Q", report_date)), date(2025, 9, 27)
+    ).accession
+    assert got == ("a" if found else None)
+
+
+def test_no_or_several_third_quarters() -> None:
+    end = date(2025, 12, 31)
+    assert find_third_quarter(filings(("c", "10-Q", "2025-06-30")), end) == (
+        ThirdQuarter(
+            None,
+            None,
+            NO_THIRD_QUARTER,
+            "no 10-Q's period ends a quarter before 2025-12-31",
+        )
+    )
+    several = filings(("b", "10-Q", "2025-09-27"), ("a", "10-Q", "2025-09-30"))
+    assert find_third_quarter(several, end) == ThirdQuarter(
+        None,
+        None,
+        SEVERAL_THIRD_QUARTERS,
+        "a (ends 2025-09-30), b (ends 2025-09-27)",
+    )
 
 
 def test_comparatives_in_the_same_filing_are_not_answers() -> None:
@@ -705,8 +986,11 @@ def make_client(
 
 
 def fixture_routes() -> dict[str, bytes]:
-    """answers_companyfacts.json as served: URL -> JSON body."""
-    routes = json.loads(COMPANYFACTS.read_bytes())
+    """link_submissions.json and answers_companyfacts.json as served: URL -> JSON
+    body."""
+    routes = json.loads(SUBMISSIONS.read_bytes()) | json.loads(
+        COMPANYFACTS.read_bytes()
+    )
     return {url: json.dumps(body).encode() for url, body in routes.items()}
 
 
@@ -808,8 +1092,13 @@ def test_cli_report_on_fixtures(fixture_run) -> None:
     assert lines[12] == (
         "year to date (29 10-Qs report one): revenue 29, net_income 29, eps_diluted 29"
     )
-    assert lines[13] == "missing: 0"
-    assert lines[14:] == [
+    assert lines[13:16] == [
+        "fourth quarter derived (13 10-Ks): revenue 13, net_income 13",
+        f"  ORCL 0000950170-25-087926 revenue: {RFC} (full-year answer {REV})",
+        f"  ORCL 0001193125-26-277521 revenue: {RFC} (full-year answer {REV})",
+    ]
+    assert lines[16] == "missing: 0"
+    assert lines[17:] == [
         "other revenue tags at the headline period (reported, not used):",
         f"  ORCL {RFC}: 2 filings, 2 equal to the revenue answer",
         (
@@ -838,14 +1127,14 @@ def test_cli_report_on_fixtures(fixture_run) -> None:
             "(e.g. 0000034088-25-000024 quarter: 8033000000, NetIncomeLoss 7713000000)"
         ),
         f"skipped 1 release in {LINKS} not linked",
-        f"wrote 267 rows to {out}",
+        f"wrote 293 rows to {out}",
     ]
 
 
 def test_cli_answers_csv_on_fixtures(fixture_run) -> None:
     _, _, rows, _ = fixture_run
     assert list(rows[0]) == COLUMNS
-    assert len(rows) == 267
+    assert len(rows) == 293
     apple_q3 = [r for r in rows if r["linked_accession"] == "0000320193-25-000073"]
     assert [
         (r["field"], r["period_type"], r["start"], r["end"], r["value"], r["tag"])
@@ -886,11 +1175,59 @@ def test_cli_answers_csv_on_fixtures(fixture_run) -> None:
         for r in rows
         if r["ticker"] == "CAT" and r["field"] == "net_income"
     }
-    assert len(cat) == 9
+    assert len(cat) == 10  # with the 10-K's derived fourth quarter
     assert {tag for _, tag in cat.values()} == {AVAIL}
     assert cat["0000018230-25-000040", "quarter"] == ("2179000000", AVAIL)
+    assert cat["0000018230-26-000008", "quarter"] == ("2402000000", AVAIL)
     net_income_tags = [r["tag"] for r in rows if r["field"] == "net_income"]
-    assert (net_income_tags.count(NI), net_income_tags.count(AVAIL)) == (80, 9)
+    assert (net_income_tags.count(NI), net_income_tags.count(AVAIL)) == (92, 10)
+
+
+def test_cli_derived_fourth_quarters_on_fixtures(fixture_run) -> None:
+    _, _, rows, _ = fixture_run
+    derived = [r for r in rows if r["derived"] == "True"]
+    assert len(derived) == 26
+    assert {(r["field"], r["period_type"]) for r in derived} == {
+        ("revenue", "quarter"),
+        ("net_income", "quarter"),
+    }
+    assert all(r["full_year_accession"] == r["linked_accession"] for r in derived)
+    # Microsoft FY25: 281,724 - 205,283 and 101,832 - 74,599 (millions). The nine
+    # months are from the FY25 third-quarter 10-Q, not FY26's, which repeats them.
+    msft = [r for r in derived if r["linked_accession"] == "0000950170-25-100235"]
+    assert msft == [
+        {
+            "ticker": "MSFT",
+            "release_accession": "0000950170-25-100226",
+            "linked_accession": "0000950170-25-100235",
+            "field": field,
+            "period_type": "quarter",
+            "start": "2025-04-01",
+            "end": "2025-06-30",
+            "value": value,
+            "unit": "USD",
+            "tag": tag,
+            "derived": "True",
+            "full_year_accession": "0000950170-25-100235",
+            "nine_months_accession": "0000950170-25-061046",
+            "fiscal_year_start": "2024-07-01",
+        }
+        for field, value, tag in [
+            ("revenue", "76441000000", RFC),
+            ("net_income", "27233000000", NI),
+        ]
+    ]
+    # Oracle FY25: its third-quarter 10-Q is no linked filing; revenue uses the tag
+    # that 10-Q has.
+    orcl = {
+        r["field"]: (r["value"], r["tag"], r["nine_months_accession"])
+        for r in derived
+        if r["linked_accession"] == "0000950170-25-087926"
+    }
+    assert orcl == {
+        "revenue": ("15903000000", RFC, "0000950170-25-037143"),
+        "net_income": ("3427000000", NI, "0000950170-25-037143"),
+    }
 
 
 def test_cli_uses_the_cache(tmp_path) -> None:
@@ -908,6 +1245,9 @@ def test_cli_uses_the_cache(tmp_path) -> None:
         assert answers.main([*argv, "--refresh"], client=client) == 0
     facts_url = "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json"
     assert requests.count(facts_url) == 2  # first run, then --refresh
+    # Apple's 10-K release needs its third-quarter 10-Q from the submissions.
+    submissions_url = "https://data.sec.gov/submissions/CIK0000320193.json"
+    assert requests.count(submissions_url) == 2
 
 
 def test_cli_continues_after_edgar_error(tmp_path, capsys) -> None:

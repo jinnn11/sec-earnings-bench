@@ -47,6 +47,7 @@ PROMPTS = Path(__file__).parent.parent / "prompts"
 UA = "Test Runner test@example.com"
 LINKS = FIXTURES / "answers_links.csv"
 COMPANYFACTS = FIXTURES / "answers_companyfacts.json"
+SUBMISSIONS = FIXTURES / "link_submissions.json"
 RELEASES = FIXTURES / "input_releases"
 
 # A released prompt is never edited; a changed prompt is a new version.
@@ -425,8 +426,11 @@ def test_chat_client_rejects_a_body_without_choices() -> None:
 
 
 def make_client(cache_dir: Path) -> EdgarClient:
-    """An EDGAR client serving answers_companyfacts.json; other URLs 404."""
-    bodies = json.loads(COMPANYFACTS.read_bytes())
+    """An EDGAR client serving link_submissions.json and answers_companyfacts.json;
+    other URLs 404."""
+    bodies = json.loads(SUBMISSIONS.read_bytes()) | json.loads(
+        COMPANYFACTS.read_bytes()
+    )
     routes = {url: json.dumps(body).encode() for url, body in bodies.items()}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -563,11 +567,11 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
     run_dir = tmp_path / "runs" / "test"
 
     # Every answer for the five releases is in its input, and all are correct: AAPL,
-    # CAT and XOM quarter and year to date (6 each), MSFT full year (3), WMT Q1
-    # quarter (3).
+    # CAT and XOM quarter and year to date (6 each), MSFT full year (3) and derived
+    # fourth quarter (revenue, net income), WMT Q1 quarter (3).
     key = load_answers(key_dir / "answers.csv")
     answerable = sum(1 for a in key.values() if a.release_accession in FIXTURE_RELEASES)
-    assert answerable == 24
+    assert answerable == 26
     assert f"accuracy: {answerable}/{answerable} (100.0%)" in out.splitlines()
     assert "graded 5 releases" in out
 
@@ -666,7 +670,7 @@ def test_an_invalid_reply_is_retried_with_its_errors(
     assert [c["call"] for c in info["calls"] if c["release_accession"] == CAT] == [1, 2]
     assert info["tokens"]["input"] == 6000
     out = capsys.readouterr().out
-    assert "accuracy: 24/24 (100.0%)" in out.splitlines()
+    assert "accuracy: 26/26 (100.0%)" in out.splitlines()
 
 
 def test_two_invalid_replies_give_an_all_null_prediction(
@@ -1292,7 +1296,7 @@ def test_run_with_anthropic(tmp_path, key_dir, perfect_replies, capsys, effort) 
     )
     assert f"provider anthropic; sent with each request: {shown}" in out
     # XOM's six answers are missing.
-    assert "accuracy: 18/24 (75.0%)" in out
+    assert "accuracy: 20/26 (76.9%)" in out
     i = out.index("API errors (all-null predictions, graded as missing): 1")
     assert out[i + 1 : i + 3] == [
         f"  XOM {XOM}: refusal (cyber): Declined.",
