@@ -155,6 +155,10 @@ def test_load_settings() -> None:
         ),
         ({"MODEL_EXTRA_BODY": '{"top_p": NaN}'}, "MODEL_EXTRA_BODY is not valid JSON"),
         ({"MODEL_EXTRA_BODY": '["medium"]'}, "MODEL_EXTRA_BODY must be a JSON object"),
+        ({"MODEL_CONCURRENCY": "four"}, "MODEL_CONCURRENCY is not a whole number"),
+        ({"MODEL_CONCURRENCY": "2.5"}, "MODEL_CONCURRENCY is not a whole number"),
+        ({"MODEL_CONCURRENCY": "0"}, "MODEL_CONCURRENCY must be 1 or more"),
+        ({"MODEL_CONCURRENCY": "-3"}, "MODEL_CONCURRENCY must be 1 or more"),
         (
             {"MODEL_EXTRA_BODY": '{"stream": true, "model": "other-model"}'},
             "MODEL_EXTRA_BODY can't set model or stream ",
@@ -200,6 +204,15 @@ def test_extra_body() -> None:
     assert describe_parameters("openai", vllm.parameters) == (
         'chat_template_kwargs {"enable_thinking": false}, no temperature'
     )
+
+
+def test_concurrency() -> None:
+    assert load_settings(ENVIRON).concurrency == 4  # unset
+    assert load_settings({**ENVIRON, "MODEL_CONCURRENCY": " "}).concurrency == 4
+    assert load_settings({**ENVIRON, "MODEL_CONCURRENCY": " 16 "}).concurrency == 16
+    # Both providers.
+    anthropic_two = {**ANTHROPIC_ENVIRON, "MODEL_CONCURRENCY": "2"}
+    assert load_settings(anthropic_two).concurrency == 2
 
 
 def test_anthropic_ignores_extra_body() -> None:
@@ -869,11 +882,16 @@ def test_a_wrong_key_stops_the_run(tmp_path, key_dir, capsys) -> None:
     assert "stopped, not graded: HTTP 401; check MODEL_BASE_URL" in out
 
 
-def test_at_most_four_calls_at_once(tmp_path, key_dir, perfect_replies) -> None:
-    # The first four calls wait for each other, so all four must be in flight at
-    # once (a smaller pool times out). They then stay in flight long enough for a
-    # fifth to start if the pool allowed it; it may start only when one finishes.
-    barrier = threading.Barrier(4, timeout=10)
+@pytest.mark.parametrize(
+    ("setting", "limit"), [(None, 4), ("2", 2), ("3", 3)], ids=["default", "2", "3"]
+)
+def test_at_most_concurrency_calls_at_once(
+    tmp_path, key_dir, perfect_replies, setting, limit
+) -> None:
+    # The first `limit` calls wait for each other, so all must be in flight at once
+    # (a smaller pool times out). They then stay in flight long enough for one more
+    # to start if the pool allowed it; it may start only when one finishes.
+    barrier = threading.Barrier(limit, timeout=10)
     lock = threading.Lock()
     state = {"now": 0, "max": 0, "started": 0}
 
@@ -882,8 +900,8 @@ def test_at_most_four_calls_at_once(tmp_path, key_dir, perfect_replies) -> None:
             state["now"] += 1
             state["started"] += 1
             state["max"] = max(state["max"], state["now"])
-            first_four = state["started"] <= 4
-        if first_four:
+            first = state["started"] <= limit
+        if first:
             barrier.wait()
             time.sleep(0.2)
         with lock:
@@ -891,10 +909,15 @@ def test_at_most_four_calls_at_once(tmp_path, key_dir, perfect_replies) -> None:
         return completion(json.dumps(perfect_replies[accession]))
 
     model = FakeModel(script)
-    with contextlib.redirect_stdout(io.StringIO()):
-        assert run(tmp_path, key_dir, model) == 0
-    assert state["max"] == 4
+    environ = ENVIRON if setting is None else {**ENVIRON, "MODEL_CONCURRENCY": setting}
+    stdout = io.StringIO()
+    with contextlib.redirect_stdout(stdout):
+        assert run(tmp_path, key_dir, model, environ=environ) == 0
+    assert state["max"] == limit
     assert sorted(model.calls) == sorted(FIXTURE_RELEASES)
+    info = json.loads((tmp_path / "runs" / "test" / "run.json").read_text())
+    assert info["max_parallel"] == limit
+    assert stdout.getvalue().splitlines()[0].endswith(f"up to {limit} calls at a time")
 
 
 def refuse(accession: str, call: int, body: dict) -> httpx.Response:

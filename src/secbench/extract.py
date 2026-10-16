@@ -37,8 +37,9 @@ the first selected release, without reading them or making a call.
 A run writes runs/<run>/raw/<accession>.json (every HTTP attempt's request body and
 response; no headers) as each release finishes, then predictions.jsonl and run.json
 (model, prompt version, token counts, latency per call, estimated cost, fallbacks),
-grades the run (see secbench.grade) and prints the summary. At most 4 calls run at a
-time; for both providers, 429, 5xx, timeouts and connection errors are retried with
+grades the run (see secbench.grade) and prints the summary. At most MODEL_CONCURRENCY
+calls (default 4) run at a time; for both providers, 429, 5xx, timeouts and connection
+errors are retried with
 the same backoff (the SDK's own retries are off). HTTP 401, 403 or 404 (wrong key,
 model or URL) stops the run without grading it.
 """
@@ -93,7 +94,7 @@ DEFAULT_PROMPT = "extract_v1"
 RUNS_DIR = Path("runs")
 RAW = "raw"
 RUN_INFO = "run.json"
-MAX_PARALLEL = 4
+DEFAULT_CONCURRENCY = 4  # calls at once, unless MODEL_CONCURRENCY says otherwise
 # Generous: a local server can take minutes on a 70,000-character release.
 TIMEOUT = httpx.Timeout(600.0, connect=10.0)
 ABORT_STATUSES = (401, 403, 404)  # wrong key, model or URL: every call would fail
@@ -128,6 +129,7 @@ SETTINGS = (
     "MODEL_TEMPERATURE",
     "MODEL_EXTRA_BODY",
     "MODEL_EFFORT",
+    "MODEL_CONCURRENCY",
     "MODEL_PRICE_INPUT",
     "MODEL_PRICE_OUTPUT",
 )
@@ -161,6 +163,7 @@ class Settings:
     provider: str = OPENAI
     effort: str | None = None  # anthropic only; None: not sent
     extra_body: dict[str, Any] | None = None  # openai only; merged into each body
+    concurrency: int = DEFAULT_CONCURRENCY  # calls at once
 
     @property
     def endpoint(self) -> str:
@@ -191,6 +194,19 @@ def parse_number(name: str, value: str) -> float | None:
         raise SettingsError(f"{name} is not a number") from None
     if not math.isfinite(number) or number < 0:
         raise SettingsError(f"{name} must be 0 or more")
+    return number
+
+
+def parse_count(name: str, value: str, default: int) -> int:
+    """A setting that is a whole number, 1 or more; default if blank."""
+    if not value:
+        return default
+    try:
+        number = int(value)
+    except ValueError:
+        raise SettingsError(f"{name} is not a whole number") from None
+    if number < 1:
+        raise SettingsError(f"{name} must be 1 or more")
     return number
 
 
@@ -269,6 +285,9 @@ def load_settings(
         provider=provider,
         effort=effort or None,
         extra_body=extra_body,
+        concurrency=parse_count(
+            "MODEL_CONCURRENCY", values["MODEL_CONCURRENCY"], DEFAULT_CONCURRENCY
+        ),
     )
 
 
@@ -878,7 +897,7 @@ def run_releases(
     prompt: Prompt,
     work: list[tuple[LinkedRelease, ReleaseInput]],
     raw_dir: Path,
-    parallel: int = MAX_PARALLEL,
+    parallel: int = DEFAULT_CONCURRENCY,
 ) -> tuple[list[ReleaseResult], str]:
     """Run every release, at most `parallel` at once, saving each raw record as it
     finishes. Returns the results in work order and the run's status: COMPLETE, or
@@ -996,7 +1015,7 @@ def run_info(
         # Sent with every request besides the model, system prompt and messages.
         "request_parameters": settings.parameters,
         "extra_body": settings.extra_body,  # MODEL_EXTRA_BODY, part of the above
-        "max_parallel": MAX_PARALLEL,
+        "max_parallel": settings.concurrency,
         "started": started.isoformat(timespec="seconds"),
         "finished": finished.isoformat(timespec="seconds"),
         "wall_time_s": round((finished - started).total_seconds(), 1),
@@ -1245,13 +1264,15 @@ def main(
         f"{run_dir}: {plural(len(work), 'release')}, provider {settings.provider}, "
         f"prompt {prompt.version}, "
         f"{describe_parameters(settings.provider, settings.parameters)}, up to "
-        f"{MAX_PARALLEL} calls at a time"
+        f"{settings.concurrency} calls at a time"
         + (f"; settings from {args.env_file}" if args.env_file else "")
     )
     with make_chat(
         settings, transport=transport, anthropic_client=anthropic_client, sleep=sleep
     ) as chat:
-        results, status = run_releases(chat, prompt, work, run_dir / RAW)
+        results, status = run_releases(
+            chat, prompt, work, run_dir / RAW, settings.concurrency
+        )
     info = run_info(
         run_name=run_name,
         status=status,
