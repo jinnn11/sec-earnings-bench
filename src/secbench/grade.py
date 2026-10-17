@@ -8,7 +8,12 @@ secbench.inputs); otherwise it is not_in_input and left out of accuracy. A wrong
 figure is classified using the linked filing's other XBRL facts and the input's rows:
 a figure in another period column of the answer's own row ("1Q26") is a wrong
 period, and a row counts as adjusted by its label, the label-only row above it in its
-table, its column header or the heading above its table.
+table, its column header or the heading above its table. A figure off by a power of
+ten from 10 to 1,000,000 is a scale error (1,000 or 1,000,000) or miscounted zeros
+(the others); after every exact check, the sign, period, noncontrolling-interest,
+rounded, adjusted and line checks are tried again on the prediction times each such
+factor. graded.csv's factor column holds it: the prediction times the factor is what
+was matched (0.01 for "prediction /100 is the answer").
 
 Usage: uv run python -m secbench.grade runs/<run>/ [--links] [--answers] [--releases]
        uv run python -m secbench.grade --check-inputs [--answers] [--releases]
@@ -32,6 +37,7 @@ from dataclasses import asdict, dataclass, fields
 from dataclasses import field as dataclass_field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from functools import cached_property
 from pathlib import Path
 from typing import Annotated
 
@@ -71,7 +77,11 @@ EPS = "eps_diluted"
 PROFIT_LOSS = "ProfitLoss"  # net income including noncontrolling interests
 EPS_PRECISION = Decimal("0.01")
 MAX_USD_PRECISION = 10**6  # an answer's precision is at most whole millions
-SCALES = (10**3, 10**6)
+# Powers of ten a prediction may be off by, smallest first, multiplying before
+# dividing. The answer off by 1,000 or 1,000,000 is a scale error (a unit misread);
+# off by another, zeros miscounted ("16,569" in millions written 1656900000000).
+FACTORS = tuple(Decimal(10) ** (k * s) for k in range(1, 7) for s in (1, -1))
+SCALES = {Decimal(10) ** e for e in (3, -3, 6, -6)}
 # A table figure's unit isn't parsed from its heading, so each is tried.
 TABLE_UNITS = (1, 10**3, 10**6)
 SCALE_WORDS = {"thousand": 10**3, "million": 10**6, "billion": 10**9}
@@ -83,6 +93,7 @@ CORRECT = "correct"
 MISSING = "missing"
 SIGN = "sign"
 SCALE = "scale"
+ZEROS = "zeros"
 WRONG_PERIOD = "wrong_period"
 NONCONTROLLING_INTEREST = "noncontrolling_interest"
 ROUNDED = "rounded"
@@ -96,6 +107,7 @@ VERDICTS = (
     MISSING,
     SIGN,
     SCALE,
+    ZEROS,
     WRONG_PERIOD,
     NONCONTROLLING_INTEREST,
     ROUNDED,
@@ -647,6 +659,99 @@ def describe_column(row: InputRow, figure: Figure, unit: int) -> str:
 class Verdict:
     verdict: str
     evidence: str = ""
+    factor: Decimal | None = None  # the prediction times it matched; None if as given
+
+
+def factor_text(factor: Decimal) -> str:
+    """What the prediction is multiplied or divided by: "x1,000" or "/1,000"."""
+    return f"x{int(factor):,}" if factor > 1 else f"/{int(1 / factor):,}"
+
+
+def with_factor(found: Verdict, factor: Decimal) -> Verdict:
+    """found, matched by the prediction times factor: "prediction /10 is <what it
+    matched>"."""
+    what = {SIGN: "minus the answer", ROUNDED: f"the {found.evidence}"}.get(
+        found.verdict, found.evidence
+    )
+    return Verdict(found.verdict, f"prediction {factor_text(factor)} is {what}", factor)
+
+
+@dataclass
+class ErrorChecks:
+    """The checks for a wrong figure of one answer. Each takes a prediction, as given
+    or times a factor, and returns the error it matches, or None."""
+
+    answer: Answer
+    rows: Sequence[InputRow]
+    filing_facts: Collection[Fact]
+
+    @cached_property
+    def other_periods(self) -> list[Fact]:
+        """The filing's facts of the answer's tag and unit for other periods, latest
+        first."""
+        a = self.answer
+        return sorted(
+            (
+                f
+                for f in self.filing_facts
+                if f.tag == a.tag
+                and f.unit == a.unit
+                and (f.start, f.end) != (a.start, a.end)
+            ),
+            key=lambda f: (f.end, f.start or f.end),
+            reverse=True,
+        )
+
+    @cached_property
+    def figures(self) -> list[tuple[InputRow, Figure]]:
+        return [(row, figure) for row in self.rows for figure in row.figures]
+
+    @cached_property
+    def adjusted_figures(self) -> list[tuple[InputRow, Figure]]:
+        return [(r, f) for r, f in self.figures if adjusted_context(r, f)]
+
+    def sign(self, predicted: Decimal) -> Verdict | None:
+        value, field = self.answer.value, self.answer.field
+        if value != 0 and close(-predicted, value, field):
+            return Verdict(SIGN)
+        return None
+
+    def wrong_period(self, predicted: Decimal) -> Verdict | None:
+        field = self.answer.field
+        for fact in self.other_periods:
+            if close(predicted, fact.value, field):
+                return Verdict(WRONG_PERIOD, describe_fact(fact))
+        if found := other_period_column(self.answer.value, predicted, field, self.rows):
+            return Verdict(WRONG_PERIOD, describe_column(*found))
+        return None
+
+    def noncontrolling_interest(self, predicted: Decimal) -> Verdict | None:
+        a = self.answer
+        if a.field != NET_INCOME:
+            return None
+        for fact in self.filing_facts:
+            if (fact.tag, fact.unit, fact.start, fact.end) == (
+                PROFIT_LOSS,
+                a.unit,
+                a.start,
+                a.end,
+            ) and close(predicted, fact.value, a.field):
+                return Verdict(NONCONTROLLING_INTEREST, describe_fact(fact))
+        return None
+
+    def rounded(self, predicted: Decimal) -> Verdict | None:
+        unit = rounding_unit(self.answer.value, self.answer.field, predicted)
+        if unit is None:
+            return None
+        return Verdict(ROUNDED, f"answer rounded to {unit:,}")
+
+    def adjusted(self, predicted: Decimal) -> Verdict | None:
+        found = match_figure(predicted, self.answer.field, self.adjusted_figures)
+        return Verdict(ADJUSTED, describe_match(*found)) if found else None
+
+    def wrong_line(self, predicted: Decimal) -> Verdict | None:
+        found = match_figure(predicted, self.answer.field, self.figures)
+        return Verdict(WRONG_LINE, describe_match(*found)) if found else None
 
 
 def grade_value(
@@ -656,7 +761,10 @@ def grade_value(
     rows: Sequence[InputRow],
     filing_facts: Collection[Fact],
 ) -> Verdict:
-    """Grade one predicted figure against its answer."""
+    """Grade one predicted figure against its answer. After correct: sign; the
+    answer times a factor (scale or zeros); another period, noncontrolling interest,
+    rounded, adjusted and another line, as given; then sign and each of those again,
+    in that order, on the prediction times each factor (smallest first)."""
     field, value = answer.field, answer.value
     if find_in_input(value, field, text, rows) is None:
         forms = input_forms(value, field)
@@ -668,47 +776,30 @@ def grade_value(
         return Verdict(MISSING)
     if close(predicted, value, field):
         return Verdict(CORRECT)
-    if value != 0 and close(-predicted, value, field):
-        return Verdict(SIGN)
-    for factor in SCALES:
+    checks = ErrorChecks(answer, rows, filing_facts)
+    if found := checks.sign(predicted):
+        return found
+    for factor in FACTORS:
         if close(predicted * factor, value, field):
-            return Verdict(SCALE, f"prediction x{factor:,} is the answer")
-        if close(predicted / factor, value, field):
-            return Verdict(SCALE, f"prediction /{factor:,} is the answer")
-    others = sorted(
-        (
-            f
-            for f in filing_facts
-            if f.tag == answer.tag
-            and f.unit == answer.unit
-            and (f.start, f.end) != (answer.start, answer.end)
-        ),
-        key=lambda f: (f.end, f.start or f.end),
-        reverse=True,
+            return Verdict(
+                SCALE if factor in SCALES else ZEROS,
+                f"prediction {factor_text(factor)} is the answer",
+                factor,
+            )
+    exact = (
+        checks.wrong_period,
+        checks.noncontrolling_interest,
+        checks.rounded,
+        checks.adjusted,
+        checks.wrong_line,
     )
-    for fact in others:
-        if close(predicted, fact.value, field):
-            return Verdict(WRONG_PERIOD, describe_fact(fact))
-    if found := other_period_column(value, predicted, field, rows):
-        return Verdict(WRONG_PERIOD, describe_column(*found))
-    if field == NET_INCOME:
-        for fact in filing_facts:
-            if (fact.tag, fact.unit, fact.start, fact.end) == (
-                PROFIT_LOSS,
-                answer.unit,
-                answer.start,
-                answer.end,
-            ) and close(predicted, fact.value, field):
-                return Verdict(NONCONTROLLING_INTEREST, describe_fact(fact))
-    unit = rounding_unit(value, field, predicted)
-    if unit is not None:
-        return Verdict(ROUNDED, f"answer rounded to {unit:,}")
-    figures = [(row, figure) for row in rows for figure in row.figures]
-    adjusted = [(r, f) for r, f in figures if adjusted_context(r, f)]
-    if found := match_figure(predicted, field, adjusted):
-        return Verdict(ADJUSTED, describe_match(*found))
-    if found := match_figure(predicted, field, figures):
-        return Verdict(WRONG_LINE, describe_match(*found))
+    for check in exact:
+        if found := check(predicted):
+            return found
+    for check in (checks.sign, *exact):
+        for factor in FACTORS:
+            if found := check(predicted * factor):
+                return with_factor(found, factor)
     return Verdict(OTHER)
 
 
@@ -729,6 +820,7 @@ class Graded:
     predicted: Decimal | None
     verdict: str
     evidence: str
+    factor: Decimal | None = None  # see Verdict.factor
 
 
 GRADED_COLUMNS = [f.name for f in fields(Graded)]
@@ -780,6 +872,7 @@ def grade_prediction(
                     predicted,
                     verdict.verdict,
                     verdict.evidence,
+                    verdict.factor,
                 )
             )
     return graded

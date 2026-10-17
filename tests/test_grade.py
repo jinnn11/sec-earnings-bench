@@ -30,6 +30,7 @@ from secbench.grade import (
     VERDICTS,
     WRONG_LINE,
     WRONG_PERIOD,
+    ZEROS,
     Figure,
     Graded,
     GradeError,
@@ -393,16 +394,48 @@ def test_sign() -> None:
 
 
 @pytest.mark.parametrize(
-    ("predicted", "evidence"),
+    ("predicted", "evidence", "factor"),
     [
-        ("14525", "prediction x1,000,000 is the answer"),
-        ("14525000", "prediction x1,000 is the answer"),
-        ("14525000000000", "prediction /1,000 is the answer"),
-        ("14525000000000000", "prediction /1,000,000 is the answer"),
+        ("14525", "prediction x1,000,000 is the answer", "1000000"),
+        ("14525000", "prediction x1,000 is the answer", "1000"),
+        ("14525000000000", "prediction /1,000 is the answer", "0.001"),
+        ("14525000000000000", "prediction /1,000,000 is the answer", "0.000001"),
     ],
 )
-def test_scale(predicted, evidence) -> None:
-    assert verdict(predicted) == grade.Verdict(SCALE, evidence)
+def test_scale(predicted, evidence, factor) -> None:
+    assert verdict(predicted) == grade.Verdict(SCALE, evidence, D(factor))
+
+
+@pytest.mark.parametrize(
+    ("predicted", "evidence", "factor"),
+    [
+        ("1452500000", "prediction x10 is the answer", "10"),
+        ("145250000000", "prediction /10 is the answer", "0.1"),
+        ("145250000", "prediction x100 is the answer", "100"),
+        ("1452500000000", "prediction /100 is the answer", "0.01"),
+        ("1452500", "prediction x10,000 is the answer", "10000"),
+        ("145250000000000", "prediction /10,000 is the answer", "0.0001"),
+        ("145250", "prediction x100,000 is the answer", "100000"),
+        ("1452500000000000", "prediction /100,000 is the answer", "0.00001"),
+    ],
+)
+def test_zeros(predicted, evidence, factor) -> None:
+    assert verdict(predicted) == grade.Verdict(ZEROS, evidence, D(factor))
+
+
+def test_zeros_in_eps() -> None:
+    # Cents for dollars.
+    expected = answer("3.48", "eps_diluted", "EarningsPerShareDiluted")
+    assert verdict("348", expected) == grade.Verdict(
+        ZEROS, "prediction /100 is the answer", D("0.01")
+    )
+
+
+def test_zeros_before_wrong_line() -> None:
+    # As Oracle's EPS in cents (156) on a segment row's $156 (millions).
+    expected = answer("3.48", "eps_diluted", "EarningsPerShareDiluted")
+    text = TEXT + "| Cloud license | 348 | 301 |\n"
+    assert verdict("348", expected, text).verdict == ZEROS
 
 
 FACTS = (
@@ -535,9 +568,14 @@ def test_wrong_line_in_prose() -> None:
 
 
 def test_eps_figures_are_not_scaled() -> None:
+    # Not read in thousands, as a USD figure may be: 3520 is 3.52 only by a factor.
     expected = answer("3.48", "eps_diluted", "EarningsPerShareDiluted")
     assert verdict("3.52", expected).verdict == ADJUSTED
-    assert verdict("0.00352", expected).verdict == OTHER
+    assert verdict("3520", expected) == grade.Verdict(
+        ADJUSTED,
+        "prediction /1,000 is 'Adjusted diluted EPS (non-GAAP)': 3.52",
+        D("0.001"),
+    )
 
 
 def test_percentages_are_not_figures() -> None:
@@ -564,6 +602,111 @@ def test_scale_before_wrong_line() -> None:
     assert (
         verdict("14525", text=TEXT + "\nWe have 14,525 employees.\n").verdict == SCALE
     )
+
+
+# Errors times a factor, after every exact check
+
+
+def test_sign_times_a_factor() -> None:
+    assert verdict("-14525", facts=FACTS) == grade.Verdict(
+        SIGN, "prediction x1,000,000 is minus the answer", D(1000000)
+    )
+    assert verdict("-145250000000", facts=FACTS) == grade.Verdict(
+        SIGN, "prediction /10 is minus the answer", D("0.1")
+    )
+
+
+def test_wrong_period_times_a_factor() -> None:
+    # The quarter's net income, with a zero too many, as the half year's.
+    expected = answer("18708000000", period=H1, period_type="year_to_date")
+    text = TEXT + "\n| Net income, six months | 18,708 |\n"
+    assert verdict("145250000000", expected, text, FACTS) == grade.Verdict(
+        WRONG_PERIOD,
+        "prediction /10 is NetIncomeLoss 2026-04-01..2026-06-30: 14525000000",
+        D("0.1"),
+    )
+
+
+def test_other_period_column_times_a_factor() -> None:
+    assert verdict("41830000000", text=SUMMARY) == grade.Verdict(
+        WRONG_PERIOD,
+        "prediction /10 is '1Q26' column of 'Earnings (U.S. GAAP)': 4,183 (x1,000,000)",
+        D("0.1"),
+    )
+
+
+def test_noncontrolling_interest_times_a_factor() -> None:
+    assert verdict("148810000000", facts=FACTS) == grade.Verdict(
+        NONCONTROLLING_INTEREST,
+        "prediction /10 is ProfitLoss 2026-04-01..2026-06-30: 14881000000",
+        D("0.1"),
+    )
+
+
+def test_rounded_times_a_factor() -> None:
+    expected = answer("95359000000", "revenue", "Revenues")
+    assert verdict(
+        "9540000000", expected, "| Total net sales | 95,359 |"
+    ) == grade.Verdict(
+        ROUNDED, "prediction x10 is the answer rounded to 100,000,000", D(10)
+    )
+
+
+def test_rounded_before_wrong_line_times_a_factor() -> None:
+    # Apple's headline "$95.4 billion", a zero short: the answer rounded, though
+    # it is also a figure on another line.
+    expected = answer("95359000000", "revenue", "Revenues")
+    text = "Revenue was $95.4 billion.\n\n" + in_table("| Net sales | 95,359 |")
+    assert verdict("9540000000", expected, text).verdict == ROUNDED
+
+
+def test_adjusted_times_a_factor() -> None:
+    assert verdict("146800000000") == grade.Verdict(
+        ADJUSTED,
+        "prediction /10 is 'Adjusted net income (non-GAAP)': 14,680 (x1,000,000)",
+        D("0.1"),
+    )
+
+
+def test_wrong_line_times_a_factor() -> None:
+    # The smallest factor: /100 in millions, not /100,000 in thousands.
+    assert verdict("2000000000000") == grade.Verdict(
+        WRONG_LINE,
+        "prediction /100 is 'Operating cash flow': 20,000 (x1,000,000)",
+        D("0.01"),
+    )
+
+
+def test_wrong_line_in_prose_times_a_factor() -> None:
+    text = TEXT + "\nFree cash flow was $9.8 billion.\n"
+    assert verdict("980000000", text=text) == grade.Verdict(
+        WRONG_LINE,
+        "prediction x10 is 'Free cash flow was $9.8 billion.': $9.8 billion",
+        D(10),
+    )
+
+
+def test_each_check_with_every_factor_before_the_next() -> None:
+    # Another period at /100 comes before another line at /10.
+    text = TEXT + "| Total assets | 70,820 | 70,000 |\n"
+    assert verdict("708200000000", text=text) == grade.Verdict(
+        WRONG_PERIOD,
+        "prediction /100 is 'Three Months Ended June 30, 2025' column of "
+        "'Net income': 7,082 (x1,000,000)",
+        D("0.01"),
+    )
+
+
+def test_exact_checks_before_a_factor() -> None:
+    # The adjusted row as given, though /10 it is another period's value.
+    facts = (fact("NetIncomeLoss", Q2_PRIOR, "1468000000"),)
+    assert verdict("14680000000", facts=facts) == grade.Verdict(
+        ADJUSTED, "'Adjusted net income (non-GAAP)': 14,680 (x1,000,000)"
+    )
+
+
+def test_other_times_any_factor() -> None:
+    assert verdict("1234567") == grade.Verdict(OTHER)
 
 
 # Another period column of the answer's row
@@ -974,6 +1117,20 @@ def test_answers_without_a_prediction_are_missing() -> None:
     assert [(g.field, g.verdict) for g in graded] == [("net_income", MISSING)]
 
 
+def test_grade_prediction_records_the_factor() -> None:
+    key = {(RELEASE, "net_income", "quarter"): answer()}
+    prediction = Prediction.model_validate(
+        {
+            "release_accession": RELEASE,
+            "period_end": "2026-06-30",
+            "quarter": {"net_income": 1452500000},
+            "year_to_date": {},
+        }
+    )
+    [graded] = grade_prediction(prediction, linked_release(), key, set(), TEXT)
+    assert (graded.verdict, graded.factor) == (ZEROS, D(10))
+
+
 def test_load_answers_reads_what_answers_writes(tmp_path) -> None:
     derived = Answer(
         "TEST",
@@ -1142,7 +1299,7 @@ def test_format_summary() -> None:
     lines = format_summary(graded, notes).splitlines()
     verdict_lines = [
         f"  {v:<24}{n:>6}"
-        for v, n in zip(VERDICTS, [2, 0, 0, 0, 1] + [0] * 5 + [1, 1], strict=True)
+        for v, n in zip(VERDICTS, [2, 0, 0, 0, 0, 1] + [0] * 5 + [1, 1], strict=True)
     ]
     assert lines == [
         "graded 3 releases, 5 figures (1 not in input, 1 without an answer)",
@@ -1168,6 +1325,14 @@ def test_format_summary() -> None:
         "  0000320187-26-000070",
         "linked releases without a prediction: 57",
     ]
+
+
+def test_graded_csv_writes_the_factor() -> None:
+    times = dataclasses.replace(graded_row(ZEROS), factor=D("0.01"))
+    lines = grade.graded_csv([graded_row(CORRECT), times]).splitlines()
+    assert lines[0].endswith(",verdict,evidence,factor")
+    assert lines[1].endswith(",correct,e,")
+    assert lines[2].endswith(",zeros,e,0.01")
 
 
 # Command line, on the fixtures
@@ -1348,6 +1513,7 @@ def test_cli_graded_csv(graded_run) -> None:
         "predicted": "14680000000",
         "verdict": ADJUSTED,
         "evidence": "'Adjusted Earnings/(Loss) (non-GAAP)': 14,680 (x1,000,000)",
+        "factor": "",
     }
     assert by_key[XOM, "revenue", "quarter"]["verdict"] == CORRECT  # from EX-99.2
     assert by_key[AAPL, "revenue", "quarter"]["evidence"] == (
@@ -1568,6 +1734,46 @@ def test_real_full_year_in_a_derived_quarter_msft(fixture_context) -> None:
     assert grade_real(
         fixture_context, MSFT, "revenue", "quarter", "281724000000"
     ) == grade.Verdict(WRONG_PERIOD, f"{RFC} 2024-07-01..2025-06-30: 281724000000")
+
+
+@pytest.mark.parametrize(
+    ("field", "period", "predicted", "expected"),
+    [
+        # Qwen3-8B without thinking: "16,569" (millions) with two zeros too many,
+        # and the same figure as the six months'; net income likewise, one zero.
+        (
+            "revenue",
+            "quarter",
+            "1656900000000",
+            grade.Verdict(ZEROS, "prediction /100 is the answer", D("0.01")),
+        ),
+        (
+            "revenue",
+            "year_to_date",
+            "1656900000000",
+            grade.Verdict(
+                WRONG_PERIOD,
+                "prediction /100 is Revenues 2025-04-01..2025-06-30: 16569000000",
+                D("0.01"),
+            ),
+        ),
+        (
+            "net_income",
+            "year_to_date",
+            "21790000000",
+            grade.Verdict(
+                WRONG_PERIOD,
+                (
+                    "prediction /10 is NetIncomeLossAvailableToCommonStockholdersBasic "
+                    "2025-04-01..2025-06-30: 2179000000"
+                ),
+                D("0.1"),
+            ),
+        ),
+    ],
+)
+def test_real_factors_cat(fixture_context, field, period, predicted, expected) -> None:
+    assert grade_real(fixture_context, CAT, field, period, predicted) == expected
 
 
 def handchecked_rows() -> list:

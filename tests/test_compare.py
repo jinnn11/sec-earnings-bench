@@ -325,8 +325,9 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
             "no_answer are left out, as in each run's summary.txt."
         ),
         (
-            "- Verdicts 0 in every run in the first table: sign, scale, wrong_period, "
-            "noncontrolling_interest, rounded, adjusted, other, not_in_input."
+            "- Verdicts 0 in every run in the first table: sign, scale, zeros, "
+            "wrong_period, noncontrolling_interest, rounded, adjusted, other, "
+            "not_in_input."
         ),
         (
             "- Format retries: releases whose first reply didn't validate and were "
