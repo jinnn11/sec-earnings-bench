@@ -145,6 +145,23 @@ def write_run(runs: Path, name: str, info: dict, graded: list[Graded] | None) ->
 
 
 ALL = [R1, R2, R3]
+
+
+def vllm_rows() -> list[Graded]:
+    """Two of the errors matched with a factor (unit slips)."""
+    rows = graded_rows(
+        grade.CORRECT,
+        grade.WRONG_LINE,
+        grade.CORRECT,
+        grade.CORRECT,
+        grade.ZEROS,
+        grade.MISSING,
+    )
+    rows[1] = dataclasses.replace(rows[1], factor=D("0.1"))
+    rows[4] = dataclasses.replace(rows[4], factor=D(10))
+    return rows
+
+
 OPUS = "max_tokens 16000, effort medium, no temperature"
 
 
@@ -187,14 +204,7 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
             cost_basis="gpu_hours",
             estimated_cost_usd=0.05,
         ),
-        graded_rows(
-            grade.CORRECT,
-            grade.WRONG_LINE,
-            grade.CORRECT,
-            grade.CORRECT,
-            grade.MISSING,
-            grade.MISSING,
-        ),
+        vllm_rows(),
     )
     # One release: the second table, though it started first.
     write_run(
@@ -257,12 +267,13 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
 MAIN_HEADER = (
     "| run | model | provider | prompt | settings sent | concurrency | releases | "
     "status | accuracy | revenue | net_income | eps_diluted | correct | missing | "
-    "wrong_line | no_answer | format retries | cost | cost basis | "
-    "cost / 1,000 releases | latency p50 | latency p95 |"
+    "zeros | wrong_line | no_answer | unit slips | format retries | cost | "
+    "cost basis | cost / 1,000 releases | latency p50 | latency p95 |"
 )
 OTHER_HEADER = (
     "| run | model | provider | prompt | settings sent | releases | status | "
-    "accuracy | format retries | cost | cost basis | latency p50 | latency p95 |"
+    "accuracy | unit slips | format retries | cost | cost basis | latency p50 | "
+    "latency p95 |"
 )
 
 
@@ -285,38 +296,39 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
         "## Runs on all 3 linked releases",
         "",
         MAIN_HEADER,
-        "|" + "|".join([" --- "] * 22) + "|",
+        "|" + "|".join([" --- "] * 24) + "|",
         # 0.012 / 3 releases x 1,000 = $4.00.
         (
             f"| a-opus | claude-test | anthropic | extract_v1 | {OPUS} | 4 | 3 | graded "
-            "| 6/6 (100.0%) | 3/3 (100.0%) | 3/3 (100.0%) | 0/0 | 6 | 0 | 0 | 1 | 1 | "
-            "$0.0120 | tokens ($4 in, $20 out per M) | $4.00 | 1.50 s | 2.50 s |"
+            "| 6/6 (100.0%) | 3/3 (100.0%) | 3/3 (100.0%) | 0/0 | 6 | 0 | 0 | 0 | 1 | "
+            "0 | 1 | $0.0120 | tokens ($4 in, $20 out per M) | $4.00 | 1.50 s | "
+            "2.50 s |"
         ),
         # $2.50 per hour for 72 s is $0.05; / 3 x 1,000 = $16.67.
         (
             "| b-vllm | qwen3-4b | openai | extract_v1 | temperature 0, "
             "reasoning_effort medium | 16 | 3 | graded | 3/6 (50.0%) | 2/3 (66.7%) | "
-            "1/3 (33.3%) | 0/0 | 3 | 2 | 1 | 0 | 1 (1 invalid) | $0.0500 | "
+            "1/3 (33.3%) | 0/0 | 3 | 1 | 1 | 1 | 0 | 2 | 1 (1 invalid) | $0.0500 | "
             "GPU ($2.5/h x 72.0 s) | $16.67 | 0.80 s | 1.25 s |"
         ),
         (
             "| e-stale | gpt-test | openai | extract_v1 | no temperature | 4 | 3 | "
             "stale: re-grade | 6/6 (100.0%) | 3/3 (100.0%) | 3/3 (100.0%) | 0/0 | 6 | "
-            "0 | 0 | 0 | 0 | none | none | none | 2.00 s | 3.00 s |"
+            "0 | 0 | 0 | 0 | 0 | 0 | none | none | none | 2.00 s | 3.00 s |"
         ),
         "",
         "## Other runs: fewer releases, stopped or not graded",
         "",
         OTHER_HEADER,
-        "|" + "|".join([" --- "] * 13) + "|",
+        "|" + "|".join([" --- "] * 14) + "|",
         (
             "| c-smoke | claude-test | anthropic | extract_v1 | max_tokens 16000, "
-            "default effort, no temperature | 1 | graded | 2/2 (100.0%) | 0 | $0.0040 "
-            "| tokens ($4 in, $20 out per M) | 1.00 s | 1.00 s |"
+            "default effort, no temperature | 1 | graded | 2/2 (100.0%) | 0 | 0 | "
+            "$0.0040 | tokens ($4 in, $20 out per M) | 1.00 s | 1.00 s |"
         ),
         (
             "| d-stopped | gpt-test | openai | extract_v1 | temperature 0 | 2 | "
-            "stopped, not graded | none | 0 | none | none | none | none |"
+            "stopped, not graded | none | none | 0 | none | none | none | none |"
         ),
         "",
         "Notes:",
@@ -325,9 +337,13 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
             "no_answer are left out, as in each run's summary.txt."
         ),
         (
-            "- Verdicts 0 in every run in the first table: sign, scale, zeros, "
-            "wrong_period, noncontrolling_interest, rounded, adjusted, other, "
-            "not_in_input."
+            "- Verdicts 0 in every run in the first table: sign, scale, wrong_period, "
+            "noncontrolling_interest, rounded, adjusted, other, not_in_input."
+        ),
+        (
+            "- Unit slips: errors matched with a power-of-ten factor (graded.csv's "
+            "factor column): scale and zeros, and the other errors matched only after "
+            "multiplying or dividing the prediction by 10 to 1,000,000."
         ),
         (
             "- Format retries: releases whose first reply didn't validate and were "
@@ -338,8 +354,9 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
             "GPU dollars per hour times the run's wall-clock time. Latency is per call."
         ),
         (
-            f"- stale: re-grade: graded.csv doesn't match {answers}; run `uv run "
-            "python -m secbench.grade runs/<run>/`."
+            f"- stale: re-grade: graded.csv doesn't match {answers}, or has other "
+            "columns than the grader writes now; run `uv run python -m secbench.grade "
+            "runs/<run>/`."
         ),
         "- Not listed: f-empty (no run.json), g-bad (run.json is not valid JSON).",
     ]
@@ -381,6 +398,20 @@ def test_is_stale(tmp_path) -> None:
     assert is_stale(rows[:5], set(ALL), key)
     path.write_text(answers_csv(key_answers(revenue_r3="99")))  # an answer changed
     assert is_stale(rows, set(ALL), load_answers(path))
+
+
+def test_graded_by_an_older_grader_is_stale(fake_runs) -> None:
+    # graded.csv from before the factor column: its answers match, but unit slips
+    # can't be counted.
+    runs, _, answers = fake_runs
+    old = runs / "a-opus" / "graded.csv"
+    lines = old.read_text().splitlines()
+    assert lines[0].endswith(",factor")
+    old.write_text("".join(line.rsplit(",", 1)[0] + "\n" for line in lines))
+    runs_loaded, _ = compare.load_runs(runs, load_answers(answers))
+    run = next(r for r in runs_loaded if r.name == "a-opus")
+    assert (run.status, run.unit_slips()) == ("stale: re-grade", "none")
+    assert compare.accuracy(run.verdicts()) == "6/6 (100.0%)"
 
 
 def test_missing_inputs(fake_runs, tmp_path, capsys) -> None:

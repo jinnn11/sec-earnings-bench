@@ -1,14 +1,16 @@
 """Compare evaluation runs: one table over every run in runs/.
 
 For each run folder with a run.json (see secbench.extract): the model, provider,
-prompt version and request parameters sent, accuracy overall and by field and counts
-by verdict from the run's saved graded.csv (see secbench.grade), format retries, the
+prompt version and request parameters sent, accuracy overall and by field, counts
+by verdict and unit slips (errors matched with a power-of-ten factor, scale and zeros
+included) from the run's saved graded.csv (see secbench.grade), format retries, the
 estimated cost and per-call latency. Graded runs that cover every linked release in
 links.csv go in the main table, with cost per 1,000 releases; runs on fewer releases,
 stopped or not graded go in a smaller table below it, so a short run's cost per
 release doesn't sit beside full runs. A run whose graded.csv doesn't match the
-current answers.csv is marked stale (re-grade it with secbench.grade). Nothing from
-.env is shown: settings come from run.json's request_parameters.
+current answers.csv, or has other columns than the grader writes (graded by an older
+grader), is marked stale (re-grade it with secbench.grade). Nothing from .env is
+shown: settings come from run.json's request_parameters.
 
 Usage: uv run python -m secbench.compare [--runs-dir runs]
        [--out results/comparison.md] [--links data/links.csv] [--answers data/answers.csv]
@@ -37,7 +39,15 @@ from secbench.extract import (
     TOKENS,
     describe_parameters,
 )
-from secbench.grade import CORRECT, GRADED, UNGRADED, VERDICTS, GradeError, load_answers
+from secbench.grade import (
+    CORRECT,
+    GRADED,
+    GRADED_COLUMNS,
+    UNGRADED,
+    VERDICTS,
+    GradeError,
+    load_answers,
+)
 from secbench.link import DEFAULT_OUT as DEFAULT_LINKS
 from secbench.releases import write_text
 
@@ -55,6 +65,7 @@ class Run:
     name: str
     info: dict[str, Any]  # run.json
     graded: list[dict[str, str]] | None  # graded.csv rows; None if not graded
+    columns: list[str]  # graded.csv's header
     stale: bool = False
 
     @property
@@ -76,6 +87,13 @@ class Run:
             for row in self.graded or []
             if field is None or row["field"] == field
         ]
+
+    def unit_slips(self) -> str:
+        """Figures whose verdict was matched with a power-of-ten factor; none if not
+        graded, or graded before graded.csv had a factor column."""
+        if self.graded is None or "factor" not in self.columns:
+            return "none"
+        return str(sum(bool(row["factor"]) for row in self.graded))
 
 
 def is_stale(
@@ -113,12 +131,15 @@ def load_runs(
             skipped.append(f"{folder.name} ({RUN_INFO} is not valid JSON)")
             continue
         graded = None
+        columns: list[str] = []
         if (folder / GRADED).is_file():
             with (folder / GRADED).open(newline="", encoding="utf-8") as f:
-                graded = list(csv.DictReader(f))
-        run = Run(folder.name, info, graded)
+                reader = csv.DictReader(f)
+                graded = list(reader)
+                columns = list(reader.fieldnames or [])
+        run = Run(folder.name, info, graded, columns)
         if graded is not None:
-            run.stale = is_stale(graded, run.covered, key)
+            run.stale = columns != GRADED_COLUMNS or is_stale(graded, run.covered, key)
         runs.append(run)
     runs.sort(key=lambda r: (r.info.get("started", ""), r.name))
     return runs, skipped
@@ -217,6 +238,7 @@ def main_table(runs: list[Run]) -> tuple[list[str], list[str]]:
         "accuracy",
         *FIELD_NAMES,
         *shown,
+        "unit slips",
         "format retries",
         "cost",
         "cost basis",
@@ -240,6 +262,7 @@ def main_table(runs: list[Run]) -> tuple[list[str], list[str]]:
                 accuracy(run.verdicts()),
                 *(accuracy(run.verdicts(name)) for name in FIELD_NAMES),
                 *(str(counts[run.name][v]) for v in shown),
+                run.unit_slips(),
                 format_retries(info),
                 cost(info),
                 describe_basis(info),
@@ -261,6 +284,7 @@ def other_table(runs: list[Run]) -> list[str]:
         "releases",
         "status",
         "accuracy",
+        "unit slips",
         "format retries",
         "cost",
         "cost basis",
@@ -277,6 +301,7 @@ def other_table(runs: list[Run]) -> list[str]:
             str(run.info["releases"]),
             run.status,
             accuracy(run.verdicts()) if run.graded is not None else "none",
+            run.unit_slips(),
             format_retries(run.info),
             cost(run.info),
             describe_basis(run.info),
@@ -344,6 +369,11 @@ def format_comparison(
     lines.extend(
         [
             (
+                "- Unit slips: errors matched with a power-of-ten factor (graded.csv's "
+                "factor column): scale and zeros, and the other errors matched only "
+                "after multiplying or dividing the prediction by 10 to 1,000,000."
+            ),
+            (
                 "- Format retries: releases whose first reply didn't validate and "
                 'were asked again; "(n invalid)" were still invalid and graded as '
                 "missing."
@@ -354,8 +384,9 @@ def format_comparison(
                 "Latency is per call."
             ),
             (
-                f"- {STALE}: graded.csv doesn't match {answers_path}; run `uv run "
-                "python -m secbench.grade runs/<run>/`."
+                f"- {STALE}: graded.csv doesn't match {answers_path}, or has other "
+                "columns than the grader writes now; run `uv run python -m "
+                "secbench.grade runs/<run>/`."
             ),
         ]
     )
