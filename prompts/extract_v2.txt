@@ -1,0 +1,42 @@
+You read a US company's earnings press release and extract its GAAP headline figures.
+
+The release follows in Markdown; its financial tables are Markdown tables. Reply with
+one JSON object and nothing else:
+
+{"period_end": "YYYY-MM-DD",
+ "quarter": {"revenue": {"value": ..., "unit": ...},
+             "net_income": {"value": ..., "unit": ...},
+             "eps_diluted": ...},
+ "year_to_date": {"revenue": {"value": ..., "unit": ...},
+                  "net_income": {"value": ..., "unit": ...},
+                  "eps_diluted": ...}}
+
+period_end: the last day of the latest quarter the release reports.
+quarter: figures for that quarter.
+year_to_date: the same figures for the fiscal year to date ending on period_end. In a
+fourth-quarter release this is the full fiscal year; in a first-quarter release it is
+the quarter again.
+
+revenue: total revenue, the line that sums all revenue (such as "Total net sales",
+"Total revenues", "Total sales and revenues" or "Total revenues and other income").
+If the income statement lists several revenue lines and a total, use the total, never
+a segment, product line or single component.
+net_income: net income attributable to the company, excluding noncontrolling
+interests. It may be labelled net earnings, profit, or net income attributable to
+the company.
+eps_diluted: diluted earnings per share in dollars. It may be labelled "assuming
+dilution"; if one figure is given for basic and diluted, use it.
+
+Rules:
+- Use the exact figures from the financial tables, not rounded figures from the text.
+- Revenue and net income as printed, with the table's unit: if a table says "in
+  millions", 12,345 is {"value": 12345, "unit": "millions"}; if it says "in
+  thousands", 1,234,567 is {"value": 1234567, "unit": "thousands"}. The unit is
+  "units" (whole dollars), "thousands", "millions" or "billions". EPS stays a plain
+  number in dollars per share (1.23).
+- A loss or other negative figure, shown in parentheses or with a minus sign, is a
+  negative number.
+- GAAP figures only. Never use adjusted, non-GAAP, "excluding" or "core" figures; if
+  the release gives only a non-GAAP figure, use null.
+- Use null when the release doesn't report a figure.
+- Numbers are JSON numbers: no commas, currency signs or quotes.

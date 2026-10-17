@@ -3,7 +3,8 @@
 For each run folder with a run.json (see secbench.extract): the model, provider,
 prompt version and request parameters sent, accuracy overall and by field, counts
 by verdict and unit slips (errors matched with a power-of-ten factor, scale and zeros
-included) from the run's saved graded.csv (see secbench.grade), format retries, the
+included) from the run's saved graded.csv (see secbench.grade), format retries,
+format nulls (prompts with units: figures still bad on the retry, made null), the
 estimated cost and per-call latency. Graded runs that cover every linked release in
 links.csv go in the main table, with cost per 1,000 releases; runs on fewer releases,
 stopped or not graded go in a smaller table below it, so a short run's cost per
@@ -37,6 +38,7 @@ from secbench.extract import (
     RUN_INFO,
     RUNS_DIR,
     TOKENS,
+    WITH_UNITS,
     describe_parameters,
 )
 from secbench.grade import (
@@ -167,6 +169,14 @@ def format_retries(info: dict[str, Any]) -> str:
     return f"{retried} ({invalid} invalid)" if invalid else str(retried)
 
 
+def format_nulls(info: dict[str, Any]) -> str:
+    """Figures still malformed or with an unknown unit on the retry, made null; "–"
+    for a prompt without units (extract_v1, and runs from before reply_format)."""
+    if info.get("reply_format") != WITH_UNITS:
+        return "–"
+    return str(len(info["format_nulls"]))
+
+
 def cost_basis(info: dict[str, Any]) -> str | None:
     """run.json's cost_basis; runs from before it was recorded priced tokens."""
     if "cost_basis" in info:
@@ -240,6 +250,7 @@ def main_table(runs: list[Run]) -> tuple[list[str], list[str]]:
         *shown,
         "unit slips",
         "format retries",
+        "format nulls",
         "cost",
         "cost basis",
         "cost / 1,000 releases",
@@ -264,6 +275,7 @@ def main_table(runs: list[Run]) -> tuple[list[str], list[str]]:
                 *(str(counts[run.name][v]) for v in shown),
                 run.unit_slips(),
                 format_retries(info),
+                format_nulls(info),
                 cost(info),
                 describe_basis(info),
                 cost_per_thousand(info),
@@ -286,6 +298,7 @@ def other_table(runs: list[Run]) -> list[str]:
         "accuracy",
         "unit slips",
         "format retries",
+        "format nulls",
         "cost",
         "cost basis",
         "latency p50",
@@ -303,6 +316,7 @@ def other_table(runs: list[Run]) -> list[str]:
             accuracy(run.verdicts()) if run.graded is not None else "none",
             run.unit_slips(),
             format_retries(run.info),
+            format_nulls(run.info),
             cost(run.info),
             describe_basis(run.info),
             latency(run.info, "p50"),
@@ -377,6 +391,11 @@ def format_comparison(
                 "- Format retries: releases whose first reply didn't validate and "
                 'were asked again; "(n invalid)" were still invalid and graded as '
                 "missing."
+            ),
+            (
+                "- Format nulls (prompts with units, such as extract_v2): revenue and "
+                "net income figures still malformed or with an unknown unit on the "
+                "retry, made null and graded as missing; – for prompts without units."
             ),
             (
                 "- Cost is run.json's estimate: tokens at the run's prices per "

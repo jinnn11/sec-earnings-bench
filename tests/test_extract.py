@@ -1,4 +1,5 @@
 import contextlib
+import csv
 import dataclasses
 import hashlib
 import io
@@ -24,10 +25,16 @@ from secbench.edgar import EdgarClient, RateLimiter
 from secbench.extract import (
     API_ERROR,
     INVALID_REPLY,
+    MALFORMED,
     OK,
     OK_AFTER_RETRY,
+    RAW_DOLLARS,
     RETRY_MESSAGE,
+    UNITS,
+    UNKNOWN_UNIT,
+    WITH_UNITS,
     AnthropicChat,
+    FigureProblem,
     OpenAIChat,
     ReplyError,
     RunError,
@@ -58,6 +65,7 @@ RELEASES = FIXTURES / "input_releases"
 # A released prompt is never edited; a changed prompt is a new version.
 RELEASED_PROMPTS = {
     "extract_v1": "f72b85f60da4e5835404b7c0826053c3d8b6f745a5049650a5c699f4e5b02ac0",
+    "extract_v2": "2e9e989384563ebf94db29e78604c0d78187767bcb688645fbafa3777c9ece29",
 }
 
 AAPL = "0000320193-25-000055"  # Q2 FY25
@@ -108,15 +116,57 @@ def test_released_prompts_are_unchanged() -> None:
         )
 
 
-def test_load_prompt() -> None:
+def test_load_prompt(tmp_path) -> None:
     prompt = load_prompt("extract_v1", PROMPTS)
     assert prompt.version == "extract_v1"
     assert prompt.sha256 == RELEASED_PROMPTS["extract_v1"]
     assert prompt.text.startswith("You read a US company's earnings press release")
+    assert prompt.reply_format == RAW_DOLLARS
+    v2 = load_prompt("extract_v2", PROMPTS)
+    assert (v2.sha256, v2.reply_format) == (RELEASED_PROMPTS["extract_v2"], WITH_UNITS)
     with pytest.raises(RunError, match="bad prompt version"):
         load_prompt("../extract_v1", PROMPTS)
     with pytest.raises(RunError, match="extract_v9.txt not found"):
         load_prompt("extract_v9", PROMPTS)
+    # A prompt without a reply format can't be run: its replies couldn't be read.
+    (tmp_path / "extract_v9.txt").write_text("Reply in JSON.")
+    with pytest.raises(RunError) as raised:
+        load_prompt("extract_v9", tmp_path)
+    assert str(raised.value) == (
+        "no reply format for extract_v9; add it to REPLY_FORMATS in secbench/extract.py"
+    )
+
+
+def test_v2_changes_only_the_output_format() -> None:
+    # Revenue and net income as printed with their unit; nothing else changes.
+    v1_schema = """\
+ "quarter": {"revenue": ..., "net_income": ..., "eps_diluted": ...},
+ "year_to_date": {"revenue": ..., "net_income": ..., "eps_diluted": ...}}
+"""
+    v2_schema = """\
+ "quarter": {"revenue": {"value": ..., "unit": ...},
+             "net_income": {"value": ..., "unit": ...},
+             "eps_diluted": ...},
+ "year_to_date": {"revenue": {"value": ..., "unit": ...},
+                  "net_income": {"value": ..., "unit": ...},
+                  "eps_diluted": ...}}
+"""
+    v1_rule = """\
+- Raw dollars: if a table says "in millions", 12,345 means 12345000000; if it says
+  "in thousands", 1,234,567 means 1234567000. EPS stays in dollars per share (1.23).
+"""
+    v2_rule = """\
+- Revenue and net income as printed, with the table's unit: if a table says "in
+  millions", 12,345 is {"value": 12345, "unit": "millions"}; if it says "in
+  thousands", 1,234,567 is {"value": 1234567, "unit": "thousands"}. The unit is
+  "units" (whole dollars), "thousands", "millions" or "billions". EPS stays a plain
+  number in dollars per share (1.23).
+"""
+    v1 = load_prompt("extract_v1", PROMPTS).text
+    assert v1.count(v1_schema) == 1 and v1.count(v1_rule) == 1
+    assert load_prompt("extract_v2", PROMPTS).text == v1.replace(
+        v1_schema, v2_schema
+    ).replace(v1_rule, v2_rule)
 
 
 # Settings
@@ -274,7 +324,9 @@ def reply_text(**changes) -> str:
     ],
 )
 def test_parse_reply(content) -> None:
-    prediction = parse_reply(content, AAPL)
+    parsed = parse_reply(content, AAPL)
+    assert (parsed.units, parsed.problems) == ((), ())
+    prediction = parsed.prediction
     assert prediction.release_accession == AAPL
     assert str(prediction.period_end) == "2025-03-29"
     # Exact decimals, not floats.
@@ -327,6 +379,253 @@ def test_parse_reply_errors(content, message) -> None:
     with pytest.raises(ReplyError) as raised:
         parse_reply(content, AAPL)
     assert str(raised.value) == message
+    assert raised.value.salvage is None
+
+
+# Replies with units (extract_v2)
+
+V2_REPLY = {
+    "period_end": "2025-03-29",
+    "quarter": {
+        "revenue": {"value": 95359, "unit": "millions"},
+        "net_income": {"value": 24780, "unit": "millions"},
+        "eps_diluted": 1.65,
+    },
+    "year_to_date": {"revenue": None, "net_income": None, "eps_diluted": None},
+}
+SHOULD_BE_FIGURE = 'should be null or {"value": <number>, "unit": <unit>}'
+SHOULD_BE_UNIT = 'should be "units", "thousands", "millions" or "billions"'
+Q = "quarter.revenue"
+
+
+def v2_text(revenue) -> str:
+    """V2_REPLY with this quarter revenue, as JSON."""
+    quarter = {**V2_REPLY["quarter"], "revenue": revenue}
+    return json.dumps({**V2_REPLY, "quarter": quarter})
+
+
+@pytest.mark.parametrize(
+    ("value", "unit", "dollars"),
+    [
+        ("95359000000", "units", "95359000000"),
+        ("-1234.56", "units", "-1234.56"),
+        ("95359000", "thousands", "95359000000"),
+        ("-2179000", "thousands", "-2179000000"),
+        ("1.1", "thousands", "1100"),  # 1100.0000000000002 through a float
+        ("95359", "millions", "95359000000"),
+        ("-95359", "millions", "-95359000000"),
+        ("0", "millions", "0"),
+        ("95.359", "billions", "95359000000"),
+        ("-0.29", "billions", "-290000000"),
+    ],
+)
+def test_parse_reply_with_units(value, unit, dollars) -> None:
+    content = v2_text({"value": "VALUE", "unit": unit}).replace('"VALUE"', value)
+    parsed = parse_reply(content, AAPL, WITH_UNITS)
+    quarter = parsed.prediction.quarter
+    assert isinstance(quarter.revenue, Decimal)
+    assert quarter.revenue == Decimal(dollars)  # exactly
+    assert quarter.net_income == Decimal(24780000000)
+    assert quarter.eps_diluted == Decimal("1.65")  # a plain number, as in v1
+    assert parsed.units == (unit, "millions")
+    assert parsed.problems == ()
+
+
+@pytest.mark.parametrize(
+    "revenue",
+    [
+        None,
+        {"value": None, "unit": "millions"},
+        {"value": None},
+        {"value": None, "unit": "n/a", "note": "not reported"},
+    ],
+)
+def test_a_null_value_is_null(revenue) -> None:
+    parsed = parse_reply(v2_text(revenue), AAPL, WITH_UNITS)
+    assert parsed.prediction.quarter.revenue is None
+    assert (parsed.units, parsed.problems) == (("millions",), ())
+
+
+@pytest.mark.parametrize(
+    ("revenue", "kind", "message"),
+    [
+        # Raw dollars, as extract_v1 asks.
+        (95359000000, MALFORMED, f"{Q}: {SHOULD_BE_FIGURE} (got 95359000000)"),
+        ("95,359", MALFORMED, f'{Q}: {SHOULD_BE_FIGURE} (got "95,359")'),
+        (
+            [95359, "millions"],
+            MALFORMED,
+            f'{Q}: {SHOULD_BE_FIGURE} (got [95359, "millions"])',
+        ),
+        (
+            {"value": 95359},
+            MALFORMED,
+            f'{Q}: {SHOULD_BE_FIGURE} (got {{"value": 95359}})',
+        ),
+        (
+            {"value": 95359, "unit": "millions", "label": "Total"},
+            MALFORMED,
+            (
+                f'{Q}: {SHOULD_BE_FIGURE} (got {{"value": 95359, "unit": "millions", '
+                '"label": "Total"})'
+            ),
+        ),
+        (
+            {"value": "95,359", "unit": "millions"},
+            MALFORMED,
+            f'{Q}.value: should be a JSON number (got "95,359")',
+        ),
+        (
+            {"value": True, "unit": "millions"},
+            MALFORMED,
+            f"{Q}.value: should be a JSON number (got true)",
+        ),
+        (
+            {"value": 95359, "unit": None},
+            MALFORMED,
+            f"{Q}.unit: {SHOULD_BE_UNIT} (got null)",
+        ),
+        (
+            {"value": 95359, "unit": 1000000},
+            MALFORMED,
+            f"{Q}.unit: {SHOULD_BE_UNIT} (got 1000000)",
+        ),
+        # Units are matched exactly.
+        *(
+            (
+                {"value": 95359, "unit": unit},
+                UNKNOWN_UNIT,
+                f"{Q}.unit: {SHOULD_BE_UNIT} (got {json.dumps(unit)})",
+            )
+            for unit in ("million", "Millions", "in millions", " millions", "USD", "")
+        ),
+    ],
+)
+def test_bad_figures(revenue, kind, message) -> None:
+    with pytest.raises(ReplyError) as raised:
+        parse_reply(v2_text(revenue), AAPL, WITH_UNITS)
+    assert str(raised.value) == message
+    # The rest of the reply is fine: salvage has it, with the bad figure null.
+    salvage = raised.value.salvage
+    assert salvage.problems == (
+        FigureProblem("quarter.revenue", kind, message, json.dumps(revenue)),
+    )
+    assert salvage.prediction.quarter.revenue is None
+    assert salvage.prediction.quarter.net_income == Decimal(24780000000)
+    assert salvage.units == ("millions",)
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_a_value_that_is_not_finite_is_malformed(constant) -> None:
+    content = v2_text({"value": 0, "unit": "millions"}).replace(
+        '"value": 0', f'"value": {constant}'
+    )
+    with pytest.raises(ReplyError) as raised:
+        parse_reply(content, AAPL, WITH_UNITS)
+    message = f"quarter.revenue.value: should be a JSON number (got {constant})"
+    assert str(raised.value) == message
+    [problem] = raised.value.salvage.problems
+    assert (problem.kind, problem.replied) == (
+        MALFORMED,
+        f'{{"value": {constant}, "unit": "millions"}}',
+    )
+
+
+def test_every_bad_figure_is_reported() -> None:
+    reply = {
+        "period_end": "2025-03-29",
+        "quarter": {
+            "revenue": {"value": 95359, "unit": "million"},
+            "net_income": 24780000000,
+            "eps_diluted": 1.65,
+        },
+        "year_to_date": {
+            "revenue": {"value": 219.659, "unit": "billions"},
+            "net_income": {"value": 61110, "unit": "Millions"},
+            "eps_diluted": 4.05,
+        },
+    }
+    with pytest.raises(ReplyError) as raised:
+        parse_reply(json.dumps(reply), AAPL, WITH_UNITS)
+    assert str(raised.value) == "; ".join(
+        [
+            f'quarter.revenue.unit: {SHOULD_BE_UNIT} (got "million")',
+            f"quarter.net_income: {SHOULD_BE_FIGURE} (got 24780000000)",
+            f'year_to_date.net_income.unit: {SHOULD_BE_UNIT} (got "Millions")',
+        ]
+    )
+    salvage = raised.value.salvage
+    assert [(p.figure, p.kind) for p in salvage.problems] == [
+        ("quarter.revenue", UNKNOWN_UNIT),
+        ("quarter.net_income", MALFORMED),
+        ("year_to_date.net_income", UNKNOWN_UNIT),
+    ]
+    assert salvage.prediction.year_to_date.revenue == Decimal(219659000000)
+    assert salvage.units == ("billions",)
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        # EPS stays a plain number.
+        (
+            json.dumps(
+                {
+                    **V2_REPLY,
+                    "quarter": {
+                        **V2_REPLY["quarter"],
+                        "eps_diluted": {"value": 1.65, "unit": "units"},
+                    },
+                }
+            ),
+            (
+                "quarter.eps_diluted: Decimal input should be an integer, float, "
+                "string or Decimal object"
+            ),
+        ),
+        (
+            json.dumps(
+                {**V2_REPLY, "quarter": {**V2_REPLY["quarter"], "gross_margin": 0.47}}
+            ),
+            "quarter.gross_margin: Extra inputs are not permitted (got 0.47)",
+        ),
+        # A bad figure with another problem: both are reported, nothing is salvaged.
+        (
+            json.dumps(
+                {
+                    **json.loads(v2_text({"value": 95359, "unit": "million"})),
+                    "period_end": "March 29, 2025",
+                }
+            ),
+            (
+                f'quarter.revenue.unit: {SHOULD_BE_UNIT} (got "million"); period_end: '
+                "Input should be a valid date or datetime, invalid character in year "
+                '(got "March 29, 2025")'
+            ),
+        ),
+        (
+            json.dumps({"period_end": "2025-03-29", "quarter": V2_REPLY["quarter"]}),
+            "year_to_date: Field required",
+        ),
+    ],
+)
+def test_other_problems_are_not_salvaged(content, message) -> None:
+    with pytest.raises(ReplyError) as raised:
+        parse_reply(content, AAPL, WITH_UNITS)
+    assert str(raised.value) == message
+    assert raised.value.salvage is None
+
+
+def test_extract_v1_replies_have_no_units() -> None:
+    # A figure with a unit is no number in extract_v1's format.
+    with pytest.raises(ReplyError) as raised:
+        parse_reply(json.dumps(V2_REPLY), AAPL)
+    assert str(raised.value) == (
+        "quarter.revenue: Decimal input should be an integer, float, string or "
+        "Decimal object; quarter.net_income: Decimal input should be an integer, "
+        "float, string or Decimal object"
+    )
+    assert raised.value.salvage is None
 
 
 # Small pieces
@@ -758,6 +1057,8 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
     assert info["extra_body"] is None
     assert info["prompt_version"] == "extract_v1"
     assert info["prompt_sha256"] == RELEASED_PROMPTS["extract_v1"]
+    assert (info["reply_format"], info["figures_by_unit"]) == (RAW_DOLLARS, None)
+    assert info["format_nulls"] == []
     assert info["request_parameters"] == {"temperature": 0.0}
     for request in model.requests:
         assert json.loads(request.content)["temperature"] == 0
@@ -780,6 +1081,7 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
 
     raw = json.loads((run_dir / "raw" / f"{XOM}.json").read_text())
     assert raw["outcome"] == OK
+    assert raw["format_nulls"] == []
     assert raw["input_exhibits"] == ["EX-99.1", "EX-99.2"]
     [call] = raw["calls"]
     records = release_records(RELEASES)
@@ -804,6 +1106,11 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
     )
     assert "invalid replies (all-null predictions, graded as missing): 0" in out
     assert "API errors (all-null predictions, graded as missing): 0" in out
+    # No units in extract_v1.
+    assert not any(
+        line.startswith(("figures with a unit", "format nulls"))
+        for line in out.splitlines()
+    )
 
     # The key is sent, and never saved.
     assert model.requests[0].headers["Authorization"] == f"Bearer {KEY}"
@@ -1118,9 +1425,241 @@ def test_default_run_name_for_a_model_id_with_a_slash(
     assert json.loads(model.requests[0].content)["model"] == "Qwen/Qwen3-8B"
 
 
-def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:
+# extract_v2: revenue and net income with their unit, converted by the runner
+
+# A unit for each release's figures in v2_replies.
+V2_UNITS = {
+    AAPL: "millions",
+    CAT: "thousands",
+    MSFT: "billions",
+    WMT: "units",
+    XOM: "millions",
+}
+
+
+def v2_reply(reply: dict, unit: str) -> dict:
+    """A raw-dollar reply with revenue and net income given in unit."""
+
+    def figure(value: float | None) -> dict | None:
+        if value is None:
+            return None
+        return {"value": number(Decimal(str(value)) / UNITS[unit]), "unit": unit}
+
+    return {
+        **reply,
+        **{
+            group: {
+                **reply[group],
+                "revenue": figure(reply[group]["revenue"]),
+                "net_income": figure(reply[group]["net_income"]),
+            }
+            for group in ("quarter", "year_to_date")
+        },
+    }
+
+
+@pytest.fixture(scope="module")
+def v2_replies(perfect_replies) -> dict[str, dict]:
+    """perfect_replies in extract_v2's format, a unit for each release."""
+    return {a: v2_reply(perfect_replies[a], V2_UNITS[a]) for a in FIXTURE_RELEASES}
+
+
+def graded_verdicts(run_dir: Path) -> dict[tuple[str, str, str], str]:
+    with (run_dir / "graded.csv").open(newline="") as f:
+        return {
+            (row["release_accession"], row["field"], row["period_type"]): row["verdict"]
+            for row in csv.DictReader(f)
+        }
+
+
+def test_run_with_units(tmp_path, key_dir, perfect_replies, v2_replies, capsys) -> None:
+    model = FakeModel(lambda a, call, body: completion(json.dumps(v2_replies[a])))
+    assert run(tmp_path, key_dir, model, "--prompt", "extract_v2") == 0
+    out = capsys.readouterr().out.splitlines()
+    assert "accuracy: 26/26 (100.0%)" in out
+    assert model.calls == dict.fromkeys(FIXTURE_RELEASES, 1)
+    run_dir = tmp_path / "runs" / "test"
+
+    # The same predictions as extract_v1's raw dollars, in the same format.
+    for prediction, accession in zip(
+        read_jsonl(run_dir / "predictions.jsonl"), FIXTURE_RELEASES, strict=True
+    ):
+        expected = perfect_replies[accession]
+        assert prediction.keys() == {"release_accession", *expected}
+        for group in ("quarter", "year_to_date"):
+            for name, value in expected[group].items():
+                got = prediction[group][name]
+                assert (got is None) == (value is None)
+                if value is not None:
+                    assert Decimal(got) == Decimal(str(value)), (accession, group, name)
+
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["prompt_version"] == "extract_v2"
+    assert info["prompt_sha256"] == RELEASED_PROMPTS["extract_v2"]
+    assert info["reply_format"] == WITH_UNITS
+    # AAPL and XOM 4 each, CAT 4, MSFT's full year and fourth quarter 4, WMT's
+    # quarter 2.
+    assert info["figures_by_unit"] == {
+        "units": 2,
+        "thousands": 4,
+        "millions": 8,
+        "billions": 4,
+    }
+    assert info["format_nulls"] == []
+    assert info["outcomes"][OK] == 5
+
+    raw = json.loads((run_dir / "raw" / f"{MSFT}.json").read_text())
+    [call] = raw["calls"]
+    assert call["request"]["messages"][0] == {
+        "role": "system",
+        "content": load_prompt("extract_v2", PROMPTS).text,
+    }
+    # The reply as the model gave it, and the prediction converted from it.
+    content = call["attempts"][0]["response"]["choices"][0]["message"]["content"]
+    assert json.loads(content)["year_to_date"]["revenue"] == {
+        "value": 281.724,
+        "unit": "billions",
+    }
+    assert raw["prediction"]["year_to_date"]["revenue"] == "281724000000.000"
+    assert raw["format_nulls"] == []
+
+    assert (
+        "figures with a unit: 18 converted (units 2, thousands 4, millions 8, "
+        "billions 4)"
+    ) in out
+    assert "format nulls (figures still bad on the retry, graded as missing): 0" in out
+
+
+def test_bad_figures_are_retried_then_null(
+    tmp_path, key_dir, v2_replies, capsys
+) -> None:
+    def script(accession, call, body) -> httpx.Response:
+        reply = json.loads(json.dumps(v2_replies[accession]))
+        if accession == AAPL:  # an unknown unit, twice
+            reply["quarter"]["revenue"]["unit"] = "Millions"
+        elif accession == CAT and call == 1:  # fixed on the retry
+            reply["year_to_date"]["revenue"]["unit"] = "thousand"
+        elif accession == MSFT:  # a bad figure, then no JSON
+            if call == 2:
+                return completion("I apologize for the error.")
+            reply["quarter"]["revenue"] = "76.4 billion"
+        elif accession == WMT:  # raw dollars, as extract_v1 asks, twice
+            reply["quarter"]["net_income"] = 4487000000
+        elif accession == XOM:  # negative: graded as a sign error
+            reply["quarter"]["net_income"]["value"] = -14525
+        return completion(json.dumps(reply))
+
+    model = FakeModel(script)
+    assert run(tmp_path, key_dir, model, "--prompt", "extract_v2") == 0
+    assert model.calls == {AAPL: 2, CAT: 2, MSFT: 2, WMT: 2, XOM: 1}
+    run_dir = tmp_path / "runs" / "test"
+
+    # The retry asks again with the problem, as for any invalid reply.
+    cat = [json.loads(r.content) for r in model.requests_for(CAT)]
+    cat_error = f'year_to_date.revenue.unit: {SHOULD_BE_UNIT} (got "thousand")'
+    assert cat[1]["messages"][:2] == cat[0]["messages"]
+    assert cat[1]["messages"][2]["role"] == "assistant"
+    assert '"thousand"' in cat[1]["messages"][2]["content"]
+    assert cat[1]["messages"][3] == {
+        "role": "user",
+        "content": RETRY_MESSAGE.format(errors=cat_error),
+    }
+
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["outcomes"] == {
+        OK: 1,
+        OK_AFTER_RETRY: 3,
+        INVALID_REPLY: 1,
+        API_ERROR: 0,
+        "aborted": 0,
+    }
+    aapl_message = f'quarter.revenue.unit: {SHOULD_BE_UNIT} (got "Millions")'
+    wmt_message = f"quarter.net_income: {SHOULD_BE_FIGURE} (got 4487000000)"
+    assert info["format_nulls"] == [
+        {
+            "ticker": "AAPL",
+            "release_accession": AAPL,
+            "figure": "quarter.revenue",
+            "kind": UNKNOWN_UNIT,
+            "message": aapl_message,
+            "replied": '{"value": 95359, "unit": "Millions"}',
+        },
+        {
+            "ticker": "WMT",
+            "release_accession": WMT,
+            "figure": "quarter.net_income",
+            "kind": MALFORMED,
+            "message": wmt_message,
+            "replied": "4487000000",
+        },
+    ]
+    # MSFT's retry wasn't JSON: all null, as in extract_v1.
+    assert info["fallbacks"] == [
+        {
+            "ticker": "MSFT",
+            "release_accession": MSFT,
+            "outcome": INVALID_REPLY,
+            "reason": "not valid JSON (Expecting value: line 1 column 1 (char 0))",
+        }
+    ]
+    # AAPL 3 millions, CAT 4 thousands (on the retry), WMT 1 units, XOM 4 millions.
+    assert info["figures_by_unit"] == {
+        "units": 1,
+        "thousands": 4,
+        "millions": 7,
+        "billions": 0,
+    }
+
+    raw = json.loads((run_dir / "raw" / f"{AAPL}.json").read_text())
+    assert raw["outcome"] == OK_AFTER_RETRY
+    assert raw["format_nulls"] == [
+        {
+            "figure": "quarter.revenue",
+            "kind": UNKNOWN_UNIT,
+            "message": aapl_message,
+            "replied": '{"value": 95359, "unit": "Millions"}',
+        }
+    ]
+    assert raw["prediction"]["quarter"]["revenue"] is None
+    assert raw["prediction"]["quarter"]["net_income"] == "24780000000"
+    # The replies as the model gave them.
+    replies = [
+        json.loads(c["attempts"][0]["response"]["choices"][0]["message"]["content"])
+        for c in raw["calls"]
+    ]
+    assert [r["quarter"]["revenue"] for r in replies] == [
+        {"value": 95359, "unit": "Millions"}
+    ] * 2
+
+    verdicts = graded_verdicts(run_dir)
+    assert verdicts[(AAPL, "revenue", QUARTER)] == "missing"
+    assert verdicts[(CAT, "revenue", YEAR_TO_DATE)] == "correct"
+    assert verdicts[(WMT, "net_income", QUARTER)] == "missing"
+    assert verdicts[(XOM, "net_income", QUARTER)] == "sign"
+    assert {v for (a, _, _), v in verdicts.items() if a == MSFT} == {"missing"}
+    out = capsys.readouterr().out.splitlines()
+    # 26 less AAPL's and WMT's format nulls, MSFT's 5 and XOM's sign.
+    assert "accuracy: 18/26 (69.2%)" in out
+    i = out.index(
+        "format nulls (figures still bad on the retry, graded as missing): 2 (1 "
+        "unknown unit, 1 malformed)"
+    )
+    assert (
+        out[i - 1]
+        == "figures with a unit: 12 converted (units 1, thousands 4, millions 7)"
+    )
+    assert out[i + 1 : i + 3] == [
+        f"  AAPL {AAPL} {aapl_message}",
+        f"  WMT {WMT} {wmt_message}",
+    ]
+
+
+@pytest.mark.parametrize("version", ["extract_v1", "extract_v2"])
+def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys, version) -> None:
     model = FakeModel(refuse)
-    assert run(tmp_path, key_dir, model, "--dry-run", environ={}) == 0
+    assert (
+        run(tmp_path, key_dir, model, "--dry-run", "--prompt", version, environ={}) == 0
+    )
     assert model.requests == []
     assert not (tmp_path / "runs").exists()
     out = capsys.readouterr().out
@@ -1144,10 +1683,11 @@ def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys) -> None:
             "temperature"
         ),
     ]
+    sha256 = RELEASED_PROMPTS[version][:12]
     assert re.fullmatch(
-        r"=== system: .*extract_v1\.txt \(sha256 f72b85f60da4\) ===", lines[3]
+        rf"=== system: .*{version}\.txt \(sha256 {sha256}\) ===", lines[3]
     )
-    prompt = load_prompt("extract_v1", PROMPTS).text
+    prompt = load_prompt(version, PROMPTS).text
     assert (
         out
         == "\n".join(

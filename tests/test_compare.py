@@ -199,6 +199,19 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
             outcomes={"ok": 2, "invalid_reply": 1},
             latency=(0.8, 1.25),
             max_parallel=16,
+            # Its missing figure is a format null: still malformed on the retry.
+            prompt_version="extract_v2",
+            reply_format="with_units",
+            format_nulls=[
+                {
+                    "ticker": "TST",
+                    "release_accession": R3,
+                    "figure": "year_to_date.net_income",
+                    "kind": "malformed",
+                    "message": "year_to_date.net_income: should be null or ...",
+                    "replied": "123",
+                }
+            ],
             gpu_hourly_usd=2.5,
             wall_time_s=72.0,
             cost_basis="gpu_hours",
@@ -251,6 +264,8 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
             releases=ALL,
             latency=(2.0, 3.0),
             cost_basis=None,
+            reply_format="raw_dollars",
+            format_nulls=[],
         ),
         stale,
     )
@@ -267,12 +282,14 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
 MAIN_HEADER = (
     "| run | model | provider | prompt | settings sent | concurrency | releases | "
     "status | accuracy | revenue | net_income | eps_diluted | correct | missing | "
-    "zeros | wrong_line | no_answer | unit slips | format retries | cost | "
+    "zeros | wrong_line | no_answer | unit slips | format retries | format nulls | "
+    "cost | "
     "cost basis | cost / 1,000 releases | latency p50 | latency p95 |"
 )
 OTHER_HEADER = (
     "| run | model | provider | prompt | settings sent | releases | status | "
-    "accuracy | unit slips | format retries | cost | cost basis | latency p50 | "
+    "accuracy | unit slips | format retries | format nulls | cost | cost basis | "
+    "latency p50 | "
     "latency p95 |"
 )
 
@@ -296,39 +313,39 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
         "## Runs on all 3 linked releases",
         "",
         MAIN_HEADER,
-        "|" + "|".join([" --- "] * 24) + "|",
+        "|" + "|".join([" --- "] * 25) + "|",
         # 0.012 / 3 releases x 1,000 = $4.00.
         (
             f"| a-opus | claude-test | anthropic | extract_v1 | {OPUS} | 4 | 3 | graded "
             "| 6/6 (100.0%) | 3/3 (100.0%) | 3/3 (100.0%) | 0/0 | 6 | 0 | 0 | 0 | 1 | "
-            "0 | 1 | $0.0120 | tokens ($4 in, $20 out per M) | $4.00 | 1.50 s | "
+            "0 | 1 | – | $0.0120 | tokens ($4 in, $20 out per M) | $4.00 | 1.50 s | "
             "2.50 s |"
         ),
         # $2.50 per hour for 72 s is $0.05; / 3 x 1,000 = $16.67.
         (
-            "| b-vllm | qwen3-4b | openai | extract_v1 | temperature 0, "
+            "| b-vllm | qwen3-4b | openai | extract_v2 | temperature 0, "
             "reasoning_effort medium | 16 | 3 | graded | 3/6 (50.0%) | 2/3 (66.7%) | "
-            "1/3 (33.3%) | 0/0 | 3 | 1 | 1 | 1 | 0 | 2 | 1 (1 invalid) | $0.0500 | "
+            "1/3 (33.3%) | 0/0 | 3 | 1 | 1 | 1 | 0 | 2 | 1 (1 invalid) | 1 | $0.0500 | "
             "GPU ($2.5/h x 72.0 s) | $16.67 | 0.80 s | 1.25 s |"
         ),
         (
             "| e-stale | gpt-test | openai | extract_v1 | no temperature | 4 | 3 | "
             "stale: re-grade | 6/6 (100.0%) | 3/3 (100.0%) | 3/3 (100.0%) | 0/0 | 6 | "
-            "0 | 0 | 0 | 0 | 0 | 0 | none | none | none | 2.00 s | 3.00 s |"
+            "0 | 0 | 0 | 0 | 0 | 0 | – | none | none | none | 2.00 s | 3.00 s |"
         ),
         "",
         "## Other runs: fewer releases, stopped or not graded",
         "",
         OTHER_HEADER,
-        "|" + "|".join([" --- "] * 14) + "|",
+        "|" + "|".join([" --- "] * 15) + "|",
         (
             "| c-smoke | claude-test | anthropic | extract_v1 | max_tokens 16000, "
-            "default effort, no temperature | 1 | graded | 2/2 (100.0%) | 0 | 0 | "
+            "default effort, no temperature | 1 | graded | 2/2 (100.0%) | 0 | 0 | – | "
             "$0.0040 | tokens ($4 in, $20 out per M) | 1.00 s | 1.00 s |"
         ),
         (
             "| d-stopped | gpt-test | openai | extract_v1 | temperature 0 | 2 | "
-            "stopped, not graded | none | none | 0 | none | none | none | none |"
+            "stopped, not graded | none | none | 0 | – | none | none | none | none |"
         ),
         "",
         "Notes:",
@@ -348,6 +365,11 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
         (
             "- Format retries: releases whose first reply didn't validate and were "
             'asked again; "(n invalid)" were still invalid and graded as missing.'
+        ),
+        (
+            "- Format nulls (prompts with units, such as extract_v2): revenue and net "
+            "income figures still malformed or with an unknown unit on the retry, made "
+            "null and graded as missing; – for prompts without units."
         ),
         (
             "- Cost is run.json's estimate: tokens at the run's prices per million, or "
