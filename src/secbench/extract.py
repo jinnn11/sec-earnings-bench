@@ -13,9 +13,8 @@ way. An invalid reply is retried once with its validation errors, a bad figure's
 (malformed, or an unknown unit) included. If the retry is invalid too, or the API
 fails, the release gets an all-null prediction with links.csv's period end, which
 grades as missing; run.json and the printed summary list every such fallback and
-why. If the retry's only problems are bad figures, those figures alone are null
-("format nulls", also listed). A released prompt is never edited; a changed prompt
-is a new version (extract_v3).
+why, and the bad figures of each invalid retry ("format nulls"). A released prompt
+is never edited; a changed prompt is a new version (extract_v3).
 
 Usage: uv run python -m secbench.extract [--tickers AAPL ...] [--accessions ...]
            [--limit N] [--run-name NAME] [--prompt extract_v1] [--dry-run]
@@ -383,19 +382,18 @@ class FigureProblem:
 
 @dataclass(frozen=True)
 class ParsedReply:
-    prediction: Prediction  # in raw dollars; a bad figure is null
+    prediction: Prediction  # in raw dollars
     units: tuple[str, ...] = ()  # WITH_UNITS: the unit of each figure converted
-    problems: tuple[FigureProblem, ...] = ()  # WITH_UNITS: the bad figures
 
 
 class ReplyError(ValueError):
-    """A reply isn't a valid prediction. The message says why, for the model. If its
-    only problems are bad WITH_UNITS figures, salvage is the reply with those figures
-    null."""
+    """A reply isn't a valid prediction. The message says why, for the model;
+    problems are its bad WITH_UNITS figures, if any (it may have other problems
+    too)."""
 
-    def __init__(self, message: str, salvage: ParsedReply | None = None) -> None:
+    def __init__(self, message: str, problems: Sequence[FigureProblem] = ()) -> None:
         super().__init__(message)
-        self.salvage = salvage
+        self.problems = tuple(problems)
 
 
 def reply_json(content: str) -> str:
@@ -447,7 +445,7 @@ def convert_figure(
 ) -> tuple[Decimal | None, str | None, FigureProblem | None]:
     """A WITH_UNITS figure in raw dollars, with its unit: {"value": 16569, "unit":
     "millions"} is 16569000000, exactly. null, or a value of null, is null. Anything
-    else is null with a problem."""
+    else is a problem."""
     if figure is None:
         return None, None, None
     if isinstance(figure, dict) and "value" in figure and figure["value"] is None:
@@ -476,9 +474,9 @@ def parse_reply(
 ) -> ParsedReply:
     """The prediction in a reply: one JSON object of a Prediction without
     release_accession. Figures are read as exact decimals; in WITH_UNITS, revenue and
-    net income are converted to raw dollars (convert_figure). Any problem raises
-    ReplyError; if the only problems are bad figures, it carries the prediction with
-    them null."""
+    net income are converted to raw dollars (convert_figure), and a bad one makes the
+    reply invalid like any other problem. ReplyError says why, and carries the bad
+    figures."""
     if not content or not content.strip():
         raise ReplyError("the reply is empty")
     try:
@@ -509,11 +507,12 @@ def parse_reply(
     try:
         prediction = Prediction.model_validate({**data, "release_accession": accession})
     except ValidationError as exc:
-        raise ReplyError("; ".join([*messages, describe_errors(exc)])) from None
-    parsed = ParsedReply(prediction, tuple(units), tuple(problems))
+        raise ReplyError(
+            "; ".join([*messages, describe_errors(exc)]), problems
+        ) from None
     if problems:
-        raise ReplyError("; ".join(messages), parsed)
-    return parsed
+        raise ReplyError("; ".join(messages), problems)
+    return ParsedReply(prediction, tuple(units))
 
 
 def null_prediction(release: LinkedRelease) -> Prediction:
@@ -912,7 +911,8 @@ class ReleaseResult:
     reason: str = ""  # why it fell back (or stopped the run)
     exchanges: list[Exchange] = field(default_factory=list)
     units: tuple[str, ...] = ()  # WITH_UNITS: the unit of each figure converted
-    format_nulls: tuple[FigureProblem, ...] = ()  # figures still bad on the retry
+    # WITH_UNITS figures still bad on the retry (so the release is INVALID_REPLY).
+    format_nulls: tuple[FigureProblem, ...] = ()
 
 
 def extract_release(
@@ -923,11 +923,11 @@ def extract_release(
 ) -> ReleaseResult:
     """Ask for the release's figures; retry an invalid reply once with its errors.
     An API error (a refusal included), or a second invalid reply, gives an all-null
-    prediction, unless the second reply's only problems are bad figures: those are
-    null (format nulls)."""
+    prediction; a second invalid reply's bad figures are kept as format nulls."""
     body = chat.first_body(prompt, release_input.text)
     exchanges: list[Exchange] = []
     invalid = ""  # why the last reply was invalid
+    still_bad: tuple[FigureProblem, ...] = ()  # the last invalid reply's bad figures
     for call in (1, 2):
         exchange = chat.complete(body)
         exchanges.append(exchange)
@@ -952,11 +952,9 @@ def extract_release(
                 exchange.content, release.release_accession, prompt.reply_format
             )
         except ReplyError as exc:
-            invalid = str(exc)
-            if call == 1 or exc.salvage is None:
-                body = chat.retry_body(body, exchange.reply, invalid)
-                continue
-            parsed = exc.salvage  # only figures are still bad: they are null
+            invalid, still_bad = str(exc), exc.problems
+            body = chat.retry_body(body, exchange.reply, invalid)
+            continue
         outcome = OK if call == 1 else OK_AFTER_RETRY
         return ReleaseResult(
             release,
@@ -966,7 +964,6 @@ def extract_release(
             "",
             exchanges,
             parsed.units,
-            parsed.problems,
         )
     return ReleaseResult(
         release,
@@ -975,6 +972,7 @@ def extract_release(
         INVALID_REPLY,
         invalid,
         exchanges,
+        format_nulls=still_bad,
     )
 
 
@@ -1212,7 +1210,8 @@ def run_info(
             if prompt.reply_format == WITH_UNITS
             else None
         ),
-        # Figures still bad on the retry, made null.
+        # WITH_UNITS figures still bad on the retry; each made its release an
+        # invalid reply (all null).
         "format_nulls": [
             {
                 "ticker": r.release.ticker,
@@ -1328,8 +1327,8 @@ def format_run_summary(info: dict[str, Any], run_dir: Path) -> str:
         nulls = info["format_nulls"]
         kinds = Counter(n["kind"] for n in nulls)
         line = (
-            "format nulls (figures still bad on the retry, graded as missing): "
-            f"{len(nulls)}"
+            "format nulls (figures still bad on the retry, so their release is an "
+            f"invalid reply): {len(nulls)}"
         )
         if nulls:
             line += (

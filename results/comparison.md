@@ -26,6 +26,6 @@ Notes:
 - Verdicts 0 in every run in the first table: adjusted, not_in_input.
 - Unit slips: errors matched with a power-of-ten factor (graded.csv's factor column): scale and zeros, and the other errors matched only after multiplying or dividing the prediction by 10 to 1,000,000.
 - Format retries: releases whose first reply didn't validate and were asked again; "(n invalid)" were still invalid and graded as missing.
-- Format nulls (prompts with units, such as extract_v2): revenue and net income figures still malformed or with an unknown unit on the retry, made null and graded as missing; – for prompts without units.
+- Format nulls (prompts with units, such as extract_v2): revenue and net income figures still malformed or with an unknown unit on the retry; each made its release an invalid reply (the "(n invalid)" of format retries); – for prompts without units.
 - Cost is run.json's estimate: tokens at the run's prices per million, or GPU dollars per hour times the run's wall-clock time. Latency is per call.
 - stale: re-grade: graded.csv doesn't match data/answers.csv, or has other columns than the grader writes now; run `uv run python -m secbench.grade runs/<run>/`.

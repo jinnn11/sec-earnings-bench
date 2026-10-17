@@ -4,7 +4,7 @@ For each run folder with a run.json (see secbench.extract): the model, provider,
 prompt version and request parameters sent, accuracy overall and by field, counts
 by verdict and unit slips (errors matched with a power-of-ten factor, scale and zeros
 included) from the run's saved graded.csv (see secbench.grade), format retries,
-format nulls (prompts with units: figures still bad on the retry, made null), the
+format nulls (prompts with units: figures still bad on the retry), the
 estimated cost and per-call latency. Graded runs that cover every linked release in
 links.csv go in the main table, with cost per 1,000 releases; runs on fewer releases,
 stopped or not graded go in a smaller table below it, so a short run's cost per
@@ -170,8 +170,9 @@ def format_retries(info: dict[str, Any]) -> str:
 
 
 def format_nulls(info: dict[str, Any]) -> str:
-    """Figures still malformed or with an unknown unit on the retry, made null; "–"
-    for a prompt without units (extract_v1, and runs from before reply_format)."""
+    """Figures still malformed or with an unknown unit on the retry, which made their
+    release an invalid reply; "–" for a prompt without units (extract_v1, and runs
+    from before reply_format)."""
     if info.get("reply_format") != WITH_UNITS:
         return "–"
     return str(len(info["format_nulls"]))
@@ -395,7 +396,8 @@ def format_comparison(
             (
                 "- Format nulls (prompts with units, such as extract_v2): revenue and "
                 "net income figures still malformed or with an unknown unit on the "
-                "retry, made null and graded as missing; – for prompts without units."
+                'retry; each made its release an invalid reply (the "(n invalid)" of '
+                "format retries); – for prompts without units."
             ),
             (
                 "- Cost is run.json's estimate: tokens at the run's prices per "

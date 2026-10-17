@@ -199,7 +199,7 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
             outcomes={"ok": 2, "invalid_reply": 1},
             latency=(0.8, 1.25),
             max_parallel=16,
-            # Its missing figure is a format null: still malformed on the retry.
+            # Its invalid reply had a format null: a figure still bad on the retry.
             prompt_version="extract_v2",
             reply_format="with_units",
             format_nulls=[
@@ -368,8 +368,9 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
         ),
         (
             "- Format nulls (prompts with units, such as extract_v2): revenue and net "
-            "income figures still malformed or with an unknown unit on the retry, made "
-            "null and graded as missing; – for prompts without units."
+            "income figures still malformed or with an unknown unit on the retry; each "
+            'made its release an invalid reply (the "(n invalid)" of format retries); '
+            "– for prompts without units."
         ),
         (
             "- Cost is run.json's estimate: tokens at the run's prices per million, or "

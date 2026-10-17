@@ -325,7 +325,7 @@ def reply_text(**changes) -> str:
 )
 def test_parse_reply(content) -> None:
     parsed = parse_reply(content, AAPL)
-    assert (parsed.units, parsed.problems) == ((), ())
+    assert parsed.units == ()
     prediction = parsed.prediction
     assert prediction.release_accession == AAPL
     assert str(prediction.period_end) == "2025-03-29"
@@ -379,7 +379,7 @@ def test_parse_reply_errors(content, message) -> None:
     with pytest.raises(ReplyError) as raised:
         parse_reply(content, AAPL)
     assert str(raised.value) == message
-    assert raised.value.salvage is None
+    assert raised.value.problems == ()
 
 
 # Replies with units (extract_v2)
@@ -428,7 +428,6 @@ def test_parse_reply_with_units(value, unit, dollars) -> None:
     assert quarter.net_income == Decimal(24780000000)
     assert quarter.eps_diluted == Decimal("1.65")  # a plain number, as in v1
     assert parsed.units == (unit, "millions")
-    assert parsed.problems == ()
 
 
 @pytest.mark.parametrize(
@@ -443,7 +442,7 @@ def test_parse_reply_with_units(value, unit, dollars) -> None:
 def test_a_null_value_is_null(revenue) -> None:
     parsed = parse_reply(v2_text(revenue), AAPL, WITH_UNITS)
     assert parsed.prediction.quarter.revenue is None
-    assert (parsed.units, parsed.problems) == (("millions",), ())
+    assert parsed.units == ("millions",)
 
 
 @pytest.mark.parametrize(
@@ -505,14 +504,10 @@ def test_bad_figures(revenue, kind, message) -> None:
     with pytest.raises(ReplyError) as raised:
         parse_reply(v2_text(revenue), AAPL, WITH_UNITS)
     assert str(raised.value) == message
-    # The rest of the reply is fine: salvage has it, with the bad figure null.
-    salvage = raised.value.salvage
-    assert salvage.problems == (
+    # The rest of the reply is fine, but it is invalid as a whole, as in extract_v1.
+    assert raised.value.problems == (
         FigureProblem("quarter.revenue", kind, message, json.dumps(revenue)),
     )
-    assert salvage.prediction.quarter.revenue is None
-    assert salvage.prediction.quarter.net_income == Decimal(24780000000)
-    assert salvage.units == ("millions",)
 
 
 @pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
@@ -524,7 +519,7 @@ def test_a_value_that_is_not_finite_is_malformed(constant) -> None:
         parse_reply(content, AAPL, WITH_UNITS)
     message = f"quarter.revenue.value: should be a JSON number (got {constant})"
     assert str(raised.value) == message
-    [problem] = raised.value.salvage.problems
+    [problem] = raised.value.problems
     assert (problem.kind, problem.replied) == (
         MALFORMED,
         f'{{"value": {constant}, "unit": "millions"}}',
@@ -554,18 +549,15 @@ def test_every_bad_figure_is_reported() -> None:
             f'year_to_date.net_income.unit: {SHOULD_BE_UNIT} (got "Millions")',
         ]
     )
-    salvage = raised.value.salvage
-    assert [(p.figure, p.kind) for p in salvage.problems] == [
+    assert [(p.figure, p.kind) for p in raised.value.problems] == [
         ("quarter.revenue", UNKNOWN_UNIT),
         ("quarter.net_income", MALFORMED),
         ("year_to_date.net_income", UNKNOWN_UNIT),
     ]
-    assert salvage.prediction.year_to_date.revenue == Decimal(219659000000)
-    assert salvage.units == ("billions",)
 
 
 @pytest.mark.parametrize(
-    ("content", "message"),
+    ("content", "message", "bad_figures"),
     [
         # EPS stays a plain number.
         (
@@ -582,14 +574,16 @@ def test_every_bad_figure_is_reported() -> None:
                 "quarter.eps_diluted: Decimal input should be an integer, float, "
                 "string or Decimal object"
             ),
+            [],
         ),
         (
             json.dumps(
                 {**V2_REPLY, "quarter": {**V2_REPLY["quarter"], "gross_margin": 0.47}}
             ),
             "quarter.gross_margin: Extra inputs are not permitted (got 0.47)",
+            [],
         ),
-        # A bad figure with another problem: both are reported, nothing is salvaged.
+        # A bad figure with another problem: both are reported.
         (
             json.dumps(
                 {
@@ -602,18 +596,20 @@ def test_every_bad_figure_is_reported() -> None:
                 "Input should be a valid date or datetime, invalid character in year "
                 '(got "March 29, 2025")'
             ),
+            ["quarter.revenue"],
         ),
         (
             json.dumps({"period_end": "2025-03-29", "quarter": V2_REPLY["quarter"]}),
             "year_to_date: Field required",
+            [],
         ),
     ],
 )
-def test_other_problems_are_not_salvaged(content, message) -> None:
+def test_other_problems(content, message, bad_figures) -> None:
     with pytest.raises(ReplyError) as raised:
         parse_reply(content, AAPL, WITH_UNITS)
     assert str(raised.value) == message
-    assert raised.value.salvage is None
+    assert [p.figure for p in raised.value.problems] == bad_figures
 
 
 def test_extract_v1_replies_have_no_units() -> None:
@@ -625,7 +621,7 @@ def test_extract_v1_replies_have_no_units() -> None:
         "Decimal object; quarter.net_income: Decimal input should be an integer, "
         "float, string or Decimal object"
     )
-    assert raised.value.salvage is None
+    assert raised.value.problems == ()
 
 
 # Small pieces
@@ -1527,10 +1523,13 @@ def test_run_with_units(tmp_path, key_dir, perfect_replies, v2_replies, capsys) 
         "figures with a unit: 18 converted (units 2, thousands 4, millions 8, "
         "billions 4)"
     ) in out
-    assert "format nulls (figures still bad on the retry, graded as missing): 0" in out
+    assert (
+        "format nulls (figures still bad on the retry, so their release is an "
+        "invalid reply): 0"
+    ) in out
 
 
-def test_bad_figures_are_retried_then_null(
+def test_figures_still_bad_on_the_retry_make_the_release_invalid(
     tmp_path, key_dir, v2_replies, capsys
 ) -> None:
     def script(accession, call, body) -> httpx.Response:
@@ -1565,16 +1564,40 @@ def test_bad_figures_are_retried_then_null(
         "content": RETRY_MESSAGE.format(errors=cat_error),
     }
 
+    # A figure still bad on the retry makes the release invalid, all null, as any
+    # other problem does in extract_v1.
     info = json.loads((run_dir / "run.json").read_text())
     assert info["outcomes"] == {
         OK: 1,
-        OK_AFTER_RETRY: 3,
-        INVALID_REPLY: 1,
+        OK_AFTER_RETRY: 1,
+        INVALID_REPLY: 3,
         API_ERROR: 0,
         "aborted": 0,
     }
     aapl_message = f'quarter.revenue.unit: {SHOULD_BE_UNIT} (got "Millions")'
     wmt_message = f"quarter.net_income: {SHOULD_BE_FIGURE} (got 4487000000)"
+    assert info["fallbacks"] == [
+        {
+            "ticker": "AAPL",
+            "release_accession": AAPL,
+            "outcome": INVALID_REPLY,
+            "reason": aapl_message,
+        },
+        {
+            "ticker": "MSFT",
+            "release_accession": MSFT,
+            "outcome": INVALID_REPLY,
+            "reason": "not valid JSON (Expecting value: line 1 column 1 (char 0))",
+        },
+        {
+            "ticker": "WMT",
+            "release_accession": WMT,
+            "outcome": INVALID_REPLY,
+            "reason": wmt_message,
+        },
+    ]
+    # The figures that made a release invalid; not MSFT's, whose retry had no
+    # figures, nor CAT's, fixed on the retry.
     assert info["format_nulls"] == [
         {
             "ticker": "AAPL",
@@ -1593,25 +1616,16 @@ def test_bad_figures_are_retried_then_null(
             "replied": "4487000000",
         },
     ]
-    # MSFT's retry wasn't JSON: all null, as in extract_v1.
-    assert info["fallbacks"] == [
-        {
-            "ticker": "MSFT",
-            "release_accession": MSFT,
-            "outcome": INVALID_REPLY,
-            "reason": "not valid JSON (Expecting value: line 1 column 1 (char 0))",
-        }
-    ]
-    # AAPL 3 millions, CAT 4 thousands (on the retry), WMT 1 units, XOM 4 millions.
+    # CAT 4 thousands (on the retry), XOM 4 millions; none from invalid replies.
     assert info["figures_by_unit"] == {
-        "units": 1,
+        "units": 0,
         "thousands": 4,
-        "millions": 7,
+        "millions": 4,
         "billions": 0,
     }
 
     raw = json.loads((run_dir / "raw" / f"{AAPL}.json").read_text())
-    assert raw["outcome"] == OK_AFTER_RETRY
+    assert raw["outcome"] == INVALID_REPLY
     assert raw["format_nulls"] == [
         {
             "figure": "quarter.revenue",
@@ -1620,8 +1634,13 @@ def test_bad_figures_are_retried_then_null(
             "replied": '{"value": 95359, "unit": "Millions"}',
         }
     ]
-    assert raw["prediction"]["quarter"]["revenue"] is None
-    assert raw["prediction"]["quarter"]["net_income"] == "24780000000"
+    null = {"revenue": None, "net_income": None, "eps_diluted": None}
+    assert raw["prediction"] == {
+        "release_accession": AAPL,
+        "period_end": "2025-03-29",
+        "quarter": null,
+        "year_to_date": null,
+    }
     # The replies as the model gave them.
     replies = [
         json.loads(c["attempts"][0]["response"]["choices"][0]["message"]["content"])
@@ -1632,25 +1651,27 @@ def test_bad_figures_are_retried_then_null(
     ] * 2
 
     verdicts = graded_verdicts(run_dir)
-    assert verdicts[(AAPL, "revenue", QUARTER)] == "missing"
+    for accession in (AAPL, MSFT, WMT):
+        assert {v for (a, _, _), v in verdicts.items() if a == accession} == {"missing"}
     assert verdicts[(CAT, "revenue", YEAR_TO_DATE)] == "correct"
-    assert verdicts[(WMT, "net_income", QUARTER)] == "missing"
     assert verdicts[(XOM, "net_income", QUARTER)] == "sign"
-    assert {v for (a, _, _), v in verdicts.items() if a == MSFT} == {"missing"}
     out = capsys.readouterr().out.splitlines()
-    # 26 less AAPL's and WMT's format nulls, MSFT's 5 and XOM's sign.
-    assert "accuracy: 18/26 (69.2%)" in out
+    # 26 less AAPL's 6, MSFT's 5, WMT's 3 and XOM's sign.
+    assert "accuracy: 11/26 (42.3%)" in out
     i = out.index(
-        "format nulls (figures still bad on the retry, graded as missing): 2 (1 "
-        "unknown unit, 1 malformed)"
+        "format nulls (figures still bad on the retry, so their release is an "
+        "invalid reply): 2 (1 unknown unit, 1 malformed)"
     )
-    assert (
-        out[i - 1]
-        == "figures with a unit: 12 converted (units 1, thousands 4, millions 7)"
-    )
+    assert out[i - 1] == "figures with a unit: 8 converted (thousands 4, millions 4)"
     assert out[i + 1 : i + 3] == [
         f"  AAPL {AAPL} {aapl_message}",
         f"  WMT {WMT} {wmt_message}",
+    ]
+    i = out.index("invalid replies (all-null predictions, graded as missing): 3")
+    assert out[i + 1 : i + 4] == [
+        f"  AAPL {AAPL}: {aapl_message}",
+        f"  MSFT {MSFT}: not valid JSON (Expecting value: line 1 column 1 (char 0))",
+        f"  WMT {WMT}: {wmt_message}",
     ]
 
 
