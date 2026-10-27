@@ -64,6 +64,7 @@ NI = "NetIncomeLoss"
 AVAIL = "NetIncomeLossAvailableToCommonStockholdersBasic"
 PL = "ProfitLoss"
 NCI = "NetIncomeLossAttributableToNoncontrollingInterest"
+PSD = "PreferredStockDividendsIncomeStatementImpact"
 # What the net income fallbacks add to a missing answer's detail when untagged.
 NO_NI_FALLBACKS = (
     f"; {AVAIL}: no USD facts in company facts; {PL}: no USD facts in company facts"
@@ -735,6 +736,133 @@ def test_profit_loss_condition_is_per_period() -> None:
     assert values(results)[("net_income", YEAR_TO_DATE)] == ("52", PL)
 
 
+# Preferred dividends: available to common is after them (Decisions 2026-10-11)
+
+
+@pytest.mark.parametrize(
+    "tag",
+    [
+        "PreferredStockDividendsIncomeStatementImpact",
+        "DividendsPreferredStock",
+        "DividendsPreferredStockCash",
+        "PreferredStockDividendsAndOtherAdjustments",
+    ],
+)
+def test_available_to_common_is_not_used_with_preferred_dividends(tag) -> None:
+    document = without_net_income_loss(
+        **{AVAIL: {USD: [fact(Q2, 29), fact(H1, 50)]}, tag: {USD: [fact(Q2, 1)]}}
+    )
+    results = run(linked(), document)
+    assert missing(results)[("net_income", QUARTER)] == (
+        CONDITION_NOT_MET,
+        (
+            f"{NI}: no USD facts in company facts; {AVAIL}: 29, after preferred "
+            f"dividends: {tag} 2026-04-01..2026-06-30 1; {PL}: no USD facts in "
+            "company facts"
+        ),
+    )
+    # The half year has none tagged, so it keeps the fallback.
+    assert values(results)[("net_income", YEAR_TO_DATE)] == ("50", AVAIL)
+    assert [
+        (d.period_type, d.tag, str(d.value)) for d in results.preferred_dividends
+    ] == [(QUARTER, tag, "1")]
+
+
+@pytest.mark.parametrize(
+    ("dividends", "used"),
+    [
+        ([fact(Q2, 0)], True),  # tagged zero: none
+        ([fact(Q2_PRIOR, 3)], True),  # last year's quarter
+        ([fact(Q2, 3, accn=LATER)], True),  # in another filing
+        ([fact(H1, 3)], False),  # the half year contains the quarter
+        ([fact(Q2, -2)], False),  # nonzero either way
+    ],
+)
+def test_which_preferred_dividends_count(dividends, used) -> None:
+    document = without_net_income_loss(
+        **{AVAIL: {USD: [fact(Q2, 29)]}, PSD: {USD: dividends}}
+    )
+    found = values(run(linked(), document)).get(("net_income", QUARTER))
+    assert found == (("29", AVAIL) if used else None)
+
+
+def test_preferred_dividends_fall_through_to_profit_loss() -> None:
+    # ProfitLoss with noncontrolling interest 0 is net income before preferred
+    # dividends.
+    document = without_net_income_loss(
+        **{
+            AVAIL: {USD: [fact(Q2, 29)]},
+            PSD: {USD: [fact(Q2, 1)]},
+            PL: {USD: [fact(Q2, 30)]},
+            NCI: {USD: [fact(Q2, 0)]},
+        }
+    )
+    assert values(run(linked(), document))[("net_income", QUARTER)] == ("30", PL)
+
+
+def test_net_income_loss_needs_no_check_for_preferred_dividends() -> None:
+    # Oracle: NetIncomeLoss is before preferred dividends.
+    document = second_quarter(**{PSD: {USD: [fact(Q2, 22)]}})
+    results = run(linked(), document)
+    assert values(results)[("net_income", QUARTER)] == ("30", NI)
+    assert [d.period_type for d in results.preferred_dividends] == [QUARTER]
+
+
+@pytest.mark.parametrize("where", ["full year", "nine months"])
+def test_derived_available_to_common_needs_no_preferred_dividends_in_both(
+    where,
+) -> None:
+    dividends = (
+        fact(FY, 4) if where == "full year" else fact(NINE_MONTHS, 3, accn=Q3_10Q)
+    )
+    document = fiscal_year(
+        **{
+            AVAIL: {USD: [fact(FY, 120), fact(NINE_MONTHS, 88, accn=Q3_10Q)]},
+            PSD: {USD: [dividends]},
+        }
+    )
+    del document["facts"]["us-gaap"][NI]
+    results = run(ten_k(), document)
+    assert ("net_income", QUARTER) not in values(results)
+    reason, detail = missing(results)["net_income", QUARTER]
+    assert reason == f"{where}: {CONDITION_NOT_MET}"
+    assert "after preferred dividends" in detail
+
+
+def test_derived_available_to_common_without_preferred_dividends() -> None:
+    document = fiscal_year(
+        **{
+            AVAIL: {USD: [fact(FY, 120), fact(NINE_MONTHS, 88, accn=Q3_10Q)]},
+            PSD: {USD: [fact(FY, 0), fact(NINE_MONTHS, 0, accn=Q3_10Q)]},
+        }
+    )
+    del document["facts"]["us-gaap"][NI]
+    assert values(run(ten_k(), document))[("net_income", QUARTER)] == ("32", AVAIL)
+
+
+def test_fallback_checks_mark_available_to_common_unusable_with_dividends() -> None:
+    document = second_quarter(
+        **{AVAIL: {USD: [fact(Q2, 29), fact(H1, 50)]}, PSD: {USD: [fact(Q2, 1)]}}
+    )
+    checks = run(linked(), document).fallback_checks
+    assert [(c.period_type, c.tag, c.usable) for c in checks] == [
+        (QUARTER, AVAIL, False),
+        (YEAR_TO_DATE, AVAIL, True),
+    ]
+
+
+def test_preferred_dividends_in_report() -> None:
+    release = linked()
+    document = second_quarter(**{PSD: {USD: [fact(Q2, 22), fact(H1, 40)]}})
+    lines = format_report([release], run(release, document)).splitlines()
+    start = lines.index(
+        "releases whose linked filing reports nonzero preferred dividends: 1"
+    )
+    assert lines[start + 1] == (
+        f"  TEST 0000000001-26-000009: quarter {PSD} 22, year_to_date {PSD} 40"
+    )
+
+
 def test_tag_in_another_unit_counts_as_no_tag() -> None:
     document = second_quarter(**{NI: {"EUR": [fact(Q2, 30), fact(H1, 52)]}})
     assert missing(run(linked(), document))[("net_income", QUARTER)][0] == NO_TAG
@@ -939,7 +1067,7 @@ def test_fallback_checks_in_report() -> None:
     )
     assert lines[start + 1 :] == [
         (
-            f"  TEST {AVAIL}: 2 periods, 1 agree "
+            f"  TEST {AVAIL}: 2 periods, 1 agree; no preferred dividends in 2 "
             f"(e.g. {ACCN} year_to_date: 50, NetIncomeLoss 52)"
         ),
         (
@@ -1105,12 +1233,23 @@ def test_cli_report_on_fixtures(fixture_run) -> None:
             f"  WMT {RFC}: 6 filings, 0 equal to the revenue answer "
             "(e.g. 0000104169-25-000090: 163981000000, answer 165609000000)"
         ),
+        # Oracle's from its Q3 FY26 release (Findings 2026-10-14).
+        "releases whose linked filing reports nonzero preferred dividends: 3",
+        (
+            f"  ORCL 0001193125-26-100148: quarter {PSD} 22000000, year_to_date "
+            f"{PSD} 22000000"
+        ),
+        (
+            "  ORCL 0001193125-26-265848: full_year DividendsPreferredStockCash "
+            f"103000000, full_year {PSD} 103000000"
+        ),
+        f"  ORCL 0001193125-26-387905: quarter {PSD} 81000000",
         (
             "net income fallbacks where NetIncomeLoss is also tagged "
             "(same filing and period):"
         ),
         (
-            f"  ORCL {AVAIL}: 4 periods, 0 agree "
+            f"  ORCL {AVAIL}: 4 periods, 0 agree; no preferred dividends in 0 "
             "(e.g. 0001193125-26-101045 quarter: 3699000000, NetIncomeLoss 3721000000)"
         ),
         (

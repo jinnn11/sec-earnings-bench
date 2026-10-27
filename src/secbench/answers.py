@@ -94,6 +94,16 @@ NET_INCOME = FIELDS[1]
 # when they are 0.
 NONCONTROLLING = "NetIncomeLossAttributableToNoncontrollingInterest"
 ZERO_REQUIRED = {"ProfitLoss": NONCONTROLLING}
+# Tags that are net income after preferred dividends: net income only when there are
+# none, so never used for a period with nonzero preferred dividends (Decisions
+# 2026-10-11).
+AFTER_PREFERRED_DIVIDENDS = {"NetIncomeLossAvailableToCommonStockholdersBasic"}
+PREFERRED_DIVIDEND_TAGS = (
+    "PreferredStockDividendsIncomeStatementImpact",
+    "DividendsPreferredStock",
+    "DividendsPreferredStockCash",
+    "PreferredStockDividendsAndOtherAdjustments",
+)
 # Other tags that may hold revenue; reported, never used as answers.
 REVENUE_LIKE = re.compile(r"^(Revenue|SalesRevenue)")
 
@@ -101,7 +111,7 @@ REVENUE_LIKE = re.compile(r"^(Revenue|SalesRevenue)")
 NO_TAG = "no tag"
 NO_FACT = "no fact for that accession"
 NO_PERIOD = "no matching period"
-CONDITION_NOT_MET = "condition not met"  # see ZERO_REQUIRED
+CONDITION_NOT_MET = "condition not met"  # ZERO_REQUIRED or AFTER_PREFERRED_DIVIDENDS
 CONFLICTING = "conflicting values"
 REASONS = (NO_TAG, NO_FACT, NO_PERIOD, CONDITION_NOT_MET, CONFLICTING)
 PERIODS_IN_DETAIL = 4
@@ -246,7 +256,8 @@ def lookup(
     known: set[tuple[str, str]],
 ) -> Lookup:
     """The first of field's tags with one value for period (ending on period_end)
-    in the filing, and whose ZERO_REQUIRED tag, if any, is 0 for that period.
+    in the filing, whose ZERO_REQUIRED tag, if any, is 0 for that period, and which,
+    if it is after preferred dividends, has none (see preferred_dividends).
     Conflicting values for a tag stop the search rather than fall through to the
     next tag."""
     notes = []
@@ -258,16 +269,25 @@ def lookup(
         if len(values) == 1:
             chosen = min(matches, key=lambda f: f.start or f.end)
             required = ZERO_REQUIRED.get(tag)
-            if required is None:
-                return Lookup(chosen)
-            zero = required_values(required, chosen, filing_facts)
-            if zero == [0]:
+            zero = required_values(required, chosen, filing_facts) if required else [0]
+            dividends = (
+                preferred_dividends(chosen, filing_facts)
+                if tag in AFTER_PREFERRED_DIVIDENDS
+                else []
+            )
+            if zero == [0] and not dividends:
                 return Lookup(chosen)
             reason = CONDITION_NOT_MET
-            note = (
-                f"{chosen.value}, but {required} is "
-                f"{', '.join(map(str, zero)) if zero else 'not tagged'} for that period"
-            )
+            if zero != [0]:
+                note = (
+                    f"{chosen.value}, but {required} is "
+                    f"{', '.join(map(str, zero)) if zero else 'not tagged'} for that "
+                    "period"
+                )
+            else:
+                note = f"{chosen.value}, after preferred dividends: " + ", ".join(
+                    f"{f.tag} {describe_fact_period(f)} {f.value}" for f in dividends
+                )
         elif values:
             reason = CONFLICTING
             note = f"values {', '.join(map(str, values))}"
@@ -312,6 +332,31 @@ def required_values(
             and (f.start, f.end) == (fact.start, fact.end)
         }
     )
+
+
+def preferred_dividends(fact: Fact, filing_facts: set[Fact]) -> list[Fact]:
+    """Nonzero preferred dividends in the same filing for fact's period, or for a
+    longer period ending the same day that contains it: a quarter whose dividends are
+    tagged only for the year to date may have some too, and a missing answer is
+    better than one after preferred dividends."""
+    return sorted(
+        (
+            f
+            for f in filing_facts
+            if f.tag in PREFERRED_DIVIDEND_TAGS
+            and f.unit == "USD"
+            and f.value != 0
+            and f.end == fact.end
+            and f.start is not None
+            and fact.start is not None
+            and f.start <= fact.start
+        ),
+        key=lambda f: (f.tag, f.start or f.end),
+    )
+
+
+def describe_fact_period(fact: Fact) -> str:
+    return f"{fact.start}..{fact.end}" if fact.start else str(fact.end)
 
 
 def expected_periods(form: str, filing_facts: set[Fact], period_end: date) -> list[str]:
@@ -392,7 +437,8 @@ def derive_quarter(
     """The first of field's tags with one full-year value in the 10-K (filing_facts,
     ending on period_end) and one nine-month value from the same start in its
     third-quarter 10-Q (nine_month_facts), each found as lookup finds a period (its
-    ZERO_REQUIRED tag 0 too). Conflicting values stop the search."""
+    ZERO_REQUIRED tag 0 too, and no preferred dividends for a tag after them).
+    Conflicting values stop the search."""
     if third_quarter.accession is None:
         return Derived(None, None, third_quarter.reason, third_quarter.detail)
     assert third_quarter.period_end is not None
@@ -499,7 +545,20 @@ class FallbackCheck:
     tag: str
     value: Decimal
     net_income_loss: Decimal
-    usable: bool  # the tag's ZERO_REQUIRED condition holds (True if it has none)
+    usable: bool  # the tag's condition holds: ZERO_REQUIRED, no preferred dividends
+
+
+@dataclass(frozen=True)
+class PreferredDividend:
+    """A nonzero preferred dividend in a release's linked filing, for one of its
+    expected periods."""
+
+    ticker: str
+    release_accession: str
+    linked_accession: str
+    period_type: str
+    tag: str
+    value: Decimal
 
 
 @dataclass
@@ -508,12 +567,14 @@ class Results:
     missing: list[Missing] = dataclass_field(default_factory=list)
     other_revenue: list[OtherRevenue] = dataclass_field(default_factory=list)
     fallback_checks: list[FallbackCheck] = dataclass_field(default_factory=list)
+    preferred_dividends: list[PreferredDividend] = dataclass_field(default_factory=list)
 
     def extend(self, other: Results) -> None:
         self.answers.extend(other.answers)
         self.missing.extend(other.missing)
         self.other_revenue.extend(other.other_revenue)
         self.fallback_checks.extend(other.fallback_checks)
+        self.preferred_dividends.extend(other.preferred_dividends)
 
 
 def answer_release(
@@ -578,6 +639,29 @@ def answer_release(
     results.other_revenue = other_revenue_tags(release, filing_facts, headline_revenue)
     for period in periods:
         results.fallback_checks.extend(check_fallbacks(release, filing_facts, period))
+        results.preferred_dividends.extend(
+            PreferredDividend(
+                release.ticker,
+                release.release_accession,
+                release.linked_accession,
+                period,
+                f.tag,
+                f.value,
+            )
+            for f in sorted(
+                in_period(
+                    (
+                        f
+                        for f in filing_facts
+                        if f.tag in PREFERRED_DIVIDEND_TAGS and f.unit == "USD"
+                    ),
+                    period,
+                    release.period_end,
+                ),
+                key=lambda f: f.tag,
+            )
+            if f.value != 0
+        )
     return results
 
 
@@ -659,8 +743,14 @@ def check_fallbacks(
                 tag,
                 fact.value,
                 net_income_loss.value,
-                required is None
-                or required_values(required, fact, filing_facts) == [0],
+                (
+                    required is None
+                    or required_values(required, fact, filing_facts) == [0]
+                )
+                and not (
+                    tag in AFTER_PREFERRED_DIVIDENDS
+                    and preferred_dividends(fact, filing_facts)
+                ),
             )
         )
     return checks
@@ -856,6 +946,21 @@ def format_report(releases: list[LinkedRelease], results: Results) -> str:
     if not by_tag:
         lines.append("  none")
 
+    dividends = sorted(
+        {(d.ticker, d.release_accession) for d in results.preferred_dividends}
+    )
+    lines.append(
+        "releases whose linked filing reports nonzero preferred dividends: "
+        f"{len(dividends)}"
+    )
+    for ticker, accession in dividends:
+        found = [
+            d for d in results.preferred_dividends if d.release_accession == accession
+        ]
+        lines.append(
+            f"  {ticker} {accession}: "
+            + ", ".join(f"{d.period_type} {d.tag} {d.value}" for d in found)
+        )
     lines.append(
         f"net income fallbacks where {NET_INCOME.tags[0]} is also tagged "
         "(same filing and period):"
@@ -866,9 +971,11 @@ def format_report(releases: list[LinkedRelease], results: Results) -> str:
     for (ticker, tag), checks in sorted(by_fallback.items()):
         agree = [c for c in checks if c.value == c.net_income_loss]
         text = f"  {ticker} {tag}: {plural(len(checks), 'period')}, {len(agree)} agree"
+        usable = sum(c.usable for c in checks)
         if tag in ZERO_REQUIRED:
-            usable = sum(c.usable for c in checks)
             text += f"; {ZERO_REQUIRED[tag]} tagged 0 in {usable}"
+        if tag in AFTER_PREFERRED_DIVIDENDS:
+            text += f"; no preferred dividends in {usable}"
         differ = [c for c in checks if c.value != c.net_income_loss]
         if differ:
             d = differ[0]

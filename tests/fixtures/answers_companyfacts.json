@@ -6584,6 +6584,130 @@
        }
       ]
      }
+    },
+    "PreferredStockDividendsIncomeStatementImpact": {
+     "label": "Preferred Stock Dividends, Income Statement Impact",
+     "description": "The amount of preferred stock dividends that is an adjustment to net income apportioned to common stockholders.",
+     "units": {
+      "USD": [
+       {
+        "start": "2023-06-01",
+        "end": "2024-05-31",
+        "val": 0,
+        "accn": "0001193125-26-277521",
+        "fy": 2026,
+        "fp": "FY",
+        "form": "10-K",
+        "filed": "2026-06-22",
+        "frame": "CY2023"
+       },
+       {
+        "start": "2024-06-01",
+        "end": "2025-02-28",
+        "val": 0,
+        "accn": "0001193125-26-101045",
+        "fy": 2026,
+        "fp": "Q3",
+        "form": "10-Q",
+        "filed": "2026-03-11"
+       },
+       {
+        "start": "2024-12-01",
+        "end": "2025-02-28",
+        "val": 0,
+        "accn": "0001193125-26-101045",
+        "fy": 2026,
+        "fp": "Q3",
+        "form": "10-Q",
+        "filed": "2026-03-11",
+        "frame": "CY2025Q1"
+       },
+       {
+        "start": "2024-06-01",
+        "end": "2025-05-31",
+        "val": 0,
+        "accn": "0001193125-26-277521",
+        "fy": 2026,
+        "fp": "FY",
+        "form": "10-K",
+        "filed": "2026-06-22",
+        "frame": "CY2024"
+       },
+       {
+        "start": "2025-06-01",
+        "end": "2025-08-31",
+        "val": 0,
+        "accn": "0001193125-26-389274",
+        "fy": 2026,
+        "fp": "Q1",
+        "form": "10-Q",
+        "filed": "2026-09-11",
+        "frame": "CY2025Q3"
+       },
+       {
+        "start": "2025-06-01",
+        "end": "2026-02-28",
+        "val": 22000000,
+        "accn": "0001193125-26-101045",
+        "fy": 2026,
+        "fp": "Q3",
+        "form": "10-Q",
+        "filed": "2026-03-11"
+       },
+       {
+        "start": "2025-12-01",
+        "end": "2026-02-28",
+        "val": 22000000,
+        "accn": "0001193125-26-101045",
+        "fy": 2026,
+        "fp": "Q3",
+        "form": "10-Q",
+        "filed": "2026-03-11",
+        "frame": "CY2026Q1"
+       },
+       {
+        "start": "2025-06-01",
+        "end": "2026-05-31",
+        "val": 103000000,
+        "accn": "0001193125-26-277521",
+        "fy": 2026,
+        "fp": "FY",
+        "form": "10-K",
+        "filed": "2026-06-22",
+        "frame": "CY2025"
+       },
+       {
+        "start": "2026-06-01",
+        "end": "2026-08-31",
+        "val": 81000000,
+        "accn": "0001193125-26-389274",
+        "fy": 2026,
+        "fp": "Q1",
+        "form": "10-Q",
+        "filed": "2026-09-11",
+        "frame": "CY2026Q3"
+       }
+      ]
+     }
+    },
+    "DividendsPreferredStockCash": {
+     "label": "Dividends, Preferred Stock, Cash",
+     "description": "Amount of paid and unpaid preferred stock dividends declared with the form of settlement in cash.",
+     "units": {
+      "USD": [
+       {
+        "start": "2025-06-01",
+        "end": "2026-05-31",
+        "val": 103000000,
+        "accn": "0001193125-26-277521",
+        "fy": 2026,
+        "fp": "FY",
+        "form": "10-K",
+        "filed": "2026-06-22",
+        "frame": "CY2025"
+       }
+      ]
+     }
     }
    }
   }
