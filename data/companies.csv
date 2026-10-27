@@ -1,0 +1,425 @@
+ticker,cik,name,sector,split
+ABT,1800,Abbott Laboratories,Health Care,train
+AMD,2488,Advanced Micro Devices,Information Technology,train
+APD,2969,Air Products,Materials,train
+SWKS,4127,Skyworks Solutions,Information Technology,train
+HWM,4281,Howmet Aerospace,Industrials,train
+AEP,4904,American Electric Power,Utilities,company_test
+ADI,6281,Analog Devices,Information Technology,train
+AMAT,6951,Applied Materials,Information Technology,train
+ADM,7084,Archer Daniels Midland,Consumer Staples,train
+ADP,8670,Automatic Data Processing,Industrials,train
+AVY,8818,Avery Dennison,Materials,train
+BALL,9389,Ball Corporation,Materials,train
+BAX,10456,Baxter International,Health Care,train
+BDX,10795,Becton Dickinson,Health Care,company_test
+BA,12927,Boeing,Industrials,company_test
+BMY,14272,Bristol Myers Squibb,Health Care,train
+BF-B,14693,Brown–Forman,Consumer Staples,train
+STZ,16918,Constellation Brands,Consumer Staples,train
+CAT,18230,Caterpillar Inc.,Industrials,validation
+CLX,21076,Clorox,Consumer Staples,train
+KO,21344,Coca-Cola Company (The),Consumer Staples,train
+CL,21665,Colgate-Palmolive,Consumer Staples,company_test
+GLW,24741,Corning Inc.,Information Technology,train
+CMI,26172,Cummins,Industrials,train
+TGT,27419,Target Corporation,Consumer Staples,train
+DAL,27904,Delta Air Lines,Industrials,train
+DG,29534,Dollar General,Consumer Staples,company_test
+DOV,29905,Dover Corporation,Industrials,train
+OMC,29989,Omnicom Group,Communication Services,train
+ECL,31462,Ecolab,Materials,train
+RVTY,31791,Revvity,Health Care,train
+EMR,32604,Emerson Electric,Industrials,train
+EFX,33185,Equifax,Industrials,train
+EQT,33213,EQT Corporation,Energy,train
+FRT,34903,Federal Realty Investment Trust,Real Estate,train
+F,37996,Ford Motor Company,Consumer Discretionary,train
+GD,40533,General Dynamics,Industrials,train
+GE,40545,GE Aerospace,Industrials,train
+GIS,40704,General Mills,Consumer Staples,train
+GPC,40987,Genuine Parts Company,Consumer Discretionary,train
+HAL,45012,Halliburton,Energy,train
+HAS,46080,Hasbro,Consumer Discretionary,company_test
+HSY,47111,Hershey Company (The),Consumer Staples,train
+HPQ,47217,HP Inc.,Information Technology,train
+HRL,48465,Hormel Foods,Consumer Staples,train
+HUBB,48898,Hubbell Incorporated,Industrials,company_test
+HUM,49071,Humana,Health Care,train
+ITW,49826,Illinois Tool Works,Industrials,train
+INTC,50863,Intel,Information Technology,train
+IBM,51143,IBM,Information Technology,train
+IFF,51253,International Flavors & Fragrances,Materials,train
+IP,51434,International Paper,Materials,train
+J,52988,Jacobs Solutions,Industrials,company_test
+KMB,55785,Kimberly-Clark,Consumer Staples,train
+KR,56873,Kroger,Consumer Staples,train
+LLY,59478,Lilly (Eli),Health Care,train
+LOW,60667,Lowe's,Consumer Discretionary,train
+MAS,62996,Masco,Industrials,train
+MKC,63754,McCormick & Company,Consumer Staples,train
+MCD,63908,McDonald's,Consumer Discretionary,train
+CVS,64803,CVS Health,Health Care,train
+ETR,65984,Entergy,Utilities,company_test
+MMM,66740,3M,Industrials,train
+MSI,68505,Motorola Solutions,Information Technology,train
+NDSN,72331,Nordson Corporation,Industrials,train
+ES,72741,Eversource Energy,Utilities,train
+XEL,72903,Xcel Energy,Utilities,train
+NUE,73309,Nucor,Materials,company_test
+UDR,74208,"UDR, Inc.",Real Estate,train
+PCAR,75362,Paccar,Industrials,train
+PKG,75677,Packaging Corporation of America,Materials,train
+PH,76334,Parker Hannifin,Industrials,train
+PNR,77360,Pentair,Industrials,train
+PEP,77476,PepsiCo,Consumer Staples,train
+PFE,78003,Pfizer,Health Care,train
+PPG,79879,PPG Industries,Materials,train
+PG,80424,Procter & Gamble,Consumer Staples,train
+ROL,84839,"Rollins, Inc.",Industrials,train
+SLB,87347,Schlumberger,Energy,train
+SHW,89800,Sherwin-Williams,Materials,company_test
+AOS,91142,A. O. Smith,Industrials,train
+SJM,91419,J.M. Smucker Company (The),Consumer Staples,train
+SNA,91440,Snap-on,Industrials,train
+SO,92122,Southern Company,Utilities,train
+LUV,92380,Southwest Airlines,Industrials,train
+CVX,93410,Chevron Corporation,Energy,train
+SWK,93556,Stanley Black & Decker,Industrials,train
+SYY,96021,Sysco,Consumer Staples,train
+TER,97210,Teradyne,Information Technology,train
+TXN,97476,Texas Instruments,Information Technology,company_test
+TMO,97745,Thermo Fisher Scientific,Health Care,train
+TSN,100493,Tyson Foods,Consumer Staples,train
+UAL,100517,United Airlines Holdings,Industrials,train
+UNP,100885,Union Pacific Corporation,Industrials,train
+RTX,101829,RTX Corporation,Industrials,train
+WMT,104169,Walmart,Consumer Staples,validation
+EME,105634,Emcor,Industrials,train
+WST,105770,West Pharmaceutical Services,Health Care,train
+WDC,106040,Western Digital,Information Technology,company_test
+WY,106535,Weyerhaeuser,Real Estate,company_test
+WMB,107263,Williams Companies,Energy,train
+TJX,109198,TJX Companies,Consumer Discretionary,train
+JNJ,200406,Johnson & Johnson,Health Care,train
+LHX,202058,L3Harris,Industrials,train
+TXT,217346,Textron,Industrials,company_test
+GWW,277135,W. W. Grainger,Industrials,train
+CSX,277948,CSX Corporation,Industrials,train
+MRK,310158,Merck & Co.,Health Care,train
+SYK,310764,Stryker Corporation,Health Care,company_test
+DHR,313616,Danaher Corporation,Health Care,train
+CHD,313927,Church & Dwight,Consumer Staples,train
+DE,315189,Deere & Company,Industrials,train
+AMGN,318154,Amgen,Health Care,train
+KLAC,319201,KLA Corporation,Information Technology,train
+NKE,320187,"Nike, Inc.",Consumer Discretionary,validation
+AAPL,320193,Apple Inc.,Information Technology,validation
+LNT,352541,Alliant Energy,Utilities,train
+UHS,352915,Universal Health Services,Health Care,train
+HD,354950,Home Depot (The),Consumer Discretionary,validation
+NSC,702165,Norfolk Southern,Industrials,train
+LRCX,707549,Lam Research,Information Technology,train
+COO,711404,Cooper Companies (The),Health Care,company_test
+D,715957,Dominion Energy,Utilities,train
+WSM,719955,"Williams-Sonoma, Inc.",Consumer Discretionary,train
+CAH,721371,Cardinal Health,Health Care,company_test
+MU,723125,Micron Technology,Information Technology,train
+CTAS,723254,Cintas,Industrials,train
+PAYX,723531,Paychex,Industrials,train
+O,726728,Realty Income,Real Estate,train
+CASY,726958,Casey's,Consumer Staples,train
+JBHT,728535,J.B. Hunt,Industrials,train
+UNH,731766,UnitedHealth Group,Health Care,train
+ATO,731802,Atmos Energy,Utilities,train
+VZ,732712,Verizon,Communication Services,train
+T,732717,AT&T,Communication Services,train
+VTR,740260,Ventas,Real Estate,company_test
+ROST,745732,Ross Stores,Consumer Discretionary,train
+EXPD,746515,Expeditors International,Industrials,company_test
+IT,749251,Gartner,Information Technology,train
+NEE,753308,NextEra Energy,Utilities,train
+MO,764180,Altria,Consumer Staples,train
+BBY,764478,Best Buy,Consumer Discretionary,train
+PNW,764622,Pinnacle West Capital,Utilities,train
+DOC,765880,Healthpeak Properties,Real Estate,train
+WELL,766704,Welltower,Real Estate,train
+ADSK,769397,Autodesk,Information Technology,train
+HON,773840,Honeywell Technologies,Industrials,train
+WEC,783325,WEC Energy Group,Utilities,train
+PEG,788784,Public Service Enterprise Group,Utilities,train
+MSFT,789019,Microsoft,Information Technology,validation
+MGM,789570,MGM Resorts,Consumer Discretionary,train
+ADBE,796343,Adobe Inc.,Information Technology,train
+OXY,797468,Occidental Petroleum,Energy,train
+QCOM,804328,Qualcomm,Information Technology,train
+CMS,811156,CMS Energy,Utilities,train
+CDNS,813672,Cadence Design Systems,Information Technology,train
+FICO,814547,Fair Isaac,Information Technology,train
+CCL,815097,Carnival Corporation,Consumer Discretionary,train
+FAST,815556,Fastenal,Industrials,train
+APH,820313,Amphenol,Information Technology,train
+COHR,820318,Coherent Corp.,Information Technology,train
+EOG,821189,EOG Resources,Energy,train
+PHM,822416,PulteGroup,Consumer Discretionary,train
+WM,823768,Waste Management,Industrials,train
+EIX,827052,Edison International,Utilities,train
+MCHP,827054,Microchip Technology,Information Technology,train
+SBUX,829224,Starbucks,Consumer Discretionary,train
+FCX,831259,Freeport-McMoRan,Materials,train
+IEX,832101,IDEX Corporation,Industrials,train
+JCI,833444,Johnson Controls,Industrials,company_test
+TECH,842023,Bio-Techne,Health Care,train
+CRH,849395,CRH plc,Materials,train
+GEN,849399,Gen Digital,Information Technology,train
+PTC,857005,PTC Inc.,Information Technology,company_test
+CSCO,858877,Cisco,Information Technology,train
+HCA,860730,HCA Healthcare,Health Care,train
+TYL,860731,Tyler Technologies,Information Technology,train
+TRMB,864749,Trimble Inc.,Information Technology,train
+MNST,865752,Monster Beverage,Consumer Staples,train
+FLEX,866374,Flex Ltd.,Information Technology,train
+AZO,866787,AutoZone,Consumer Discretionary,train
+REGN,872589,Regeneron Pharmaceuticals,Health Care,train
+IDXX,874716,Idexx Laboratories,Health Care,train
+AES,874761,AES Corporation,Utilities,train
+BIIB,875045,Biogen,Health Care,train
+VRTX,875320,Vertex Pharmaceuticals,Health Care,train
+ZBRA,877212,Zebra Technologies,Information Technology,train
+ODFL,878927,Old Dominion,Industrials,train
+KIM,879101,Kimco Realty,Real Estate,train
+INCY,879169,Incyte,Health Care,train
+GILD,882095,Gilead Sciences,Health Care,train
+DHI,882184,D. R. Horton,Consumer Discretionary,train
+ROP,882835,Roper Technologies,Information Technology,train
+SNPS,883241,Synopsys,Information Technology,train
+RCL,884887,Royal Caribbean Group,Consumer Discretionary,company_test
+BSX,885725,Boston Scientific,Health Care,train
+EXE,895126,Expand Energy,Energy,train
+INTU,896878,Intuit,Information Technology,train
+ORLY,898173,O'Reilly Automotive,Consumer Discretionary,train
+JBL,898293,Jabil,Information Technology,train
+CPRT,900075,Copart,Industrials,train
+VMRK,906107,Vivmark Residential,Real Estate,train
+NVR,906163,"NVR, Inc.",Consumer Discretionary,company_test
+CPT,906345,Camden Property Trust,Real Estate,train
+COST,909832,Costco,Consumer Staples,train
+DECK,910521,Deckers Brands,Consumer Discretionary,train
+REG,910606,Regency Centers,Real Estate,train
+MAA,912595,Mid-America Apartment Communities,Real Estate,train
+ALB,915913,Albemarle Corporation,Materials,train
+MLM,916076,Martin Marietta Materials,Materials,train
+TSCO,916365,Tractor Supply,Consumer Discretionary,train
+LH,920148,Labcorp,Health Care,train
+ESS,920522,Essex Property Trust,Real Estate,train
+LEN,920760,Lennar,Consumer Discretionary,train
+PPL,922224,PPL Corporation,Utilities,company_test
+DVA,927066,DaVita,Health Care,company_test
+MCK,927653,McKesson,Health Care,train
+DLTR,935703,Dollar Tree,Consumer Staples,train
+DTE,936340,DTE Energy,Utilities,train
+CIEN,936395,Ciena,Information Technology,train
+LMT,936468,Lockheed Martin,Industrials,train
+DRI,940944,Darden Restaurants,Consumer Discretionary,company_test
+WAB,943452,Wabtec,Industrials,train
+RMD,943819,ResMed,Health Care,train
+TTWO,946581,Take-Two Interactive,Communication Services,train
+HSIC,1000228,Henry Schein,Health Care,train
+WAT,1000697,Waters Corporation,Health Care,train
+EL,1001250,Estée Lauder Companies (The),Consumer Staples,company_test
+NTAP,1002047,NetApp,Information Technology,train
+AEE,1002910,Ameren,Utilities,train
+PCG,1004980,PG&E Corporation,Utilities,train
+NRG,1013871,NRG Energy,Utilities,train
+VRSN,1014473,Verisign,Information Technology,train
+AMZN,1018724,Amazon,Consumer Discretionary,train
+IRM,1020569,Iron Mountain,Real Estate,train
+DGX,1022079,Quest Diagnostics,Health Care,train
+STLD,1022671,Steel Dynamics,Materials,train
+ROK,1024478,Rockwell Automation,Industrials,train
+FE,1031296,FirstEnergy,Utilities,train
+SRE,1032208,Sempra,Utilities,train
+SBAC,1034054,SBA Communications,Real Estate,train
+VLO,1035002,Valero Energy,Energy,train
+ISRG,1035267,Intuitive Surgical,Health Care,train
+ARE,1035443,Alexandria Real Estate Equities,Real Estate,train
+FIX,1035983,Comfort Systems USA,Industrials,train
+RL,1037038,Ralph Lauren Corporation,Consumer Discretionary,train
+BXP,1037540,"BXP, Inc.",Real Estate,train
+MTD,1037646,Mettler Toledo,Health Care,train
+AME,1037868,Ametek,Industrials,train
+OKE,1039684,Oneok,Energy,train
+YUM,1041061,Yum! Brands,Consumer Discretionary,train
+CHRW,1043277,C.H. Robinson,Industrials,train
+PLD,1045609,Prologis,Real Estate,train
+NVDA,1045810,Nvidia,Information Technology,validation
+ED,1047862,Consolidated Edison,Utilities,train
+MAR,1048286,Marriott International,Consumer Discretionary,company_test
+FFIV,1048695,"F5, Inc.",Information Technology,train
+FDX,1048911,FedEx,Industrials,train
+PWR,1050915,Quanta Services,Industrials,train
+CCI,1051470,Crown Castle,Real Estate,company_test
+AMT,1053507,American Tower,Real Estate,company_test
+CSGP,1057352,CoStar Group,Real Estate,train
+CMG,1058090,Chipotle Mexican Grill,Consumer Discretionary,train
+CTSH,1058290,Cognizant,Information Technology,train
+RSG,1060391,Republic Services,Industrials,train
+SPG,1063761,Simon Property Group,Real Estate,train
+EBAY,1065088,eBay Inc.,Consumer Discretionary,train
+NFLX,1065280,Netflix,Communication Services,validation
+URI,1067701,United Rentals,Industrials,train
+AXON,1069183,Axon Enterprise,Industrials,train
+LII,1069202,Lennox International,Industrials,train
+HST,1070750,Host Hotels & Resorts,Real Estate,train
+CNC,1071739,Centene Corporation,Health Care,train
+BKNG,1075531,Booking Holdings,Consumer Discretionary,train
+AKAM,1086222,Akamai Technologies,Information Technology,train
+DVN,1090012,Devon Energy,Energy,train
+UPS,1090727,United Parcel Service,Industrials,train
+A,1090872,Agilent Technologies,Health Care,train
+CHTR,1091667,Charter Communications,Communication Services,train
+DXCM,1093557,Dexcom,Health Care,train
+TDY,1094285,Teledyne Technologies,Information Technology,train
+ALGN,1097149,Align Technology,Health Care,train
+ON,1097864,ON Semiconductor,Information Technology,train
+EW,1099800,Edwards Lifesciences,Health Care,train
+CRL,1100682,Charles River Laboratories,Health Care,train
+EQIX,1101239,Equinix,Real Estate,train
+MDLZ,1103982,Mondelez International,Consumer Staples,train
+CRM,1108524,Salesforce,Information Technology,train
+EXC,1109357,Exelon,Utilities,train
+ILMN,1110803,"Illumina, Inc.",Health Care,train
+NI,1111711,NiSource,Utilities,train
+TPR,1116132,"Tapestry, Inc.",Consumer Discretionary,company_test
+GRMN,1121788,Garmin,Consumer Discretionary,train
+CNP,1130310,CenterPoint Energy,Utilities,train
+NOC,1133421,Northrop Grumman,Industrials,train
+ZBH,1136869,Zimmer Biomet,Health Care,train
+STX,1137789,Seagate Technology,Information Technology,train
+CBRE,1138118,CBRE Group,Real Estate,train
+COR,1140859,Cencora,Health Care,train
+PODD,1145197,Insulet Corporation,Health Care,train
+ELV,1156039,Elevance Health,Health Care,train
+COP,1163165,ConocoPhillips,Energy,train
+NEM,1164727,Newmont,Materials,train
+CMCSA,1166691,Comcast,Communication Services,train
+WYNN,1174922,Wynn Resorts,Consumer Discretionary,train
+TDG,1260221,TransDigm Group,Industrials,train
+FTNT,1262039,Fortinet,Information Technology,train
+FSLR,1274494,First Solar,Information Technology,train
+MPWR,1280452,Monolithic Power Systems,Information Technology,train
+TMUS,1283699,T-Mobile US,Communication Services,train
+MOS,1285785,Mosaic Company (The),Materials,train
+DPZ,1286681,Domino's,Consumer Discretionary,train
+EXR,1289490,Extra Space Storage,Real Estate,train
+DLR,1297996,Digital Realty,Real Estate,train
+LVS,1300514,Las Vegas Sands,Consumer Discretionary,company_test
+TSLA,1318605,"Tesla, Inc.",Consumer Discretionary,train
+PLTR,1321655,Palantir Technologies,Information Technology,train
+CF,1324404,CF Industries,Materials,train
+EXPE,1324424,Expedia Group,Consumer Discretionary,train
+DUK,1326160,Duke Energy,Utilities,train
+META,1326801,Meta Platforms,Communication Services,train
+PANW,1327567,Palo Alto Networks,Information Technology,train
+WDAY,1327811,"Workday, Inc.",Information Technology,train
+LYV,1335258,Live Nation Entertainment,Communication Services,train
+LDOS,1336920,Leidos,Industrials,train
+ORCL,1341439,Oracle Corporation,Information Technology,validation
+NOW,1373715,ServiceNow,Information Technology,train
+SMCI,1375365,Supermicro,Information Technology,train
+BR,1383312,Broadridge Financial Solutions,Industrials,train
+TEL,1385157,TE Connectivity,Information Technology,train
+TRGP,1389170,Targa Resources,Energy,train
+VEEV,1393052,Veeva Systems,Health Care,train
+PSA,1393311,Public Storage,Real Estate,train
+VMC,1396009,Vulcan Materials Company,Materials,train
+LULU,1397187,Lululemon Athletica,Consumer Discretionary,train
+CDW,1402057,CDW Corporation,Information Technology,train
+ULTA,1403568,Ulta Beauty,Consumer Discretionary,train
+AWK,1410636,American Water Works,Utilities,train
+PM,1413329,Philip Morris International,Consumer Staples,train
+NXPI,1413447,NXP Semiconductors,Information Technology,train
+ECHO,1415404,EchoStar,Communication Services,train
+KDP,1418135,Keurig Dr Pepper,Consumer Staples,train
+VRSK,1442145,Verisk Analytics,Industrials,train
+TWLO,1447669,Twilio,Information Technology,train
+TT,1466258,Trane Technologies,Industrials,train
+ACN,1467373,Accenture,Information Technology,train
+GM,1467858,General Motors,Consumer Discretionary,train
+P,1474432,Everpure,Information Technology,train
+GNRC,1474735,Generac,Industrials,train
+IQV,1478242,IQVIA,Health Care,train
+LYB,1489393,LyondellBasell,Materials,train
+HII,1501585,Huntington Ingalls Industries,Industrials,train
+KMI,1506307,Kinder Morgan,Energy,train
+MPC,1510295,Marathon Petroleum,Energy,train
+NCLH,1513761,Norwegian Cruise Line Holdings,Consumer Discretionary,train
+APTV,1521332,Aptiv,Consumer Discretionary,train
+XYL,1524472,Xylem Inc.,Industrials,train
+PSX,1534701,Phillips 66,Energy,train
+CRWD,1535527,CrowdStrike,Information Technology,train
+FANG,1539838,Diamondback Energy,Energy,train
+UBER,1543151,Uber,Industrials,train
+ABBV,1551152,AbbVie,Health Care,train
+ETN,1551182,Eaton Corporation,Industrials,train
+ZTS,1555280,Zoetis,Health Care,train
+ABNB,1559720,Airbnb,Consumer Discretionary,train
+DDOG,1561550,Datadog,Information Technology,train
+NWSA,1564708,News Corp,Communication Services,train
+DELL,1571996,Dell Technologies,Information Technology,train
+ALLE,1579241,Allegion,Industrials,train
+HLT,1585689,Hilton Worldwide,Consumer Discretionary,train
+ANET,1596532,Arista Networks,Information Technology,company_test
+KEYS,1601046,Keysight Technologies,Information Technology,train
+GDDY,1609711,GoDaddy,Information Technology,train
+MDT,1613103,Medtronic,Health Care,train
+LITE,1633978,Lumentum,Information Technology,train
+KHC,1637459,Kraft Heinz,Consumer Staples,train
+HPE,1645590,Hewlett Packard Enterprise,Information Technology,train
+GOOGL,1652044,Alphabet Inc.,Communication Services,train
+FTV,1659166,Fortive,Industrials,train
+BE,1664703,Bloom Energy,Industrials,train
+DD,1666700,DuPont,Industrials,train
+VRT,1674101,Vertiv,Industrials,train
+MRNA,1682852,Moderna,Health Care,company_test
+INVH,1687229,Invitation Homes,Real Estate,train
+CVNA,1690820,Carvana,Consumer Discretionary,train
+VST,1692819,Vistra Corp .,Utilities,train
+IR,1699150,Ingersoll Rand,Industrials,train
+BKR,1701605,Baker Hughes,Energy,train
+VICI,1705696,Vici Properties,Real Estate,train
+LIN,1707925,Linde plc,Materials,company_test
+EVRG,1711269,Evergy,Utilities,train
+RDDT,1713445,Reddit,Communication Services,train
+AVGO,1730168,Broadcom,Information Technology,train
+CI,1739940,Cigna,Health Care,train
+DIS,1744489,Walt Disney Company (The),Communication Services,train
+AMCR,1748790,Amcor,Materials,train
+APP,1751008,AppLovin,Communication Services,train
+DOW,1751788,Dow Inc.,Materials,train
+FOXA,1754301,Fox Corporation,Communication Services,train
+STE,1757898,Steris,Health Care,train
+OTIS,1781335,Otis Worldwide,Industrials,train
+CARR,1783180,Carrier Global,Industrials,train
+VTRS,1792044,Viatris,Health Care,train
+DASH,1792789,DoorDash,Consumer Discretionary,train
+TPL,1811074,Texas Pacific Land Corporation,Energy,train
+MRVL,1835632,Marvell Technology,Information Technology,train
+APA,1841666,APA Corporation,Energy,company_test
+CEG,1868275,Constellation Energy,Utilities,train
+GEHC,1932393,GE HealthCare,Health Care,company_test
+KVUE,1944048,Kenvue,Consumer Staples,train
+SOLV,1964738,Solventum,Health Care,train
+VLTO,1967680,Veralto,Industrials,train
+TKO,1973266,TKO Group Holdings,Communication Services,train
+GEV,1996810,GE Vernova,Industrials,train
+BG,1996862,Bunge Global,Consumer Staples,train
+SW,2005951,Smurfit Westrock,Materials,train
+FERG,2011641,Ferguson Enterprises,Industrials,train
+SNDK,2023554,Sandisk,Information Technology,train
+SKYD,2041610,Skydance,Communication Services,train
+Q,2058873,Qnity Electronics,Information Technology,train
+FDXF,2082247,FedEx Freight,Industrials,company_test
+HONA,2089271,Honeywell Aerospace,Industrials,train
+XOM,2115436,ExxonMobil,Energy,validation
+VYLR,2128626,Vylor,Consumer Staples,company_test

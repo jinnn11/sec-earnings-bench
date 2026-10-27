@@ -65,3 +65,12 @@ saved releases, each record (`<accession>.json`) with every exhibit's markdown.
 | CAT `0000018230-25-000037` (Q2 2025) | Statements in EX-99.1, plus an EX-99.2 that is not appended |
 | MSFT `0000950170-25-100226` (FY25) | A fourth-quarter release linked to a 10-K |
 | WMT `0000104169-25-000069` (Q1 FY26) | A real noncontrolling interest: "Consolidated net income" 4,639 (ProfitLoss) beside 4,487 attributable to Walmart |
+
+Company list fixture (`tests/test_companies.py`), made 2026-10-27:
+`sp500_snapshot.html` is Wikipedia's "List of S&P 500 companies" at revision
+1382097112 (2026-10-26T16:05:24Z,
+https://en.wikipedia.org/w/index.php?title=List_of_S%26P_500_companies&oldid=1382097112),
+cut to its `constituents` table, with the header row and 23 rows copied byte for byte:
+the 10 validation companies, three share-class pairs (GOOGL/GOOG, FOXA/FOX,
+NWSA/NWS), three Financials (BRK.B, JPM, V) and ABT, AMD, APD and LIN. The tests also
+read the tracked `data/companies.csv` to check that its split reproduces.

@@ -18,6 +18,9 @@ wheels/
 .env.*
 !.env.example
 
-# Downloaded SEC data and evaluation runs
-data/
+# Downloaded SEC data and evaluation runs; the stage 2 company list and split are
+# tracked, so the split is fixed before downloading (PLAN.md Decisions 2026-10-27)
+data/*
+!data/companies.csv
+!data/companies.json
 runs/

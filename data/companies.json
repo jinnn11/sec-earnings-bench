@@ -1,0 +1,30 @@
+{
+  "source_url": "https://en.wikipedia.org/w/index.php?title=List_of_S%26P_500_companies&oldid=1382097112",
+  "revision_id": 1382097112,
+  "revision_timestamp": "2026-10-26T16:05:24Z",
+  "fetched_at": "2026-10-27T01:01:41+00:00",
+  "listings": 503,
+  "financials_dropped": 76,
+  "share_classes_merged": [
+    [
+      "GOOGL",
+      "GOOG"
+    ],
+    [
+      "FOXA",
+      "FOX"
+    ],
+    [
+      "NWSA",
+      "NWS"
+    ]
+  ],
+  "companies": 424,
+  "seed": 20261027,
+  "splits": {
+    "validation": 10,
+    "company_test": 40,
+    "train": 374
+  },
+  "cik_mismatches": []
+}
