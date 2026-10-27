@@ -1,6 +1,6 @@
 # Model comparison
 
-From `uv run python -m secbench.compare`: 15 runs in runs/, graded against data/answers.csv; data/links.csv has 60 linked releases.
+From `uv run python -m secbench.compare`: 18 runs in runs/, graded against data/answers.csv; data/links.csv has 60 linked releases.
 
 ## Runs on all 60 linked releases
 
@@ -20,12 +20,15 @@ From `uv run python -m secbench.compare`: 15 runs in runs/, graded against data/
 | qwen3-8b-nothink-v2 | Qwen/Qwen3-8B | openai | extract_v2 | temperature 0, chat_template_kwargs {"enable_thinking": false} | 16 | 60 | graded | 260/293 (88.7%) | 84/102 (82.4%) | 88/102 (86.3%) | 88/89 (98.9%) | 260 | 0 | 0 | 14 | 0 | 1 | 2 | 6 | 0 | 10 | 0 | 67 | 14 | 0 | 0 | $0.0013 | GPU ($0.056/h x 83.0 s) | $0.02 | 21.39 s | 26.48 s |
 | gpt-oss-20b-v2 | openai/gpt-oss-20b | openai | extract_v2 | no temperature | 16 | 60 | graded | 276/293 (94.2%) | 96/102 (94.1%) | 98/102 (96.1%) | 82/89 (92.1%) | 276 | 6 | 0 | 0 | 0 | 3 | 0 | 8 | 0 | 0 | 0 | 67 | 0 | 0 | 0 | $0.0012 | GPU ($0.056/h x 75.6 s) | $0.02 | 19.25 s | 31.73 s |
 | gemma-12b-v2 | google/gemma-3-12b-it | openai | extract_v2 | temperature 0 | 16 | 60 | graded | 259/293 (88.4%) | 88/102 (86.3%) | 83/102 (81.4%) | 88/89 (98.9%) | 259 | 0 | 0 | 5 | 0 | 0 | 9 | 12 | 1 | 5 | 2 | 57 | 13 | 0 | 0 | $0.0017 | GPU ($0.056/h x 109.3 s) | $0.03 | 26.81 s | 39.09 s |
+| 2026-10-27T001249_gpt-6-luna_extract_v1 | gpt-6-luna | openai | extract_v1 | reasoning_effort medium, no temperature | 4 | 60 | graded | 291/293 (99.3%) | 102/102 (100.0%) | 100/102 (98.0%) | 89/89 (100.0%) | 291 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 67 | 0 | 0 | – | $0.0665 | tokens ($0.1 in, $0.5 out per M) | $1.11 | 2.60 s | 3.29 s |
+| 2026-10-27T001339_gpt-6-luna_extract_v2 | gpt-6-luna | openai | extract_v2 | reasoning_effort medium, no temperature | 4 | 60 | graded | 290/293 (99.0%) | 102/102 (100.0%) | 99/102 (97.1%) | 89/89 (100.0%) | 290 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 67 | 0 | 0 | 0 | $0.0674 | tokens ($0.1 in, $0.5 out per M) | $1.12 | 2.38 s | 3.32 s |
 
 ## Other runs: fewer releases, stopped or not graded
 
 | run | model | provider | prompt | settings sent | releases | status | accuracy | unit slips | format retries | format nulls | cost | cost basis | latency p50 | latency p95 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-10-14T022812_claude-opus-5-5_extract_v1 | claude-opus-5-5 | anthropic | extract_v1 | max_tokens 16000, effort medium, no temperature | 1 | graded | 6/6 (100.0%) | 0 | 0 | – | $0.0244 | tokens ($4 in, $20 out per M) | 2.06 s | 2.06 s |
+| smoke-gpt-luna | gpt-6-luna | openai | extract_v1 | reasoning_effort medium, no temperature | 1 | graded | 6/6 (100.0%) | 0 | 0 | – | $0.0005 | tokens ($0.1 in, $0.5 out per M) | 4.41 s | 4.41 s |
 
 Notes:
 - Accuracy is correct figures over figures graded; not_in_input and no_answer are left out, as in each run's summary.txt.
