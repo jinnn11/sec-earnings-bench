@@ -4,8 +4,11 @@ For each run folder with a run.json (see secbench.extract): the model, provider,
 prompt version and request parameters sent, accuracy overall and by field, counts
 by verdict and unit slips (errors matched with a power-of-ten factor, scale and zeros
 included) from the run's saved graded.csv (see secbench.grade), format retries,
-format nulls (prompts with units: figures still bad on the retry), the
-estimated cost and per-call latency. Graded runs that cover every linked release in
+format nulls (prompts with units: figures still bad on the retry), input tokens
+per release, the estimated cost and per-call latency. With --gpu-hourly, runs priced by GPU-hour are
+repriced at that many dollars per GPU-hour times their wall-clock time, so runs paid
+at different GPU prices compare (the cost basis column still gives the price paid).
+Graded runs that cover every linked release in
 links.csv go in the main table, with cost per 1,000 releases; runs on fewer releases,
 stopped or not graded go in a smaller table below it, so a short run's cost per
 release doesn't sit beside full runs. A run whose graded.csv doesn't match the
@@ -15,6 +18,7 @@ shown: settings come from run.json's request_parameters.
 
 Usage: uv run python -m secbench.compare [--runs-dir runs]
        [--out results/comparison.md] [--links data/links.csv] [--answers data/answers.csv]
+       [--gpu-hourly 1.00]
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -33,6 +38,7 @@ from secbench.answers import DEFAULT_OUT as DEFAULT_ANSWERS
 from secbench.answers import FIELDS, Answer, load_links, plural
 from secbench.extract import (
     ABORTED,
+    GPU_HOURS,
     INVALID_REPLY,
     OK_AFTER_RETRY,
     RUN_INFO,
@@ -178,6 +184,15 @@ def format_nulls(info: dict[str, Any]) -> str:
     return str(len(info["format_nulls"]))
 
 
+def input_tokens_per_release(info: dict[str, Any]) -> str:
+    """run.json's input tokens over its releases, every call included (a retry sends
+    the conversation again); none unless every call has token counts."""
+    tokens = info.get("tokens")
+    if not tokens or tokens.get("calls_without_usage") or not info.get("releases"):
+        return "none"
+    return f"{tokens['input'] / info['releases']:,.0f}"
+
+
 def cost_basis(info: dict[str, Any]) -> str | None:
     """run.json's cost_basis; runs from before it was recorded priced tokens."""
     if "cost_basis" in info:
@@ -189,23 +204,34 @@ def money(value: float, places: int) -> str:
     return f"${value:,.{places}f}"
 
 
-def describe_basis(info: dict[str, Any]) -> str:
+def describe_basis(info: dict[str, Any], gpu_hourly: float | None = None) -> str:
     basis = cost_basis(info)
     if basis is None:
         return "none"
     if basis == TOKENS:
         prices = info["price_per_million_tokens"]
         return f"tokens (${prices['input']:g} in, ${prices['output']:g} out per M)"
-    return f"GPU (${info['gpu_hourly_usd']:g}/h x {info['wall_time_s']:.1f} s)"
+    paid, seconds = info["gpu_hourly_usd"], info["wall_time_s"]
+    if gpu_hourly is None:
+        return f"GPU (${paid:g}/h x {seconds:.1f} s)"
+    return f"GPU at ${gpu_hourly:g}/h x {seconds:.1f} s (paid ${paid:g}/h)"
 
 
-def cost(info: dict[str, Any]) -> str:
-    value = info.get("estimated_cost_usd")
+def cost_value(info: dict[str, Any], gpu_hourly: float | None = None) -> float | None:
+    """run.json's estimated cost; with gpu_hourly, a run priced by GPU-hour is that
+    price times its wall-clock time instead."""
+    if gpu_hourly is not None and cost_basis(info) == GPU_HOURS:
+        return gpu_hourly * info["wall_time_s"] / 3600
+    return info.get("estimated_cost_usd")
+
+
+def cost(info: dict[str, Any], gpu_hourly: float | None = None) -> str:
+    value = cost_value(info, gpu_hourly)
     return "none" if value is None else money(value, 4)
 
 
-def cost_per_thousand(info: dict[str, Any]) -> str:
-    value = info.get("estimated_cost_usd")
+def cost_per_thousand(info: dict[str, Any], gpu_hourly: float | None = None) -> str:
+    value = cost_value(info, gpu_hourly)
     if value is None or not info.get("releases"):
         return "none"
     return money(value / info["releases"] * 1000, 2)
@@ -232,7 +258,9 @@ def markdown_table(header: list[str], rows: list[list[str]]) -> list[str]:
     ]
 
 
-def main_table(runs: list[Run]) -> tuple[list[str], list[str]]:
+def main_table(
+    runs: list[Run], gpu_hourly: float | None = None
+) -> tuple[list[str], list[str]]:
     """The full runs' table, and the verdicts that are 0 in every one of them (not
     given a column)."""
     counts = {run.name: Counter(run.verdicts()) for run in runs}
@@ -252,6 +280,7 @@ def main_table(runs: list[Run]) -> tuple[list[str], list[str]]:
         "unit slips",
         "format retries",
         "format nulls",
+        "input tokens / release",
         "cost",
         "cost basis",
         "cost / 1,000 releases",
@@ -277,9 +306,10 @@ def main_table(runs: list[Run]) -> tuple[list[str], list[str]]:
                 run.unit_slips(),
                 format_retries(info),
                 format_nulls(info),
-                cost(info),
-                describe_basis(info),
-                cost_per_thousand(info),
+                input_tokens_per_release(info),
+                cost(info, gpu_hourly),
+                describe_basis(info, gpu_hourly),
+                cost_per_thousand(info, gpu_hourly),
                 latency(info, "p50"),
                 latency(info, "p95"),
             ]
@@ -287,7 +317,7 @@ def main_table(runs: list[Run]) -> tuple[list[str], list[str]]:
     return markdown_table(header, rows), [v for v in VERDICTS if v not in shown]
 
 
-def other_table(runs: list[Run]) -> list[str]:
+def other_table(runs: list[Run], gpu_hourly: float | None = None) -> list[str]:
     header = [
         "run",
         "model",
@@ -300,6 +330,7 @@ def other_table(runs: list[Run]) -> list[str]:
         "unit slips",
         "format retries",
         "format nulls",
+        "input tokens / release",
         "cost",
         "cost basis",
         "latency p50",
@@ -318,8 +349,9 @@ def other_table(runs: list[Run]) -> list[str]:
             run.unit_slips(),
             format_retries(run.info),
             format_nulls(run.info),
-            cost(run.info),
-            describe_basis(run.info),
+            input_tokens_per_release(run.info),
+            cost(run.info, gpu_hourly),
+            describe_basis(run.info, gpu_hourly),
             latency(run.info, "p50"),
             latency(run.info, "p95"),
         ]
@@ -336,6 +368,7 @@ def format_comparison(
     runs_dir: Path,
     links_path: Path,
     answers_path: Path,
+    gpu_hourly: float | None = None,
 ) -> str:
     full = [
         r
@@ -345,11 +378,14 @@ def format_comparison(
         and linked <= r.covered
     ]
     others = [r for r in runs if r not in full]
+    command = "uv run python -m secbench.compare"
+    if gpu_hourly is not None:
+        command += f" --gpu-hourly {gpu_hourly:g}"
     lines = [
         "# Model comparison",
         "",
         (
-            f"From `uv run python -m secbench.compare`: {plural(len(runs), 'run')} in "
+            f"From `{command}`: {plural(len(runs), 'run')} in "
             f"{runs_dir}/, graded against {answers_path}; {links_path} has "
             f"{plural(len(linked), 'linked release')}."
         ),
@@ -359,7 +395,7 @@ def format_comparison(
     ]
     zero: list[str] = []
     if full:
-        table, zero = main_table(full)
+        table, zero = main_table(full, gpu_hourly)
         lines.extend(table)
     else:
         lines.append("None.")
@@ -368,7 +404,7 @@ def format_comparison(
             "",
             "## Other runs: fewer releases, stopped or not graded",
             "",
-            *(other_table(others) if others else ["None."]),
+            *(other_table(others, gpu_hourly) if others else ["None."]),
             "",
             "Notes:",
             (
@@ -400,8 +436,20 @@ def format_comparison(
                 "format retries); – for prompts without units."
             ),
             (
+                "- Input tokens / release: run.json's input tokens over its releases, "
+                "retries included. The same release counts as more or fewer tokens "
+                "depending on the model's tokenizer; none if a call reported no "
+                "token counts."
+            ),
+            (
                 "- Cost is run.json's estimate: tokens at the run's prices per "
                 "million, or GPU dollars per hour times the run's wall-clock time. "
+                "Latency is per call."
+                if gpu_hourly is None
+                else "- Cost is run.json's estimate at the run's token prices per "
+                f"million; runs priced by GPU-hour are repriced at ${gpu_hourly:g} "
+                "per GPU-hour times the run's wall-clock time (--gpu-hourly), so "
+                "they compare with each other (paid: the price each run recorded). "
                 "Latency is per call."
             ),
             (
@@ -416,6 +464,16 @@ def format_comparison(
     return "\n".join(lines) + "\n"
 
 
+def dollars(value: str) -> float:
+    try:
+        number = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("not a number") from None
+    if not math.isfinite(number) or number < 0:
+        raise argparse.ArgumentTypeError("must be 0 or more")
+    return number
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m secbench.compare",
@@ -426,6 +484,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--links", type=Path, default=DEFAULT_LINKS)
     parser.add_argument("--answers", type=Path, default=DEFAULT_ANSWERS)
+    parser.add_argument(
+        "--gpu-hourly",
+        type=dollars,
+        metavar="DOLLARS",
+        help="reprice runs priced by GPU-hour at this many dollars per GPU-hour",
+    )
     args = parser.parse_args(argv)
     for path in (args.runs_dir, args.links, args.answers):
         if not path.exists():
@@ -445,6 +509,7 @@ def main(argv: list[str] | None = None) -> int:
         runs_dir=args.runs_dir,
         links_path=args.links,
         answers_path=args.answers,
+        gpu_hourly=args.gpu_hourly,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     write_text(args.out, text)

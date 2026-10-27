@@ -182,6 +182,8 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
             releases=ALL,
             outcomes={"ok": 2, "ok_after_retry": 1},
             latency=(1.5, 2.5),
+            # 4 calls (one release retried), 45,000 input tokens: 15,000 a release.
+            tokens={"input": 45000, "output": 900, "calls_without_usage": 0},
             price_per_million_tokens={"input": 4.0, "output": 20.0},
             estimated_cost_usd=0.012,
         ),
@@ -199,6 +201,8 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
             outcomes={"ok": 2, "invalid_reply": 1},
             latency=(0.8, 1.25),
             max_parallel=16,
+            # One call without token counts: no tokens per release.
+            tokens={"input": 31000, "output": 700, "calls_without_usage": 1},
             # Its invalid reply had a format null: a figure still bad on the retry.
             prompt_version="extract_v2",
             reply_format="with_units",
@@ -230,6 +234,7 @@ def fake_runs(tmp_path) -> tuple[Path, Path, Path]:
             parameters={"max_tokens": 16000},
             releases=[R1],
             latency=(1.0, 1.0),
+            tokens={"input": 12345, "output": 300, "calls_without_usage": 0},
             price_per_million_tokens={"input": 4.0, "output": 20.0},
             cost_basis="tokens",
             estimated_cost_usd=0.004,
@@ -283,14 +288,13 @@ MAIN_HEADER = (
     "| run | model | provider | prompt | settings sent | concurrency | releases | "
     "status | accuracy | revenue | net_income | eps_diluted | correct | missing | "
     "zeros | wrong_line | no_answer | unit slips | format retries | format nulls | "
-    "cost | "
-    "cost basis | cost / 1,000 releases | latency p50 | latency p95 |"
+    "input tokens / release | cost | cost basis | cost / 1,000 releases | "
+    "latency p50 | latency p95 |"
 )
 OTHER_HEADER = (
     "| run | model | provider | prompt | settings sent | releases | status | "
-    "accuracy | unit slips | format retries | format nulls | cost | cost basis | "
-    "latency p50 | "
-    "latency p95 |"
+    "accuracy | unit slips | format retries | format nulls | input tokens / release "
+    "| cost | cost basis | latency p50 | latency p95 |"
 )
 
 
@@ -313,39 +317,40 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
         "## Runs on all 3 linked releases",
         "",
         MAIN_HEADER,
-        "|" + "|".join([" --- "] * 25) + "|",
+        "|" + "|".join([" --- "] * 26) + "|",
         # 0.012 / 3 releases x 1,000 = $4.00.
         (
             f"| a-opus | claude-test | anthropic | extract_v1 | {OPUS} | 4 | 3 | graded "
             "| 6/6 (100.0%) | 3/3 (100.0%) | 3/3 (100.0%) | 0/0 | 6 | 0 | 0 | 0 | 1 | "
-            "0 | 1 | – | $0.0120 | tokens ($4 in, $20 out per M) | $4.00 | 1.50 s | "
-            "2.50 s |"
+            "0 | 1 | – | 15,000 | $0.0120 | tokens ($4 in, $20 out per M) | $4.00 | "
+            "1.50 s | 2.50 s |"
         ),
         # $2.50 per hour for 72 s is $0.05; / 3 x 1,000 = $16.67.
         (
             "| b-vllm | qwen3-4b | openai | extract_v2 | temperature 0, "
             "reasoning_effort medium | 16 | 3 | graded | 3/6 (50.0%) | 2/3 (66.7%) | "
-            "1/3 (33.3%) | 0/0 | 3 | 1 | 1 | 1 | 0 | 2 | 1 (1 invalid) | 1 | $0.0500 | "
-            "GPU ($2.5/h x 72.0 s) | $16.67 | 0.80 s | 1.25 s |"
+            "1/3 (33.3%) | 0/0 | 3 | 1 | 1 | 1 | 0 | 2 | 1 (1 invalid) | 1 | none | "
+            "$0.0500 | GPU ($2.5/h x 72.0 s) | $16.67 | 0.80 s | 1.25 s |"
         ),
         (
             "| e-stale | gpt-test | openai | extract_v1 | no temperature | 4 | 3 | "
             "stale: re-grade | 6/6 (100.0%) | 3/3 (100.0%) | 3/3 (100.0%) | 0/0 | 6 | "
-            "0 | 0 | 0 | 0 | 0 | 0 | – | none | none | none | 2.00 s | 3.00 s |"
+            "0 | 0 | 0 | 0 | 0 | 0 | – | none | none | none | none | 2.00 s | 3.00 s |"
         ),
         "",
         "## Other runs: fewer releases, stopped or not graded",
         "",
         OTHER_HEADER,
-        "|" + "|".join([" --- "] * 15) + "|",
+        "|" + "|".join([" --- "] * 16) + "|",
         (
             "| c-smoke | claude-test | anthropic | extract_v1 | max_tokens 16000, "
             "default effort, no temperature | 1 | graded | 2/2 (100.0%) | 0 | 0 | – | "
-            "$0.0040 | tokens ($4 in, $20 out per M) | 1.00 s | 1.00 s |"
+            "12,345 | $0.0040 | tokens ($4 in, $20 out per M) | 1.00 s | 1.00 s |"
         ),
         (
             "| d-stopped | gpt-test | openai | extract_v1 | temperature 0 | 2 | "
-            "stopped, not graded | none | none | 0 | – | none | none | none | none |"
+            "stopped, not graded | none | none | 0 | – | none | none | none | none | "
+            "none |"
         ),
         "",
         "Notes:",
@@ -371,6 +376,12 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
             "income figures still malformed or with an unknown unit on the retry; each "
             'made its release an invalid reply (the "(n invalid)" of format retries); '
             "– for prompts without units."
+        ),
+        (
+            "- Input tokens / release: run.json's input tokens over its releases, "
+            "retries included. The same release counts as more or fewer tokens "
+            "depending on the model's tokenizer; none if a call reported no token "
+            "counts."
         ),
         (
             "- Cost is run.json's estimate: tokens at the run's prices per million, or "
@@ -447,3 +458,66 @@ def test_missing_inputs(fake_runs, tmp_path, capsys) -> None:
         assert compare.main(argv) == 1
         assert f"error: {tmp_path / 'none'} not found" in capsys.readouterr().err
     assert not (tmp_path / "c.md").exists()
+
+
+def test_compare_at_a_reference_gpu_price(fake_runs, tmp_path, capsys) -> None:
+    runs, links, answers = fake_runs
+    argv = ["--runs-dir", str(runs), "--links", str(links), "--answers", str(answers)]
+    paid, reference = tmp_path / "paid.md", tmp_path / "reference.md"
+    assert compare.main([*argv, "--out", str(paid)]) == 0
+    assert compare.main([*argv, "--out", str(reference), "--gpu-hourly", "1"]) == 0
+    capsys.readouterr()
+    paid_lines = paid.read_text().splitlines()
+    lines = reference.read_text().splitlines()
+    assert lines[2].startswith(
+        "From `uv run python -m secbench.compare --gpu-hourly 1`: 5 runs in "
+    )
+    # b-vllm paid $2.50 per hour; at $1, its 72 s cost $0.02, / 3 releases x 1,000 =
+    # $6.67.
+    [vllm] = [line for line in lines if line.startswith("| b-vllm ")]
+    assert vllm.endswith(
+        "| 1 (1 invalid) | 1 | none | $0.0200 | GPU at $1/h x 72.0 s (paid $2.5/h) | "
+        "$6.67 | 0.80 s | 1.25 s |"
+    )
+    # Token-priced runs, and runs without a cost, are unchanged.
+    for name in ("a-opus", "c-smoke", "d-stopped", "e-stale"):
+        [before] = [line for line in paid_lines if line.startswith(f"| {name} ")]
+        [after] = [line for line in lines if line.startswith(f"| {name} ")]
+        assert after == before
+    assert (
+        "- Cost is run.json's estimate at the run's token prices per million; runs "
+        "priced by GPU-hour are repriced at $1 per GPU-hour times the run's "
+        "wall-clock time (--gpu-hourly), so they compare with each other (paid: the "
+        "price each run recorded). Latency is per call."
+    ) in lines
+
+
+@pytest.mark.parametrize(
+    ("value", "message"), [("cheap", "not a number"), ("-1", "must be 0 or more")]
+)
+def test_a_bad_gpu_price_is_refused(capsys, value, message) -> None:
+    with pytest.raises(SystemExit) as raised:
+        compare.main(["--gpu-hourly", value])
+    assert raised.value.code == 2
+    assert f"argument --gpu-hourly: {message}" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("info", "shown"),
+    [
+        # Every call counts, a retry's too: 45,000 over 3 releases.
+        (
+            {"releases": 3, "tokens": {"input": 45000, "calls_without_usage": 0}},
+            "15,000",
+        ),
+        (
+            {"releases": 60, "tokens": {"input": 917738, "calls_without_usage": 0}},
+            "15,296",
+        ),
+        ({"releases": 3, "tokens": {"input": 45000, "calls_without_usage": 1}}, "none"),
+        ({"releases": 3}, "none"),  # no token counts recorded
+        ({"releases": 0, "tokens": {"input": 0, "calls_without_usage": 0}}, "none"),
+    ],
+)
+def test_input_tokens_per_release(info, shown) -> None:
+    assert compare.input_tokens_per_release(info) == shown
