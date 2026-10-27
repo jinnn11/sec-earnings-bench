@@ -28,6 +28,7 @@ from secbench.extract import (
     MALFORMED,
     OK,
     OK_AFTER_RETRY,
+    OPENAI_EFFORTS,
     RAW_DOLLARS,
     RETRY_MESSAGE,
     UNITS,
@@ -93,6 +94,35 @@ SETTINGS = Settings(
     price_input=3.0,
     price_output=15.0,
 )
+
+# OpenAI's own API, as a run on gpt-6.1-sol would be set up.
+OPENAI_API_ENVIRON = {
+    "MODEL_BASE_URL": "https://api.openai.com/v1",
+    "MODEL_NAME": "gpt-6.1-sol",
+    "MODEL_API_KEY": KEY,
+    "MODEL_EFFORT": "high",
+    "MODEL_PRICE_INPUT": "2",
+    "MODEL_PRICE_OUTPUT": "8",
+}
+OPENAI_API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+RATE_LIMITED = {
+    "error": {
+        "message": "Rate limit reached for gpt-6.1-sol on tokens per min (TPM). Please "
+        "try again in 1.2s.",
+        "type": "tokens",
+        "param": None,
+        "code": "rate_limit_exceeded",
+    }
+}
+OUT_OF_QUOTA = {
+    "error": {
+        "message": "You exceeded your current quota, please check your plan and "
+        "billing details.",
+        "type": "insufficient_quota",
+        "param": None,
+        "code": "insufficient_quota",
+    }
+}
 
 REPLY = {
     "period_end": "2025-03-29",
@@ -738,7 +768,18 @@ def test_select_releases() -> None:
 # HTTP retries (the OpenAI-compatible client alone)
 
 
-def completion(content: str, input_tokens=1000, output_tokens=100) -> httpx.Response:
+def completion(
+    content: str, input_tokens=1000, output_tokens=100, reasoning_tokens=None
+) -> httpx.Response:
+    """A chat completion. output_tokens includes reasoning_tokens, as OpenAI counts
+    completion_tokens."""
+    usage = {
+        "prompt_tokens": input_tokens,
+        "completion_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+    }
+    if reasoning_tokens is not None:
+        usage["completion_tokens_details"] = {"reasoning_tokens": reasoning_tokens}
     return httpx.Response(
         200,
         json={
@@ -751,11 +792,7 @@ def completion(content: str, input_tokens=1000, output_tokens=100) -> httpx.Resp
                     "finish_reason": "stop",
                 }
             ],
-            "usage": {
-                "prompt_tokens": input_tokens,
-                "completion_tokens": output_tokens,
-                "total_tokens": input_tokens + output_tokens,
-            },
+            "usage": usage,
         },
     )
 
@@ -833,6 +870,34 @@ def test_chat_client_backs_off_on_5xx_and_connection_errors() -> None:
     assert len(slept) == 3
     for delay, base in zip(slept, (1, 2, 4), strict=True):
         assert base <= delay <= 1.25 * base
+
+
+def test_chat_client_backs_off_on_a_rate_limit() -> None:
+    # OpenAI's 429 without Retry-After: the same backoff as 5xx, not an API error.
+    chat, _, slept = scripted_client(
+        [httpx.Response(429, json=RATE_LIMITED)] * 2 + [completion("{}")]
+    )
+    exchange = chat.complete(BODY)
+    assert (exchange.content, exchange.error, exchange.abort) == ("{}", "", False)
+    assert [a["status"] for a in exchange.attempts] == [429, 429, 200]
+    assert exchange.attempts[0]["response"] == RATE_LIMITED
+    for delay, base in zip(slept, (1, 2), strict=True):
+        assert base <= delay <= 1.25 * base
+
+
+def test_chat_client_stops_the_run_when_out_of_quota() -> None:
+    # Also a 429, but no retry can succeed.
+    chat, requests, slept = scripted_client([httpx.Response(429, json=OUT_OF_QUOTA)])
+    exchange = chat.complete(BODY)
+    assert exchange.abort and exchange.reply is None
+    assert exchange.error == (
+        "HTTP 429 insufficient_quota (You exceeded your current quota, please check "
+        "your plan and billing details.); check the account's plan and billing"
+    )
+    assert [(a["status"], a["response"]) for a in exchange.attempts] == [
+        (429, OUT_OF_QUOTA)
+    ]
+    assert len(requests) == 1 and slept == []
 
 
 def test_chat_client_gives_up_after_5_retries() -> None:
@@ -960,7 +1025,12 @@ class FakeModel:
     """An OpenAI-compatible chat completions server. script(accession, call,
     body) gives each response; call counts the release's requests from 1."""
 
-    def __init__(self, script: Callable[[str, int, dict], httpx.Response]) -> None:
+    def __init__(
+        self,
+        script: Callable[[str, int, dict], httpx.Response],
+        endpoint: str = ENDPOINT,
+    ) -> None:
+        self.endpoint = endpoint
         records = release_records(RELEASES)
         self.accessions = {build_input(records[a]).text: a for a in FIXTURE_RELEASES}
         self.script = script
@@ -975,7 +1045,7 @@ class FakeModel:
         return [r for r in self.requests if self.accession(r) == accession]
 
     def handler(self, request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST" and str(request.url) == ENDPOINT
+        assert request.method == "POST" and str(request.url) == self.endpoint
         body = json.loads(request.content)
         accession = self.accession(request)
         with self._lock:
@@ -992,6 +1062,7 @@ def run(
     *args: str,
     environ=ENVIRON,
     anthropic_client=None,
+    sleep: Callable[[float], None] = lambda s: None,
 ) -> int:
     transport = httpx.MockTransport(model.handler) if model else None
     argv = [
@@ -1017,7 +1088,7 @@ def run(
         environ=environ,
         anthropic_client=anthropic_client,
         edgar_client=make_client(tmp_path / "raw"),
-        sleep=lambda s: None,
+        sleep=sleep,
     )
 
 
@@ -1385,6 +1456,137 @@ def test_run_with_gpu_hour_cost(tmp_path, key_dir, perfect_replies, capsys) -> N
     )
 
 
+# The settings of the vLLM runs so far (their run.json request_parameters), and the
+# "sent with each request" line each printed.
+VLLM_RUNS = [
+    ({}, {}, "no temperature"),  # Qwen3-8B with thinking, gpt-oss-20b
+    ({"MODEL_TEMPERATURE": "0"}, {"temperature": 0.0}, "temperature 0"),  # Llama, Gemma
+    (
+        {
+            "MODEL_TEMPERATURE": "0",
+            "MODEL_EXTRA_BODY": '{"chat_template_kwargs": {"enable_thinking": false}}',
+        },
+        {"temperature": 0.0, "chat_template_kwargs": {"enable_thinking": False}},
+        'temperature 0, chat_template_kwargs {"enable_thinking": false}',
+    ),  # Qwen3-8B without thinking
+]
+
+
+@pytest.mark.parametrize(("changes", "parameters", "shown"), VLLM_RUNS)
+def test_vllm_requests_are_unchanged(changes, parameters, shown) -> None:
+    settings = load_settings(
+        {
+            "MODEL_BASE_URL": "http://localhost:8000/v1",
+            "MODEL_NAME": "Qwen/Qwen3-8B",
+            "MODEL_CONCURRENCY": "16",
+            "MODEL_GPU_HOURLY": "0.056",
+            **changes,
+        }
+    )
+    assert settings.parameters == parameters
+    assert describe_parameters("openai", settings.parameters) == shown
+    chat, requests, _ = scripted_client([completion("{}")], settings)
+    prompt = load_prompt("extract_v1", PROMPTS)
+    chat.complete(chat.first_body(prompt, "release text"))
+    [request] = requests
+    assert str(request.url) == "http://localhost:8000/v1/chat/completions"
+    assert "Authorization" not in request.headers
+    # Exactly these keys, in this order: no reasoning_effort, no token limit.
+    assert json.loads(request.content) == {
+        "model": "Qwen/Qwen3-8B",
+        "messages": [
+            {"role": "system", "content": prompt.text},
+            {"role": "user", "content": "release text"},
+        ],
+        **parameters,
+    }
+    assert list(json.loads(request.content)) == ["model", "messages", *parameters]
+
+
+def test_run_with_openai_api(tmp_path, key_dir, perfect_replies, capsys) -> None:
+    def script(accession, call, body) -> httpx.Response:
+        if accession == CAT and call == 1:  # rate-limited once
+            return httpx.Response(429, json=RATE_LIMITED, headers={"Retry-After": "2"})
+        # 600 output tokens, 500 of them reasoning.
+        return completion(
+            json.dumps(perfect_replies[accession]),
+            output_tokens=600,
+            reasoning_tokens=500,
+        )
+
+    model = FakeModel(script, endpoint=OPENAI_API_ENDPOINT)
+    slept: list[float] = []
+    assert (
+        run(tmp_path, key_dir, model, environ=OPENAI_API_ENVIRON, sleep=slept.append)
+        == 0
+    )
+    assert model.calls == {AAPL: 1, CAT: 2, MSFT: 1, WMT: 1, XOM: 1}
+    assert slept == [2.0]  # the 429's Retry-After
+    for request in model.requests:
+        assert request.headers["Authorization"] == f"Bearer {KEY}"
+        body = json.loads(request.content)
+        # reasoning_effort from MODEL_EFFORT; no temperature, no output-token limit.
+        assert set(body) == {"model", "messages", "reasoning_effort"}
+        assert (body["model"], body["reasoning_effort"]) == ("gpt-6.1-sol", "high")
+
+    run_dir = tmp_path / "runs" / "test"
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["request_parameters"] == {"reasoning_effort": "high"}
+    assert info["outcomes"][OK] == 5 and info["fallbacks"] == []
+    cat = [c for c in info["calls"] if c["release_accession"] == CAT]
+    assert [(c["status"], c["http_attempts"]) for c in cat] == [(200, 2)]
+    # Reasoning tokens are in completion_tokens, so priced as output.
+    assert info["tokens"] == {"input": 5000, "output": 3000, "calls_without_usage": 0}
+    # 5,000 input tokens at $2 and 3,000 output tokens at $8 per million.
+    assert info["cost_basis"] == "tokens"
+    assert info["estimated_cost_usd"] == 0.034
+    raw = json.loads((run_dir / "raw" / f"{CAT}.json").read_text())
+    first, second = raw["calls"][0]["attempts"]
+    assert (first["status"], first["response"]) == (429, RATE_LIMITED)
+    assert second["response"]["usage"]["completion_tokens_details"] == {
+        "reasoning_tokens": 500
+    }
+
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines[0] == (
+        f"{run_dir}: 5 releases, provider openai, prompt extract_v1, "
+        "reasoning_effort high, no temperature, up to 4 calls at a time"
+    )
+    assert (
+        "provider openai; sent with each request: reasoning_effort high, no temperature"
+    ) in lines
+    assert "estimated cost: $0.0340 ($2 input, $8 output per million tokens)" in lines
+    assert "accuracy: 26/26 (100.0%)" in lines
+    assert "API errors (all-null predictions, graded as missing): 0" in lines
+    for path in run_dir.rglob("*"):
+        if path.is_file():
+            assert KEY not in path.read_text()
+
+
+def test_running_out_of_quota_stops_the_run(tmp_path, key_dir, capsys) -> None:
+    model = FakeModel(
+        lambda a, call, body: httpx.Response(429, json=OUT_OF_QUOTA),
+        endpoint=OPENAI_API_ENDPOINT,
+    )
+    slept: list[float] = []
+    assert (
+        run(tmp_path, key_dir, model, environ=OPENAI_API_ENVIRON, sleep=slept.append)
+        == 1
+    )
+    # The first four calls were in flight, none retried; the fifth never started.
+    assert len(model.requests) == 4 and slept == []
+    run_dir = tmp_path / "runs" / "test"
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["status"] == "aborted"
+    assert info["stop_reason"] == (
+        "HTTP 429 insufficient_quota (You exceeded your current quota, please check "
+        "your plan and billing details.); check the account's plan and billing"
+    )
+    assert not (run_dir / "predictions.jsonl").exists()
+    assert "stopped, not graded: HTTP 429 insufficient_quota" in capsys.readouterr().out
+
+
 def test_default_run_name_for_a_model_id_with_a_slash(
     tmp_path, key_dir, perfect_replies
 ) -> None:
@@ -1696,7 +1898,8 @@ def test_dry_run_makes_no_calls(tmp_path, key_dir, capsys, version) -> None:
         (
             "openai (the default): POST <MODEL_BASE_URL>/chat/completions, model "
             "<MODEL_NAME>, temperature <MODEL_TEMPERATURE> (not sent if blank), "
-            "<MODEL_EXTRA_BODY> merged into the body (if set)"
+            "reasoning_effort <MODEL_EFFORT> (not sent if blank), <MODEL_EXTRA_BODY> "
+            "merged into the body (if set)"
         ),
         (
             "anthropic: messages.create (anthropic SDK), model <MODEL_NAME>, "
@@ -1872,13 +2075,46 @@ def test_anthropic_effort_is_left_out_when_blank() -> None:
 def test_a_bad_effort_names_the_setting_not_its_value() -> None:
     with pytest.raises(SettingsError) as raised:
         load_settings({**ANTHROPIC_ENVIRON, "MODEL_EFFORT": "extreme"})
-    assert str(raised.value) == ("MODEL_EFFORT must be low, medium, high, xhigh or max")
+    assert str(raised.value) == (
+        "MODEL_EFFORT must be low, medium, high, xhigh or max for anthropic"
+    )
 
 
-def test_openai_ignores_model_effort() -> None:
-    settings = load_settings({**ENVIRON, "MODEL_EFFORT": "extreme"})
-    assert settings.effort is None
-    assert settings.parameters == {"temperature": 0.0}
+@pytest.mark.parametrize("effort", OPENAI_EFFORTS)
+def test_openai_sends_model_effort_as_reasoning_effort(effort) -> None:
+    settings = load_settings(
+        {**OPENAI_API_ENVIRON, "MODEL_EFFORT": f" {effort.upper()} "}
+    )
+    assert settings.effort == effort
+    # No temperature (MODEL_TEMPERATURE unset) and no output-token limit.
+    assert settings.parameters == {"reasoning_effort": effort}
+    assert describe_parameters("openai", settings.parameters) == (
+        f"reasoning_effort {effort}, no temperature"
+    )
+    warm = load_settings({**ENVIRON, "MODEL_EFFORT": effort})
+    assert warm.parameters == {"temperature": 0.0, "reasoning_effort": effort}
+
+
+def test_a_bad_openai_effort_names_the_setting_not_its_value() -> None:
+    with pytest.raises(SettingsError) as raised:
+        load_settings({**OPENAI_API_ENVIRON, "MODEL_EFFORT": "extreme"})
+    assert str(raised.value) == (
+        "MODEL_EFFORT must be none, minimal, low, medium, high, xhigh or max for openai"
+    )
+
+
+def test_model_effort_or_extra_body_reasoning_effort_not_both() -> None:
+    extra = '{"reasoning_effort": "low"}'
+    with pytest.raises(SettingsError) as raised:
+        load_settings({**OPENAI_API_ENVIRON, "MODEL_EXTRA_BODY": extra})
+    assert str(raised.value) == (
+        "set MODEL_EFFORT or reasoning_effort in MODEL_EXTRA_BODY, not both"
+    )
+    # Either alone is sent as before.
+    alone = load_settings(
+        {**OPENAI_API_ENVIRON, "MODEL_EFFORT": "", "MODEL_EXTRA_BODY": extra}
+    )
+    assert alone.parameters == {"reasoning_effort": "low"}
 
 
 def test_anthropic_request_and_text_blocks() -> None:

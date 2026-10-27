@@ -28,18 +28,23 @@ anthropic), MODEL_NAME, MODEL_API_KEY, MODEL_CONCURRENCY (optional; calls at onc
 default 4), and MODEL_PRICE_INPUT and MODEL_PRICE_OUTPUT (optional; dollars per
 million tokens, for the cost estimate). openai also reads MODEL_BASE_URL (such as
 http://localhost:8000/v1), MODEL_TEMPERATURE (optional; if blank, no temperature is
-sent and the server's default applies), MODEL_EXTRA_BODY (optional; a JSON object
-merged into every request body, such as {"reasoning_effort": "medium"}; it can't set
-model, messages, stream or temperature, and if blank nothing more is sent) and
-MODEL_GPU_HOURLY (optional; for a self-hosted model, dollars per hour for its GPUs:
-the cost estimate is then that times the run's wall-clock time, and token prices
-can't be set too); its key is optional. anthropic needs the key, sends max_tokens
-16000, MODEL_EFFORT as output_config.effort (optional: low, medium, high, xhigh or
-max; if blank, none is sent and the model's default applies) and never a temperature,
-reads only the text blocks of a reply (not thinking blocks), and counts a refusal as
-an API error; there is no fallback to another model, which would mix two models in
-one run. run.json records the provider, the request parameters sent and the cost
-basis. --dry-run prints the full request for
+sent and the server's default applies), MODEL_EFFORT (optional; sent as
+reasoning_effort: none, minimal, low, medium, high, xhigh or max, as OpenAI's API
+takes it, though not every model takes every value; if blank, none is sent),
+MODEL_EXTRA_BODY (optional; a JSON object merged into every request body, such as
+{"chat_template_kwargs": {"enable_thinking": false}}; it can't set model, messages,
+stream or temperature, nor reasoning_effort when MODEL_EFFORT is set, and if blank
+nothing more is sent) and MODEL_GPU_HOURLY (optional; for a self-hosted model, dollars
+per hour for its GPUs: the cost estimate is then that times the run's wall-clock
+time, and token prices can't be set too); its key is optional, and it sends no
+output-token limit. For OpenAI's own API, MODEL_BASE_URL is https://api.openai.com/v1;
+its completion_tokens include reasoning tokens, so they are priced as output.
+anthropic needs the key, sends max_tokens 16000, MODEL_EFFORT as output_config.effort
+(optional: low, medium, high, xhigh or max; if blank, none is sent and the model's
+default applies) and never a temperature, reads only the text blocks of a reply (not
+thinking blocks), and counts a refusal as an API error; there is no fallback to
+another model, which would mix two models in one run. run.json records the provider,
+the request parameters sent and the cost basis. --dry-run prints the full request for
 the first selected release, without reading them or making a call.
 
 A run writes runs/<run>/raw/<accession>.json (every HTTP attempt's request body and
@@ -49,7 +54,8 @@ grades the run (see secbench.grade) and prints the summary. At most MODEL_CONCUR
 calls (default 4) run at a time; for both providers, 429, 5xx, timeouts and connection
 errors are retried with
 the same backoff (the SDK's own retries are off). HTTP 401, 403 or 404 (wrong key,
-model or URL) stops the run without grading it.
+model or URL) stops the run without grading it, as does openai's 429 with code
+insufficient_quota (out of credit, not a rate limit).
 """
 
 from __future__ import annotations
@@ -149,10 +155,15 @@ OPENAI = "openai"
 ANTHROPIC = "anthropic"
 PROVIDERS = (OPENAI, ANTHROPIC)
 ANTHROPIC_MAX_TOKENS = 16000
-EFFORTS = ("low", "medium", "high", "xhigh", "max")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")  # anthropic's output_config.effort
+# openai's reasoning_effort, as OpenAI's Chat Completions API lists it; a model may
+# take only some (GPT-6.1 Sol has no none).
+OPENAI_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 # Request body keys MODEL_EXTRA_BODY can't set: the runner sets the first two, a
 # streamed reply can't be parsed, and MODEL_TEMPERATURE sets the temperature.
 RESERVED_BODY_KEYS = ("model", "messages", "stream", "temperature")
+# OpenAI's 429 when the account is out of credit: no retry can succeed.
+INSUFFICIENT_QUOTA = "insufficient_quota"
 
 SETTINGS = (
     "MODEL_PROVIDER",
@@ -195,7 +206,7 @@ class Settings:
     price_input: float | None = None  # dollars per million tokens
     price_output: float | None = None
     provider: str = OPENAI
-    effort: str | None = None  # anthropic only; None: not sent
+    effort: str | None = None  # MODEL_EFFORT; None: not sent
     extra_body: dict[str, Any] | None = None  # openai only; merged into each body
     concurrency: int = DEFAULT_CONCURRENCY  # calls at once
     gpu_hourly: float | None = None  # openai only; dollars per hour, not per token
@@ -209,14 +220,16 @@ class Settings:
         """What every request sends besides the model, system prompt and messages:
         anthropic, max_tokens, output_config.effort only if MODEL_EFFORT is set, and
         never a temperature; openai, temperature only if MODEL_TEMPERATURE is set,
-        then MODEL_EXTRA_BODY's keys."""
+        reasoning_effort only if MODEL_EFFORT is set, then MODEL_EXTRA_BODY's keys
+        (and no output-token limit of its own)."""
         if self.provider == ANTHROPIC:
             effort = {"output_config": {"effort": self.effort}} if self.effort else {}
             return {"max_tokens": ANTHROPIC_MAX_TOKENS, **effort}
         temperature = (
             {} if self.temperature is None else {"temperature": self.temperature}
         )
-        return {**temperature, **(self.extra_body or {})}
+        effort = {"reasoning_effort": self.effort} if self.effort else {}
+        return {**temperature, **effort, **(self.extra_body or {})}
 
 
 def parse_number(name: str, value: str) -> float | None:
@@ -286,9 +299,9 @@ def load_settings(
     provider = values["MODEL_PROVIDER"].lower() or OPENAI
     if provider not in PROVIDERS:
         raise SettingsError("MODEL_PROVIDER must be openai or anthropic")
-    # anthropic ignores MODEL_BASE_URL, MODEL_TEMPERATURE and MODEL_EXTRA_BODY, and
-    # openai ignores MODEL_EFFORT, so .env can switch providers by MODEL_PROVIDER
-    # alone.
+    # anthropic ignores MODEL_BASE_URL, MODEL_TEMPERATURE and MODEL_EXTRA_BODY, so
+    # .env can switch providers by MODEL_PROVIDER alone (if MODEL_EFFORT is blank or
+    # a value both take).
     is_openai = provider == OPENAI
     required = (
         ("MODEL_BASE_URL", "MODEL_NAME")
@@ -307,9 +320,17 @@ def load_settings(
         raise SettingsError("MODEL_BASE_URL must start with http:// or https://")
     temperature = values["MODEL_TEMPERATURE"] if is_openai else ""
     extra_body = parse_extra_body(values["MODEL_EXTRA_BODY"] if is_openai else "")
-    effort = "" if is_openai else values["MODEL_EFFORT"].lower()
-    if effort and effort not in EFFORTS:
-        raise SettingsError(f"MODEL_EFFORT must be {', '.join(EFFORTS[:-1])} or max")
+    effort = values["MODEL_EFFORT"].lower()
+    efforts = OPENAI_EFFORTS if is_openai else EFFORTS
+    if effort and effort not in efforts:
+        raise SettingsError(
+            f"MODEL_EFFORT must be {', '.join(efforts[:-1])} or {efforts[-1]} for "
+            f"{provider}"
+        )
+    if effort and extra_body and "reasoning_effort" in extra_body:
+        raise SettingsError(
+            "set MODEL_EFFORT or reasoning_effort in MODEL_EXTRA_BODY, not both"
+        )
     gpu_hourly = parse_number(
         "MODEL_GPU_HOURLY", values["MODEL_GPU_HOURLY"] if is_openai else ""
     )
@@ -608,6 +629,13 @@ def error_message(body: Any) -> str:
     return shorten(message.strip(), ERROR_WIDTH) if isinstance(message, str) else ""
 
 
+def error_code(body: Any) -> str:
+    """OpenAI's {"error": {"code": ...}}, such as "rate_limit_exceeded"; "" if none."""
+    error = body.get("error") if isinstance(body, dict) else None
+    code = error.get("code") if isinstance(error, dict) else None
+    return code if isinstance(code, str) else ""
+
+
 def failed_attempt(
     status: int, body: Any, retry_after: str | None, now: float
 ) -> Attempt:
@@ -790,6 +818,17 @@ class OpenAIChat(ChatClient):
                 abort=True,
             )
         data = response_body(response)
+        if status == 429 and error_code(data) == INSUFFICIENT_QUOTA:
+            # Out of credit, not a rate limit: every call would fail.
+            problem = f"HTTP 429 {INSUFFICIENT_QUOTA}"
+            if message := error_message(data):
+                problem += f" ({message})"
+            return Attempt(
+                status,
+                {"response": data},
+                problem=problem + "; check the account's plan and billing",
+                abort=True,
+            )
         if not response.is_success:
             return failed_attempt(
                 status, data, response.headers.get("Retry-After"), self._wall_clock()
@@ -1380,6 +1419,7 @@ def format_dry_run(
             (
                 "openai (the default): POST <MODEL_BASE_URL>/chat/completions, model "
                 "<MODEL_NAME>, temperature <MODEL_TEMPERATURE> (not sent if blank), "
+                "reasoning_effort <MODEL_EFFORT> (not sent if blank), "
                 "<MODEL_EXTRA_BODY> merged into the body (if set)"
             ),
             (
