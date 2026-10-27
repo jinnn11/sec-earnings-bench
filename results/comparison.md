@@ -1,6 +1,6 @@
 # Model comparison
 
-From `uv run python -m secbench.compare`: 18 runs in runs/, graded against data/answers.csv; data/links.csv has 60 linked releases.
+From `uv run python -m secbench.compare`: 19 runs in runs/, graded against data/answers.csv; data/links.csv has 60 linked releases.
 
 ## Runs on all 60 linked releases
 
@@ -22,6 +22,7 @@ From `uv run python -m secbench.compare`: 18 runs in runs/, graded against data/
 | gemma-12b-v2 | google/gemma-3-12b-it | openai | extract_v2 | temperature 0 | 16 | 60 | graded | 259/293 (88.4%) | 88/102 (86.3%) | 83/102 (81.4%) | 88/89 (98.9%) | 259 | 0 | 0 | 5 | 0 | 0 | 9 | 12 | 1 | 5 | 2 | 57 | 13 | 0 | 0 | $0.0017 | GPU ($0.056/h x 109.3 s) | $0.03 | 26.81 s | 39.09 s |
 | 2026-10-27T001249_gpt-6-luna_extract_v1 | gpt-6-luna | openai | extract_v1 | reasoning_effort medium, no temperature | 4 | 60 | graded | 291/293 (99.3%) | 102/102 (100.0%) | 100/102 (98.0%) | 89/89 (100.0%) | 291 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 67 | 0 | 0 | – | $0.0665 | tokens ($0.1 in, $0.5 out per M) | $1.11 | 2.60 s | 3.29 s |
 | 2026-10-27T001339_gpt-6-luna_extract_v2 | gpt-6-luna | openai | extract_v2 | reasoning_effort medium, no temperature | 4 | 60 | graded | 290/293 (99.0%) | 102/102 (100.0%) | 99/102 (97.1%) | 89/89 (100.0%) | 290 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 67 | 0 | 0 | 0 | $0.0674 | tokens ($0.1 in, $0.5 out per M) | $1.12 | 2.38 s | 3.32 s |
+| 2026-10-27T001744_gpt-6.1-sol_extract_v1 | gpt-6.1-sol | openai | extract_v1 | reasoning_effort medium, no temperature | 4 | 60 | graded | 293/293 (100.0%) | 102/102 (100.0%) | 102/102 (100.0%) | 89/89 (100.0%) | 293 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 67 | 0 | 0 | – | $1.2843 | tokens ($2 in, $10 out per M) | $21.40 | 1.81 s | 2.28 s |
 
 ## Other runs: fewer releases, stopped or not graded
 
