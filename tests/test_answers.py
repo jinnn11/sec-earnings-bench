@@ -71,6 +71,15 @@ NO_NI_FALLBACKS = (
 )
 EPS = "EarningsPerShareDiluted"
 EPS_BD = "EarningsPerShareBasicAndDiluted"
+RUU = "RegulatedAndUnregulatedOperatingRevenue"
+RIA = "RevenueFromContractWithCustomerIncludingAssessedTax"
+CONT = "IncomeLossFromContinuingOperationsPerDilutedShare"
+DISC = "IncomeLossFromDiscontinuedOperationsNetOfTax"
+# What the revenue and EPS tags after the current ones add when untagged.
+NO_REV_FALLBACKS = (
+    f"; {RUU}: no USD facts in company facts; {RIA}: no USD facts in company facts"
+)
+NO_EPS_FALLBACK = f"; {CONT}: no USD/shares facts in company facts"
 USD = "USD"
 PER_SHARE = "USD/shares"
 
@@ -287,14 +296,14 @@ def test_year_to_date_expected_when_any_usd_fact_has_one() -> None:
             NO_PERIOD,
             (
                 f"{REV}: this filing has 2026-04-01..2026-06-30 (90 days); "
-                f"{RFC}: no USD facts in company facts"
+                f"{RFC}: no USD facts in company facts" + NO_REV_FALLBACKS
             ),
         ),
         ("eps_diluted", YEAR_TO_DATE): (
             NO_PERIOD,
             (
                 f"{EPS}: this filing has 2026-04-01..2026-06-30 (90 days); "
-                f"{EPS_BD}: no USD/shares facts in company facts"
+                f"{EPS_BD}: no USD/shares facts in company facts" + NO_EPS_FALLBACK
             ),
         ),
     }
@@ -420,7 +429,9 @@ def test_derived_quarter_needs_the_same_start() -> None:
             STARTS_DIFFER,
             (
                 f"10-Q {Q3_10Q}: {REV}: full year starts 2025-01-01, nine months "
-                f"2025-01-02; full year {RFC}: no USD facts in company facts"
+                f"2025-01-02; full year {RFC}: no USD facts in company facts; "
+                f"full year {RUU}: no USD facts in company facts; "
+                f"full year {RIA}: no USD facts in company facts"
             ),
         )
     }
@@ -882,8 +893,111 @@ def test_reason_is_the_furthest_any_tag_got() -> None:
         (
             f"{REV}: none from this filing; "
             f"{RFC}: this filing has 2025-04-01..2025-06-30 (90 days)"
+            + NO_REV_FALLBACKS
         ),
     )
+
+
+# Revenue and EPS tags after the current ones (Decisions 2026-10-28)
+
+
+@pytest.mark.parametrize("tag", [RUU, RIA])
+def test_later_revenue_tags_answer_a_filing_without_current_tags(tag) -> None:
+    document = second_quarter(**{REV: {}, tag: {USD: [fact(Q2, 300)]}})
+    assert values(run(linked(), document))["revenue", QUARTER] == ("300", tag)
+
+
+def test_regulated_revenue_comes_before_including_assessed_tax() -> None:
+    # American Water, Duke, NextEra: the second is one part of the first.
+    document = second_quarter(
+        **{REV: {}, RUU: {USD: [fact(Q2, 300)]}, RIA: {USD: [fact(Q2, 260)]}}
+    )
+    assert values(run(linked(), document))["revenue", QUARTER] == ("300", RUU)
+
+
+@pytest.mark.parametrize("current", [REV, RFC])
+@pytest.mark.parametrize("tag", [RUU, RIA])
+def test_later_revenue_tags_need_a_filing_without_current_tags(current, tag) -> None:
+    # A current tag anywhere in the filing, here only for the prior year's
+    # quarter, rules out the later tags for every period.
+    tags = {REV: {}, current: {USD: [fact(Q2_PRIOR, 280)]}, tag: {USD: [fact(Q2, 300)]}}
+    reason, detail = missing(run(linked(), second_quarter(**tags)))["revenue", QUARTER]
+    assert reason == CONDITION_NOT_MET
+    assert f"{tag}: 300, but this filing has {current} facts" in detail
+
+
+def test_current_revenue_tags_in_another_filing_do_not_count() -> None:
+    document = second_quarter(
+        **{REV: {USD: [fact(Q2_PRIOR, 280, accn=LATER)]}, RIA: {USD: [fact(Q2, 300)]}}
+    )
+    assert values(run(linked(), document))["revenue", QUARTER] == ("300", RIA)
+
+
+def test_derived_revenue_from_later_tag_needs_both_filings_without_current() -> None:
+    # The 10-K has no current tag, but the third-quarter 10-Q does.
+    ria = {USD: [fact(FY, 1200), fact(NINE_MONTHS, 880, accn=Q3_10Q)]}
+    clean = fiscal_year(**{REV: {}, RIA: ria})
+    assert values(run(ten_k(), clean))["revenue", QUARTER] == ("320", RIA)
+    tainted = fiscal_year(
+        **{REV: {USD: [fact(("2024-01-01", "2024-09-30"), 800, accn=Q3_10Q)]}, RIA: ria}
+    )
+    reason, detail = missing(run(ten_k(), tainted))["revenue", QUARTER]
+    assert reason == f"nine months: {CONDITION_NOT_MET}"
+    assert f"{RIA}: 880, but this filing has {REV} facts" in detail
+    assert values(run(ten_k(), tainted))["revenue", FULL_YEAR] == ("1200", RIA)
+
+
+def test_continuing_operations_eps_without_discontinued_operations() -> None:
+    document = second_quarter(**{EPS: {}, CONT: {PER_SHARE: [fact(Q2, 1.25)]}})
+    assert values(run(linked(), document))["eps_diluted", QUARTER] == ("1.25", CONT)
+
+
+@pytest.mark.parametrize(
+    ("tag", "unit", "value"),
+    [
+        (DISC, USD, -1000000),
+        (
+            "IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToReportingEntity",
+            USD,
+            5,
+        ),
+        (
+            "IncomeLossFromDiscontinuedOperationsNetOfTaxPerDilutedShare",
+            PER_SHARE,
+            0.01,
+        ),
+    ],
+)
+def test_continuing_operations_eps_not_with_discontinued_operations(
+    tag, unit, value
+) -> None:
+    document = second_quarter(
+        **{EPS: {}, CONT: {PER_SHARE: [fact(Q2, 1.25)]}, tag: {unit: [fact(Q2, value)]}}
+    )
+    reason, detail = missing(run(linked(), document))["eps_diluted", QUARTER]
+    assert reason == CONDITION_NOT_MET
+    assert f"{CONT}: 1.25, but discontinued operations: {tag} " in detail
+
+
+@pytest.mark.parametrize(
+    "discontinued",
+    [
+        [fact(Q2, 0)],  # zero
+        [fact(H1, -1000000)],  # another period: the half year, not the quarter
+        [fact(Q2, -1000000, accn=LATER)],  # another filing
+    ],
+    ids=["zero", "other-period", "other-filing"],
+)
+def test_which_discontinued_operations_count(discontinued) -> None:
+    document = second_quarter(
+        **{EPS: {}, CONT: {PER_SHARE: [fact(Q2, 1.25)]}, DISC: {USD: discontinued}}
+    )
+    assert values(run(linked(), document))["eps_diluted", QUARTER] == ("1.25", CONT)
+
+
+def test_diluted_eps_needs_no_check_for_discontinued_operations() -> None:
+    document = second_quarter(**{DISC: {USD: [fact(Q2, -1000000)]}})
+    assert values(run(linked(), document))["eps_diluted", QUARTER][1] == EPS
 
 
 def test_period_detail_is_capped() -> None:

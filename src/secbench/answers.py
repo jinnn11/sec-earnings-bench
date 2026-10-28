@@ -69,7 +69,12 @@ class Field:
 FIELDS = (
     Field(
         "revenue",
-        ("Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"),
+        (
+            "Revenues",
+            "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "RegulatedAndUnregulatedOperatingRevenue",
+            "RevenueFromContractWithCustomerIncludingAssessedTax",
+        ),
         "USD",
     ),
     Field(
@@ -83,7 +88,11 @@ FIELDS = (
     ),
     Field(
         "eps_diluted",
-        ("EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted"),
+        (
+            "EarningsPerShareDiluted",
+            "EarningsPerShareBasicAndDiluted",
+            "IncomeLossFromContinuingOperationsPerDilutedShare",
+        ),
         "USD/shares",
     ),
 )
@@ -104,14 +113,39 @@ PREFERRED_DIVIDEND_TAGS = (
     "DividendsPreferredStockCash",
     "PreferredStockDividendsAndOtherAdjustments",
 )
-# Other tags that may hold revenue; reported, never used as answers.
+# Revenue tags after the current two count only for a filing with no fact under
+# either current tag (Decisions 2026-10-28): a utility's
+# RevenueFromContractWithCustomerIncludingAssessedTax can be one part of the total in
+# its RegulatedAndUnregulatedOperatingRevenue.
+CURRENT_REVENUE_TAGS = (
+    "Revenues",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+)
+WITHOUT_CURRENT_REVENUE = {
+    "RegulatedAndUnregulatedOperatingRevenue",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
+}
+# Continuing-operations EPS is diluted EPS only for a period without discontinued
+# operations (Decisions 2026-10-28), so never used for a period where one of these is
+# nonzero.
+CONTINUING_OPERATIONS = {"IncomeLossFromContinuingOperationsPerDilutedShare"}
+DISCONTINUED_OPERATION_TAGS = (
+    "IncomeLossFromDiscontinuedOperationsNetOfTax",
+    "IncomeLossFromDiscontinuedOperationsNetOfTaxAttributableToReportingEntity",
+    "IncomeLossFromDiscontinuedOperationsNetOfTaxIncludingPortionAttributableToNoncontrollingInterest",
+    "IncomeLossFromDiscontinuedOperationsNetOfTaxPerBasicShare",
+    "IncomeLossFromDiscontinuedOperationsNetOfTaxPerDilutedShare",
+    "IncomeLossFromDiscontinuedOperationsNetOfTaxPerBasicAndDilutedShare",
+    "DiscontinuedOperationIncomeLossFromDiscontinuedOperationNetOfTaxPerDilutedShare",
+)
+# Other tags named like revenue, reported when they aren't the answer's tag.
 REVENUE_LIKE = re.compile(r"^(Revenue|SalesRevenue)")
 
 # Why a field has no answer, from a tag that got least far to one that got furthest.
 NO_TAG = "no tag"
 NO_FACT = "no fact for that accession"
 NO_PERIOD = "no matching period"
-CONDITION_NOT_MET = "condition not met"  # ZERO_REQUIRED or AFTER_PREFERRED_DIVIDENDS
+CONDITION_NOT_MET = "condition not met"  # see unmet_condition
 CONFLICTING = "conflicting values"
 REASONS = (NO_TAG, NO_FACT, NO_PERIOD, CONDITION_NOT_MET, CONFLICTING)
 PERIODS_IN_DETAIL = 4
@@ -256,8 +290,7 @@ def lookup(
     known: set[tuple[str, str]],
 ) -> Lookup:
     """The first of field's tags with one value for period (ending on period_end)
-    in the filing, whose ZERO_REQUIRED tag, if any, is 0 for that period, and which,
-    if it is after preferred dividends, has none (see preferred_dividends).
+    in the filing that meets its condition, if any (see unmet_condition).
     Conflicting values for a tag stop the search rather than fall through to the
     next tag."""
     notes = []
@@ -268,26 +301,10 @@ def lookup(
         values = sorted({f.value for f in matches})
         if len(values) == 1:
             chosen = min(matches, key=lambda f: f.start or f.end)
-            required = ZERO_REQUIRED.get(tag)
-            zero = required_values(required, chosen, filing_facts) if required else [0]
-            dividends = (
-                preferred_dividends(chosen, filing_facts)
-                if tag in AFTER_PREFERRED_DIVIDENDS
-                else []
-            )
-            if zero == [0] and not dividends:
+            unmet = unmet_condition(tag, chosen, filing_facts)
+            if unmet is None:
                 return Lookup(chosen)
-            reason = CONDITION_NOT_MET
-            if zero != [0]:
-                note = (
-                    f"{chosen.value}, but {required} is "
-                    f"{', '.join(map(str, zero)) if zero else 'not tagged'} for that "
-                    "period"
-                )
-            else:
-                note = f"{chosen.value}, after preferred dividends: " + ", ".join(
-                    f"{f.tag} {describe_fact_period(f)} {f.value}" for f in dividends
-                )
+            reason, note = CONDITION_NOT_MET, f"{chosen.value}, {unmet}"
         elif values:
             reason = CONFLICTING
             note = f"values {', '.join(map(str, values))}"
@@ -308,6 +325,54 @@ def lookup(
             "was filed? try --refresh)"
         )
     return Lookup(None, REASONS[furthest], detail)
+
+
+def unmet_condition(tag: str, fact: Fact, filing_facts: set[Fact]) -> str | None:
+    """Why tag's value fact can't be the answer, or None if it can:
+    - ProfitLoss needs its ZERO_REQUIRED tag to be 0 for exactly that period;
+    - a tag after preferred dividends needs none (see preferred_dividends);
+    - a revenue tag after the current two needs a filing with no fact under either
+      current tag (any period);
+    - continuing-operations EPS needs no nonzero discontinued operations for exactly
+      that period."""
+    required = ZERO_REQUIRED.get(tag)
+    if required:
+        zero = required_values(required, fact, filing_facts)
+        if zero != [0]:
+            shown = ", ".join(map(str, zero)) if zero else "not tagged"
+            return f"but {required} is {shown} for that period"
+    if tag in AFTER_PREFERRED_DIVIDENDS:
+        dividends = preferred_dividends(fact, filing_facts)
+        if dividends:
+            return "after preferred dividends: " + ", ".join(
+                f"{f.tag} {describe_fact_period(f)} {f.value}" for f in dividends
+            )
+    if tag in WITHOUT_CURRENT_REVENUE:
+        current = sorted({f.tag for f in filing_facts if f.tag in CURRENT_REVENUE_TAGS})
+        if current:
+            return f"but this filing has {' and '.join(current)} facts"
+    if tag in CONTINUING_OPERATIONS:
+        discontinued = discontinued_operations(fact, filing_facts)
+        if discontinued:
+            return "but discontinued operations: " + ", ".join(
+                f"{f.tag} {describe_fact_period(f)} {f.value}" for f in discontinued
+            )
+    return None
+
+
+def discontinued_operations(fact: Fact, filing_facts: set[Fact]) -> list[Fact]:
+    """Nonzero discontinued-operations facts in the same filing for exactly fact's
+    period, in any unit."""
+    return sorted(
+        (
+            f
+            for f in filing_facts
+            if f.tag in DISCONTINUED_OPERATION_TAGS
+            and f.value != 0
+            and (f.start, f.end) == (fact.start, fact.end)
+        ),
+        key=lambda f: (f.tag, f.unit),
+    )
 
 
 def in_period(facts: Iterable[Fact], period: str, period_end: date) -> list[Fact]:
@@ -436,8 +501,8 @@ def derive_quarter(
 ) -> Derived:
     """The first of field's tags with one full-year value in the 10-K (filing_facts,
     ending on period_end) and one nine-month value from the same start in its
-    third-quarter 10-Q (nine_month_facts), each found as lookup finds a period (its
-    ZERO_REQUIRED tag 0 too, and no preferred dividends for a tag after them).
+    third-quarter 10-Q (nine_month_facts), each found as lookup finds a period, so
+    each filing must meet the tag's condition (see unmet_condition).
     Conflicting values stop the search."""
     if third_quarter.accession is None:
         return Derived(None, None, third_quarter.reason, third_quarter.detail)
