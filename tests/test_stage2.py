@@ -919,3 +919,52 @@ def test_a_build_refuses_uncommitted_changes(tmp_path, monkeypatch, capsys) -> N
     assert not (tmp_path / "stage2" / "companies").exists()
     # Merging alone builds nothing, so it may go ahead.
     assert stage2.main([*argv, "--merge-only"]) == 0
+
+
+# Offline: the cache alone
+
+
+def test_offline_build_from_the_cache(tmp_path) -> None:
+    sec = fake_sec()
+    run(tmp_path, sec, "--tickers", "OKCO")
+    first = (tmp_path / "stage2" / "answers.csv").read_text()
+    sec.requests.clear()
+    listing = tmp_path / "companies.csv"
+    offline = EdgarClient(
+        UA,
+        tmp_path / "raw",
+        transport=httpx.MockTransport(sec.handler),
+        offline=True,
+    )
+    argv = ["--companies", str(listing), "--out", str(tmp_path / "stage2")]
+    with contextlib.redirect_stdout(io.StringIO()):
+        # OKCO again from the cache; UNLNK was never fetched, so it fails.
+        status = stage2.main(
+            [*argv, "--tickers", "OKCO", "UNLNK", "--redo"],
+            client=offline,
+            commit=COMMIT,
+        )
+    assert status == 1 and sec.requests == []
+    assert (tmp_path / "stage2" / "answers.csv").read_text() == first
+    [failure] = [
+        f for f in read(tmp_path / "stage2" / "failures.csv") if f["ticker"] == "UNLNK"
+    ]
+    assert failure["reason"] == (
+        f"EdgarError: not in the cache (offline): {SUBMISSIONS.format(UNLNK)}"
+    )
+
+
+def test_offline_flag_makes_an_offline_client(tmp_path, monkeypatch) -> None:
+    made = {}
+
+    def client(**kwargs):
+        made.update(kwargs)
+        return fake_sec().client(tmp_path / "raw")
+
+    monkeypatch.setattr(stage2, "EdgarClient", client)
+    listing = tmp_path / "companies.csv"
+    listing.write_text(companies_csv(COMPANIES))
+    argv = ["--companies", str(listing), "--out", str(tmp_path / "stage2")]
+    with contextlib.redirect_stdout(io.StringIO()):
+        stage2.main([*argv, "--tickers", "OKCO", "--offline"], commit=COMMIT)
+    assert made == {"offline": True}

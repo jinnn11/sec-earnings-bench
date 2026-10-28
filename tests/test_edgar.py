@@ -218,6 +218,20 @@ def test_url_and_url_under_it_can_both_be_cached(tmp_path, order) -> None:
     assert seen == [*order, FOLDER_URL]
 
 
+def test_offline_client_reads_only_the_cache(tmp_path) -> None:
+    seen: list[str] = []
+    online = make_client(tmp_path, scripted([httpx.Response(200, content=b"v1")], seen))
+    online.fetch(DOC_URL)
+    offline = make_client(tmp_path, scripted([], seen), offline=True)
+    assert offline.fetch(DOC_URL) == b"v1"
+    with pytest.raises(EdgarError, match=r"not in the cache \(offline\): "):
+        offline.fetch(edgar.TICKERS_URL)
+    with pytest.raises(EdgarError, match=r"refresh \(offline\): "):
+        offline.fetch(DOC_URL, refresh=True)
+    assert seen == [DOC_URL]  # the online fetch only
+    assert not cache_path(edgar.TICKERS_URL, tmp_path / "raw").exists()
+
+
 def test_error_responses_are_not_cached(tmp_path) -> None:
     seen: list[str] = []
     client = make_client(tmp_path, scripted([httpx.Response(404)], seen))

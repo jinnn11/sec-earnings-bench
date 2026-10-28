@@ -207,7 +207,9 @@ _SHARED_LIMITER = RateLimiter(REQUESTS_PER_SECOND)
 
 
 class EdgarClient:
-    """HTTP client for EDGAR that caches every response under cache_dir."""
+    """HTTP client for EDGAR that caches every response under cache_dir. An
+    offline client only reads the cache: a URL not in it (or a refresh) raises
+    EdgarError instead of making a request."""
 
     def __init__(
         self,
@@ -219,9 +221,11 @@ class EdgarClient:
         sleep: Callable[[float], None] = time.sleep,
         wall_clock: Callable[[], float] = time.time,
         max_retries: int = MAX_RETRIES,
+        offline: bool = False,
     ) -> None:
         self.cache_dir = Path(cache_dir)
         self.max_retries = max_retries
+        self.offline = offline
         self._limiter = limiter or _SHARED_LIMITER
         self._sleep = sleep
         self._wall_clock = wall_clock
@@ -251,6 +255,10 @@ class EdgarClient:
             log.info("cache hit %s", url)
             return path.read_bytes()
         log.info("cache miss%s %s", " (refresh)" if refresh else "", url)
+        if self.offline:
+            raise EdgarError(
+                f"{'refresh' if refresh else 'not in the cache'} (offline): {url}"
+            )
         body = self._download(url)
         make_cache_folder(self.cache_dir, path.parent)
         partial = path.with_name(path.name + ".part")

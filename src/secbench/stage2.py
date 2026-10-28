@@ -40,8 +40,11 @@ before TIME_TEST_START are train and the rest time_test; a company_test company'
 latest COMPANY_TEST_RELEASES linked releases are company_test and its others unused;
 a validation company's are validation.
 
+--offline builds from the cache alone: anything not in it is an error for that
+company, never a request.
+
 Usage: uv run python -m secbench.stage2 [--tickers T ...] [--redo] [--merge-only]
-       [--out data/stage2]
+       [--offline] [--out data/stage2]
 """
 
 from __future__ import annotations
@@ -597,6 +600,11 @@ def main(
         action="store_true",
         help="merge the companies the current commit built, without building any",
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="read only the EDGAR cache; anything not in it is an error",
+    )
     parser.add_argument("--companies", type=Path, default=DEFAULT_COMPANIES)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--links", type=Path, default=STAGE1_LINKS)
@@ -645,7 +653,8 @@ def main(
         f"{args.until})",
         flush=True,
     )
-    client = client or default_client()
+    if client is None:
+        client = EdgarClient(offline=True) if args.offline else default_client()
     try:
         mismatches = ticker_map_rows(client, selected)
     except EdgarError as exc:
