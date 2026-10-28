@@ -20,6 +20,7 @@ from secbench.releases import (
     exhibit_file_names,
     has_item,
     html_to_markdown,
+    in_filing,
     parse_filing_index,
     save_filing,
     select_releases,
@@ -177,6 +178,66 @@ def test_parse_real_filing_index() -> None:
 def test_parse_filing_index_rejects_links_outside_the_filing() -> None:
     html = index_html(
         [("2", "EX-99.1", "ex991.htm", "EX-99.1")], ARCHIVE + "000000000/"
+    )
+    with pytest.raises(EdgarError, match="outside the filing"):
+        parse_filing_index(html, FAKE_FOLDER)
+
+
+ETR_FOLDER = "https://www.sec.gov/Archives/edgar/data/65984/000006598423000090/"
+ETR_SHARED = "https://www.sec.gov/Archives/edgar/data/7323/000006598423000090/"
+
+
+def test_parse_real_joint_filing_index() -> None:
+    """Entergy files its 8-Ks jointly with its subsidiaries; the index of its own
+    filing links every document under a co-registrant's CIK (7323)."""
+    documents = parse_filing_index(
+        fixture("0000065984-23-000090-index.htm"), ETR_FOLDER
+    )
+    assert [d.type for d in documents][:3] == ["8-K", "EX-99.1", "GRAPHIC"]
+    assert documents[1] == Document(
+        "2",
+        "EX-99.1",
+        "earningsrelease3q2023_ex991.htm",
+        "EX-99.1",
+        ETR_SHARED + "earningsrelease3q2023_ex991.htm",
+    )
+    assert all(d.url.startswith(ETR_SHARED) for d in documents)
+
+
+OTHER_CIK = "https://www.sec.gov/Archives/edgar/data/7323/"
+
+
+@pytest.mark.parametrize(
+    ("url", "ok"),
+    [
+        (FAKE_FOLDER + "ex991.htm", True),
+        (FAKE_FOLDER + "sub/ex991.htm", True),  # in the filing's own folder
+        (OTHER_CIK + "000032019326000099/ex991.htm", True),  # joint filing
+        (OTHER_CIK + "000032019326000098/ex991.htm", False),  # another accession
+        (OTHER_CIK + "000032019326000099/sub/ex991.htm", False),
+        (OTHER_CIK + "000032019326000099/", False),
+        (OTHER_CIK + "000032019326000099/ex991.htm?x=1", False),
+        (OTHER_CIK + "0000320193260000990/ex991.htm", False),
+        ("https://www.sec.gov/Archives/edgar/data/x/000032019326000099/e.htm", False),
+        ("https://www.sec.gov/Archives/000032019326000099/ex991.htm", False),
+        ("http://www.sec.gov/Archives/edgar/data/7323/000032019326000099/e.htm", False),
+        (
+            "https://example.com/Archives/edgar/data/7323/000032019326000099/e.htm",
+            False,
+        ),
+        (
+            "https://www.sec.gov.example.com/Archives/edgar/data/7323/000032019326000099/e.htm",
+            False,
+        ),
+    ],
+)
+def test_in_filing(url, ok) -> None:
+    assert in_filing(url, FAKE_FOLDER) is ok
+
+
+def test_parse_filing_index_rejects_another_accession_under_another_cik() -> None:
+    html = index_html(
+        [("2", "EX-99.1", "ex991.htm", "EX-99.1")], OTHER_CIK + "000032019326000098/"
     )
     with pytest.raises(EdgarError, match="outside the filing"):
         parse_filing_index(html, FAKE_FOLDER)
@@ -634,6 +695,31 @@ def test_save_filing_saves_every_ex99_exhibit(tmp_path) -> None:
             "chosen": False,
         },
     ]
+
+
+def test_save_filing_reads_a_joint_filing_from_the_co_registrant_folder(
+    tmp_path,
+) -> None:
+    shared = OTHER_CIK + "000032019326000099/"
+    index = index_html(
+        [("1", "8-K", "form8k.htm", "8-K"), ("2", "", "ex991.htm", "EX-99.1")], shared
+    )
+    routes = {
+        FAKE_INDEX_URL: index,
+        shared + "ex991.htm": b"<p>Revenue was $1.2 billion.</p>",
+    }
+    seen: list[str] = []
+    client = make_client(tmp_path, routes, seen)
+    out = tmp_path / "releases"
+    outcome = save_filing(client, "AAPL", 320193, FAKE_ACCESSION, date(2026, 8, 1), out)
+    assert outcome.skip_reason is None
+    assert seen == [FAKE_INDEX_URL, shared + "ex991.htm"]
+    folder = out / "0000320193"  # saved under the filer's CIK, as any release
+    assert (folder / f"{FAKE_ACCESSION}.md").read_text() == (
+        "Revenue was $1.2 billion.\n"
+    )
+    record = json.loads((folder / f"{FAKE_ACCESSION}.json").read_text())
+    assert record["exhibit_url"] == shared + "ex991.htm"
 
 
 @pytest.mark.parametrize(

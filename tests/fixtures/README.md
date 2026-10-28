@@ -20,6 +20,7 @@ Filing documents, fetched 2026-10-10 and saved byte for byte as SEC served them
 | `0000320193-26-000018-index.htm` | https://www.sec.gov/Archives/edgar/data/320193/000032019326000018/0000320193-26-000018-index.htm | Filing index for AAPL's Q3 FY26 release (an Item 2.02 8-K in the submissions fixture) |
 | `a8-kex991q3202606272026.htm` | https://www.sec.gov/Archives/edgar/data/320193/000032019326000018/a8-kex991q3202606272026.htm | Its EX-99.1: three- and nine-month columns |
 | `a8-kex991q4202509272025.htm` | https://www.sec.gov/Archives/edgar/data/320193/000032019325000077/a8-kex991q4202509272025.htm | EX-99.1 of AAPL's Q4 FY25 release (0000320193-25-000077): three-month and full-year columns side by side |
+| `0000065984-23-000090-index.htm` | https://www.sec.gov/Archives/edgar/data/65984/000006598423000090/0000065984-23-000090-index.htm (fetched 2026-10-28) | Filing index of ETR's Q3 2023 release, filed jointly with its subsidiaries: every document is linked under a co-registrant's CIK (7323), same accession |
 
 Submission rows were chosen to cover: Item 2.02 8-Ks, 10-Q, 10-K, 8-K/A, Form 4, Form 144 and
 424B2 with a blank `reportDate`, a DEF 14A whose `reportDate` is after its

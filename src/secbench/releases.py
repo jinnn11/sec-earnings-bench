@@ -95,11 +95,23 @@ def _text(tag: Tag) -> str:
     return " ".join(tag.get_text(" ").split())
 
 
+def in_filing(url: str, folder_url: str) -> bool:
+    """Whether url is a document of the filing whose folder is folder_url: anything
+    in that folder, or a file directly in the same accession's folder under another
+    CIK. A filing made jointly with another registrant (a utility and its
+    subsidiaries) may list its documents under a co-registrant's CIK."""
+    if url.startswith(folder_url):
+        return True
+    accession = folder_url.rstrip("/").rsplit("/", 1)[-1]
+    pattern = rf"{re.escape(ARCHIVES_URL)}\d+/{re.escape(accession)}/[^/?#]+"
+    return re.fullmatch(pattern, url) is not None
+
+
 def parse_filing_index(html: bytes, folder_url: str) -> list[Document]:
     """Documents listed in a filing's -index.htm page.
 
     Links to the inline XBRL viewer ("/ix?doc=/Archives/...") are unwrapped. A link
-    outside the filing's folder raises EdgarError.
+    outside the filing (see in_filing) raises EdgarError.
     """
     soup = BeautifulSoup(html, "lxml")
     table = soup.find("table", summary="Document Format Files")
@@ -117,7 +129,7 @@ def parse_filing_index(html: bytes, folder_url: str) -> list[Document]:
             raise EdgarError(f"filing index row without a document link: {_text(row)}")
         href = link["href"].removeprefix("/ix?doc=")
         url = urljoin("https://www.sec.gov/", href)
-        if not url.startswith(folder_url):
+        if not in_filing(url, folder_url):
             raise EdgarError(f"filing index links outside the filing: {url}")
         documents.append(
             Document(
