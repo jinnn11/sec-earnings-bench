@@ -140,6 +140,15 @@ DISCONTINUED_OPERATION_TAGS = (
 )
 # Other tags named like revenue, reported when they aren't the answer's tag.
 REVENUE_LIKE = re.compile(r"^(Revenue|SalesRevenue)")
+# A revenue answer is dropped when another revenue-like fact for the same filing and
+# period is at least COMPONENT_RATIO times larger (Decisions 2026-10-28): it is one
+# part of revenue, as Camden's RevenueFromContractWithCustomerExcludingAssessedTax
+# (1,077K) beside its OperatingLeaseLeaseIncome (390,778K). Revenue-like: a tag named
+# like revenue, a revenue answer tag, or lease income (a REIT's revenue). An answer
+# NEAR_COMPONENT_RATIO to COMPONENT_RATIO times smaller is listed, not dropped.
+LEASE_INCOME_TAGS = ("OperatingLeaseLeaseIncome", "LeaseIncome")
+COMPONENT_RATIO = 5
+NEAR_COMPONENT_RATIO = 2
 
 # Why a field has no answer, from a tag that got least far to one that got furthest.
 NO_TAG = "no tag"
@@ -147,7 +156,17 @@ NO_FACT = "no fact for that accession"
 NO_PERIOD = "no matching period"
 CONDITION_NOT_MET = "condition not met"  # see unmet_condition
 CONFLICTING = "conflicting values"
-REASONS = (NO_TAG, NO_FACT, NO_PERIOD, CONDITION_NOT_MET, CONFLICTING)
+LOOKS_LIKE_COMPONENT = "looks like a component"  # see dropped
+REASONS = (
+    NO_TAG,
+    NO_FACT,
+    NO_PERIOD,
+    CONDITION_NOT_MET,
+    CONFLICTING,
+    LOOKS_LIKE_COMPONENT,
+)
+# Reasons that end the search: a later tag never replaces the value that had them.
+STOPS = (CONFLICTING, LOOKS_LIKE_COMPONENT)
 PERIODS_IN_DETAIL = 4
 
 # A 10-K's fourth quarter is derived for these fields (EPS doesn't subtract).
@@ -291,8 +310,8 @@ def lookup(
 ) -> Lookup:
     """The first of field's tags with one value for period (ending on period_end)
     in the filing that meets its condition, if any (see unmet_condition).
-    Conflicting values for a tag stop the search rather than fall through to the
-    next tag."""
+    Conflicting values for a tag, or a value that is dropped (see dropped), stop the
+    search rather than fall through to the next tag."""
     notes = []
     furthest = 0
     for tag in field.tags:
@@ -302,9 +321,12 @@ def lookup(
         if len(values) == 1:
             chosen = min(matches, key=lambda f: f.start or f.end)
             unmet = unmet_condition(tag, chosen, filing_facts)
-            if unmet is None:
+            if unmet is not None:
+                reason, note = CONDITION_NOT_MET, f"{chosen.value}, {unmet}"
+            elif (drop := dropped(field, chosen, filing_facts)) is not None:
+                reason, note = drop
+            else:
                 return Lookup(chosen)
-            reason, note = CONDITION_NOT_MET, f"{chosen.value}, {unmet}"
         elif values:
             reason = CONFLICTING
             note = f"values {', '.join(map(str, values))}"
@@ -316,7 +338,7 @@ def lookup(
             reason, note = NO_TAG, f"no {field.unit} facts in company facts"
         furthest = max(furthest, REASONS.index(reason))
         notes.append(f"{tag}: {note}")
-        if reason == CONFLICTING:
+        if reason in STOPS:
             break
     detail = "; ".join(notes)
     if not filing_facts:
@@ -358,6 +380,58 @@ def unmet_condition(tag: str, fact: Fact, filing_facts: set[Fact]) -> str | None
                 f"{f.tag} {describe_fact_period(f)} {f.value}" for f in discontinued
             )
     return None
+
+
+def dropped(
+    field: Field, fact: Fact, filing_facts: set[Fact]
+) -> tuple[str, str] | None:
+    """The reason and note if fact, found as field's answer, is dropped rather than
+    used (Decisions 2026-10-28): a revenue value that looks like a component (see
+    COMPONENT_RATIO). Otherwise None. field may be a one-tag copy (see
+    derive_quarter), so it is compared by name."""
+    if field.name == REVENUE.name:
+        larger = largest_revenue_like(fact, filing_facts)
+        if larger is not None and is_component(fact, larger):
+            return LOOKS_LIKE_COMPONENT, (
+                f"{fact.value}, but {larger.tag} is {larger.value} "
+                f"({larger.value / fact.value:.1f}x)"
+            )
+    return None
+
+
+def is_revenue_like(tag: str) -> bool:
+    return bool(
+        REVENUE_LIKE.match(tag) or tag in REVENUE.tags or tag in LEASE_INCOME_TAGS
+    )
+
+
+def largest_revenue_like(fact: Fact, filing_facts: set[Fact]) -> Fact | None:
+    """The largest USD fact of another revenue-like tag for exactly fact's period in
+    the same filing, or None."""
+    others = [
+        f
+        for f in filing_facts
+        if f.tag != fact.tag
+        and f.unit == "USD"
+        and (f.start, f.end) == (fact.start, fact.end)
+        and is_revenue_like(f.tag)
+    ]
+    return max(others, key=lambda f: (f.value, f.tag), default=None)
+
+
+def is_component(fact: Fact, larger: Fact) -> bool:
+    """larger is at least COMPONENT_RATIO times fact (a positive value)."""
+    return fact.value > 0 and larger.value >= COMPONENT_RATIO * fact.value
+
+
+def is_near_component(fact: Fact, larger: Fact) -> bool:
+    """larger is NEAR_COMPONENT_RATIO to under COMPONENT_RATIO times fact: fact is
+    between 1/5 and 1/2 of it."""
+    return (
+        fact.value > 0
+        and NEAR_COMPONENT_RATIO * fact.value <= larger.value
+        and not is_component(fact, larger)
+    )
 
 
 def discontinued_operations(fact: Fact, filing_facts: set[Fact]) -> list[Fact]:
@@ -516,7 +590,7 @@ def derive_quarter(
             progress = REASONS.index(full.reason)
             reason = f"{FULL_YEAR_PART}: {full.reason}"
             note = f"{FULL_YEAR_PART} {full.detail}"
-            stop = full.reason == CONFLICTING
+            stop = full.reason in STOPS
         else:
             nine = lookup(
                 one_tag,
@@ -529,7 +603,7 @@ def derive_quarter(
                 progress = len(REASONS) + REASONS.index(nine.reason)
                 reason = f"{NINE_MONTHS_PART}: {nine.reason}"
                 note = f"{NINE_MONTHS_PART} {nine.detail}"
-                stop = nine.reason == CONFLICTING
+                stop = nine.reason in STOPS
             elif nine.fact.start != full.fact.start:
                 progress = 2 * len(REASONS)
                 reason = STARTS_DIFFER
@@ -626,6 +700,27 @@ class PreferredDividend:
     value: Decimal
 
 
+@dataclass(frozen=True)
+class RevenueCheck:
+    """A revenue answer between 1/5 and 1/2 of the largest revenue-like fact of
+    another tag for the same filing and period (see is_near_component): listed, not
+    dropped. For a derived fourth quarter, the fact compared is its full year or its
+    nine months."""
+
+    ticker: str
+    release_accession: str
+    period_type: str
+    derived: bool
+    answer: Decimal  # the answer's value
+    accession: str  # the filing of the fact compared
+    tag: str
+    start: date
+    end: date
+    value: Decimal  # the fact compared (the answer itself unless derived)
+    larger_tag: str
+    larger_value: Decimal
+
+
 @dataclass
 class Results:
     answers: list[Answer] = dataclass_field(default_factory=list)
@@ -633,6 +728,7 @@ class Results:
     other_revenue: list[OtherRevenue] = dataclass_field(default_factory=list)
     fallback_checks: list[FallbackCheck] = dataclass_field(default_factory=list)
     preferred_dividends: list[PreferredDividend] = dataclass_field(default_factory=list)
+    revenue_checks: list[RevenueCheck] = dataclass_field(default_factory=list)
 
     def extend(self, other: Results) -> None:
         self.answers.extend(other.answers)
@@ -640,6 +736,7 @@ class Results:
         self.other_revenue.extend(other.other_revenue)
         self.fallback_checks.extend(other.fallback_checks)
         self.preferred_dividends.extend(other.preferred_dividends)
+        self.revenue_checks.extend(other.revenue_checks)
 
 
 def answer_release(
@@ -665,6 +762,8 @@ def answer_release(
             )
             if derived:
                 results.answers.append(derived)
+                if field is REVENUE:
+                    results.revenue_checks.extend(revenue_checks(derived, index))
             if missing:
                 results.missing.append(missing)
         for period in periods:
@@ -685,22 +784,23 @@ def answer_release(
                 continue
             fact = found.fact
             assert fact.start is not None
-            results.answers.append(
-                Answer(
-                    release.ticker,
-                    release.release_accession,
-                    release.linked_accession,
-                    field.name,
-                    period,
-                    fact.start,
-                    fact.end,
-                    fact.value,
-                    fact.unit,
-                    fact.tag,
-                )
+            answer = Answer(
+                release.ticker,
+                release.release_accession,
+                release.linked_accession,
+                field.name,
+                period,
+                fact.start,
+                fact.end,
+                fact.value,
+                fact.unit,
+                fact.tag,
             )
-            if field is REVENUE and period == HEADLINE[release.linked_form]:
-                headline_revenue = fact
+            results.answers.append(answer)
+            if field is REVENUE:
+                results.revenue_checks.extend(revenue_checks(answer, index))
+                if period == HEADLINE[release.linked_form]:
+                    headline_revenue = fact
     results.other_revenue = other_revenue_tags(release, filing_facts, headline_revenue)
     for period in periods:
         results.fallback_checks.extend(check_fallbacks(release, filing_facts, period))
@@ -728,6 +828,50 @@ def answer_release(
             if f.value != 0
         )
     return results
+
+
+def revenue_checks(answer: Answer, index: FactIndex) -> list[RevenueCheck]:
+    """A revenue answer's fact, or a derived answer's full year and nine months,
+    where it is near a component (see is_near_component)."""
+    if answer.derived:
+        assert answer.fiscal_year_start is not None
+        parts = [
+            (answer.full_year_accession, answer.fiscal_year_start, answer.end),
+            (
+                answer.nine_months_accession,
+                answer.fiscal_year_start,
+                answer.start - timedelta(days=1),
+            ),
+        ]
+    else:
+        parts = [(answer.linked_accession, answer.start, answer.end)]
+    checks = []
+    for accession, start, end in parts:
+        filing_facts = index.by_accession.get(accession, set())
+        fact = next(
+            f
+            for f in filing_facts
+            if (f.tag, f.unit, f.start, f.end) == (answer.tag, answer.unit, start, end)
+        )
+        larger = largest_revenue_like(fact, filing_facts)
+        if larger is not None and is_near_component(fact, larger):
+            checks.append(
+                RevenueCheck(
+                    answer.ticker,
+                    answer.release_accession,
+                    answer.period_type,
+                    answer.derived,
+                    answer.value,
+                    accession,
+                    fact.tag,
+                    start,
+                    end,
+                    fact.value,
+                    larger.tag,
+                    larger.value,
+                )
+            )
+    return checks
 
 
 def derive_answer(
@@ -987,6 +1131,18 @@ def format_report(releases: list[LinkedRelease], results: Results) -> str:
             f"({m.linked_form} {m.linked_accession}): {m.reason} ({m.detail})"
         )
 
+    lines.append(
+        "revenue answers between 1/5 and 1/2 of a larger revenue-like fact (listed, "
+        f"not dropped): {len(results.revenue_checks)}"
+    )
+    for c in results.revenue_checks:
+        compared = (
+            f" ({c.accession} {c.start}..{c.end}: {c.value})" if c.derived else ""
+        )
+        lines.append(
+            f"  {c.ticker} {c.release_accession} {c.period_type} {c.tag} "
+            f"{c.answer}{compared}; {c.larger_tag} {c.larger_value}"
+        )
     lines.append("other revenue tags at the headline period (reported, not used):")
     by_tag: dict[tuple[str, str], list[OtherRevenue]] = defaultdict(list)
     for other in results.other_revenue:

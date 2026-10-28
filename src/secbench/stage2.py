@@ -10,7 +10,8 @@ nothing fetched), answered again from the cached company facts, which must give
 data/answers.csv's rows.
 
 Each company's results go to <out>/companies/<cik>/ (releases.csv, links.csv,
-answers.csv, preferred_dividends.csv, failures.csv), then status.json. A company
+answers.csv, preferred_dividends.csv, revenue_checks.csv, failures.csv), then
+status.json. A company
 whose status is done is skipped on the next run (--redo runs it again); one that
 failed or was interrupted runs again, from the cache. Every request goes through the
 EDGAR cache at 8 requests per second. Failures never stop the run; each is logged
@@ -19,7 +20,9 @@ without an HTML press release or that isn't an earnings release (no_press_releas
 a release without its 10-Q/10-K (no_linked_filing), a figure without an XBRL answer
 (no_xbrl_answer), and any other error (error). After the selected companies, every
 company's files are merged into <out>/{releases,links,answers,preferred_dividends,
-failures}.csv (failures from every company that ran; the rest from finished ones).
+revenue_checks,failures}.csv (failures from every company that ran; the rest from
+finished ones). revenue_checks.csv lists the revenue answers between 1/5 and 1/2 of
+a larger revenue-like fact (see secbench.answers.RevenueCheck).
 
 Release splits (releases.csv's split column): a train company's releases filed
 before TIME_TEST_START are train and the rest time_test; a company_test company's
@@ -47,7 +50,13 @@ from typing import Any
 
 from secbench.answers import COLUMNS as ANSWER_COLUMNS
 from secbench.answers import DEFAULT_OUT as STAGE1_ANSWERS
-from secbench.answers import LinkedRelease, Results, answer_ticker, answers_csv
+from secbench.answers import (
+    LinkedRelease,
+    Results,
+    RevenueCheck,
+    answer_ticker,
+    answers_csv,
+)
 from secbench.companies import COMPANY_TEST, TRAIN, VALIDATION, Company, load_companies
 from secbench.companies import DEFAULT_OUT as DEFAULT_COMPANIES
 from secbench.edgar import EdgarClient, EdgarError, default_client, format_cik
@@ -132,11 +141,13 @@ DIVIDEND_COLUMNS = [
     "tag",
     "value",
 ]
+REVENUE_CHECK_COLUMNS = [f.name for f in fields(RevenueCheck)]
 FILES = {
     "releases.csv": RELEASE_COLUMNS,
     "links.csv": LINK_COLUMNS,
     "answers.csv": ANSWER_COLUMNS,
     "preferred_dividends.csv": DIVIDEND_COLUMNS,
+    "revenue_checks.csv": REVENUE_CHECK_COLUMNS,
     "failures.csv": FAILURE_COLUMNS,
 }
 
@@ -386,6 +397,9 @@ def write_company(out: Path, result: CompanyResult, seconds: float) -> None:
         "preferred_dividends.csv": rows_csv(
             (asdict(d) for d in result.results.preferred_dividends), DIVIDEND_COLUMNS
         ),
+        "revenue_checks.csv": rows_csv(
+            (asdict(c) for c in result.results.revenue_checks), REVENUE_CHECK_COLUMNS
+        ),
         "failures.csv": rows_csv((asdict(f) for f in result.failures), FAILURE_COLUMNS),
     }
     for name, text in texts.items():
@@ -416,14 +430,13 @@ def merge(out: Path, companies: Sequence[Company]) -> dict[str, int]:
             status = read_status(out, company)
             if status is None or (status["status"] != DONE and name != "failures.csv"):
                 continue
-            with (company_dir(out, company) / name).open(
-                newline="", encoding="utf-8"
-            ) as f:
+            path = company_dir(out, company) / name
+            if not path.is_file():
+                raise ValueError(f"{path}: missing (built before it existed? --redo)")
+            with path.open(newline="", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 if reader.fieldnames != list(columns):
-                    raise ValueError(
-                        f"{company_dir(out, company) / name}: unexpected columns"
-                    )
+                    raise ValueError(f"{path}: unexpected columns")
                 rows.extend(reader)
         write_text(out / name, rows_csv(rows, columns))
         counts[name] = len(rows)

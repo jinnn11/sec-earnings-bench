@@ -3,6 +3,7 @@ import csv
 import io
 import json
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import httpx
@@ -581,6 +582,10 @@ def test_coverage_report(tmp_path) -> None:
         "| error | 0 | 0 | 1 |",
     ]
     assert "- BADCO (train): build: EdgarError: ticker 'BADCO' is not in " in text
+    start = lines.index(
+        "## Revenue answers between 1/5 and 1/2 of a larger revenue-like fact"
+    )
+    assert lines[start + 4] == "None."
 
 
 def test_coverage_counts_preferred_dividends_by_split(tmp_path, stage1) -> None:
@@ -631,4 +636,106 @@ def test_coverage_lists_company_test_companies_with_fewer_than_four(tmp_path) ->
         "| NONE | 0 | 0 |",
         "| SHORT | 5 | 3 |",
         "",
+    ]
+
+
+# Revenue answers near a component (Decisions 2026-10-28)
+
+
+def test_revenue_checks_are_written_and_merged(tmp_path) -> None:
+    sec = fake_sec()
+    # OKCO's first 10-Q: lease income 3x its revenue (1000), so the revenue answer is
+    # listed; 5x would drop it.
+    entry = {
+        "start": "2025-12-31",
+        "end": "2026-03-31",
+        "val": 3000,
+        "accn": accession(OK, 3),
+    }
+    sec.facts[OK]["OperatingLeaseLeaseIncome"] = {"units": {"USD": [entry]}}
+    sec.finish()
+    run(tmp_path, sec)
+    folder = tmp_path / "stage2"
+    [check] = read(folder / "revenue_checks.csv")
+    assert check == {
+        "ticker": "OKCO",
+        "release_accession": accession(OK, 2),
+        "period_type": "quarter",
+        "derived": "False",
+        "answer": "1000",
+        "accession": accession(OK, 3),
+        "tag": "Revenues",
+        "start": "2025-12-31",
+        "end": "2026-03-31",
+        "value": "1000",
+        "larger_tag": "OperatingLeaseLeaseIncome",
+        "larger_value": "3000",
+    }
+    assert read(folder / "companies" / f"{OK:010d}" / "revenue_checks.csv") == [check]
+
+
+def test_merge_refuses_a_finished_company_without_a_file(tmp_path) -> None:
+    sec = fake_sec()
+    run(tmp_path, sec)
+    (tmp_path / "stage2" / "companies" / f"{OK:010d}" / "revenue_checks.csv").unlink()
+    with pytest.raises(ValueError, match="revenue_checks.csv: missing"):
+        stage2.merge(tmp_path / "stage2", COMPANIES)
+
+
+AAPL_Q2_FY25 = FIXTURES / "input_releases" / "0000320193" / "0000320193-25-000055.json"
+
+
+def test_printed_in_names_the_row_and_figure() -> None:
+    assert coverage.printed_in(Decimal(95359000000), AAPL_Q2_FY25) == (
+        "Total net sales: 95,359"
+    )
+    assert coverage.printed_in(Decimal(95358000000), AAPL_Q2_FY25) == "not printed"
+    assert coverage.printed_in(Decimal(1), None) == "release not saved"
+
+
+def test_coverage_lists_revenue_checks() -> None:
+    releases = [
+        {
+            "ticker": "CPT",
+            "release_accession": "CPT-1",
+            "filing_date": "2026-04-30",
+            "saved": "True",
+            "link_status": "linked",
+            "split": TRAIN,
+            "answers": "1",
+            "missing": "0",
+            "preferred_dividends": "False",
+        }
+    ]
+    check = {
+        "ticker": "CPT",
+        "release_accession": "CPT-1",
+        "period_type": "quarter",
+        "derived": "True",
+        "answer": "320",
+        "accession": "CPT-10Q",
+        "tag": "Revenues",
+        "start": "2025-01-01",
+        "end": "2025-09-30",
+        "value": "880",
+        "larger_tag": "LeaseIncome",
+        "larger_value": "2200",
+    }
+    text = coverage.format_coverage(
+        releases, [], [], {"CPT": TRAIN}, [check], lambda c: f"row for {c['answer']}"
+    )
+    lines = text.splitlines()
+    start = lines.index(
+        "## Revenue answers between 1/5 and 1/2 of a larger revenue-like fact"
+    )
+    assert lines[start + 4 : start + 7] == [
+        (
+            "| ticker | release | split | period | answer | tag | larger | share | "
+            "printed in |"
+        ),
+        "|" + "|".join([" --- "] * 9) + "|",
+        (
+            "| CPT | CPT-1 | train | quarter, derived | 320 | Revenues "
+            "2025-01-01..2025-09-30 880 | LeaseIncome 2200 | 40% | row for 320 |"
+        ),
     ]

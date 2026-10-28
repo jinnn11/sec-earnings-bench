@@ -12,9 +12,13 @@ data/companies.csv, and writes data/stage2/coverage.md (also printed):
 - every company_test company with fewer than COMPANY_TEST_RELEASES linked releases
   (it stays in company_test with what it has; the split is not redrawn);
 - the answer tag used, per field and split;
+- revenue answers between 1/5 and 1/2 of a larger revenue-like fact (revenue_checks.csv;
+  at most 1/5 is dropped as a component), with the row of the release input that
+  prints each;
 - failures by kind and company split, and the companies with errors.
 
-Usage: uv run python -m secbench.coverage [--stage2 data/stage2] [--companies data/companies.csv]
+Usage: uv run python -m secbench.coverage [--stage2 data/stage2]
+       [--companies data/companies.csv] [--stage1-releases data/releases]
 """
 
 from __future__ import annotations
@@ -23,14 +27,18 @@ import argparse
 import csv
 import sys
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from secbench.companies import COMPANY_TEST, load_companies
 from secbench.companies import DEFAULT_OUT as DEFAULT_COMPANIES
 from secbench.companies import SPLITS as COMPANY_SPLITS
-from secbench.link import CONFLICT, EXCLUDED, LINKED, UNLINKED
+from secbench.grade import input_rows, match_figure
+from secbench.inputs import build_input, release_records
+from secbench.link import CONFLICT, EXCLUDED, LINKED, UNLINKED, shorten
+from secbench.releases import DEFAULT_OUT_DIR as STAGE1_RELEASES
 from secbench.releases import write_text
 from secbench.stage2 import COMPANY_TEST_RELEASES, ERROR, KINDS, RELEASE_SPLITS
 from secbench.stage2 import DEFAULT_OUT as DEFAULT_STAGE2
@@ -104,11 +112,56 @@ def short_company_test(
     ]
 
 
+def printed_in(value: Decimal, record: Path | None) -> str:
+    """Where a release's model input shows value as revenue: the row's label and
+    the figure as shown (in dollars, thousands or millions), or why not."""
+    if record is None:
+        return "release not saved"
+    rows = input_rows(build_input(record).text)
+    found = match_figure(
+        value, "revenue", ((row, figure) for row in rows for figure in row.figures)
+    )
+    if found is None:
+        return "not printed"
+    row, figure, _ = found
+    return f"{shorten(row.label)}: {figure.text}".replace("|", r"\|")
+
+
+def revenue_check_rows(
+    checks: Sequence[dict[str, str]],
+    split_of: dict[str, str],
+    printed: Callable[[dict[str, str]], str],
+) -> list[list[str]]:
+    """One table row per revenue_checks.csv row."""
+    rows = []
+    for c in checks:
+        derived = c["derived"] == "True"
+        share = Decimal(c["value"]) / Decimal(c["larger_value"])
+        rows.append(
+            [
+                c["ticker"],
+                c["release_accession"],
+                split_of.get(c["release_accession"], ""),
+                c["period_type"] + (", derived" if derived else ""),
+                c["answer"],
+                # A derived quarter's fact compared: its full year or nine months.
+                c["tag"]
+                + (f" {c['start']}..{c['end']} {c['value']}" if derived else ""),
+                f"{c['larger_tag']} {c['larger_value']}",
+                f"{100 * share:.0f}%",
+                printed(c),
+            ]
+        )
+    return rows
+
+
 def format_coverage(
     releases: list[dict[str, str]],
     answers: list[dict[str, str]],
     failures: list[dict[str, str]],
     company_splits: dict[str, str],
+    revenue_checks: Sequence[dict[str, str]] = (),
+    printed: Callable[[dict[str, str]], str] = lambda check: "",
 ) -> str:
     by_split: dict[str, list[dict[str, str]]] = defaultdict(list)
     by_quarter: dict[str, list[dict[str, str]]] = defaultdict(list)
@@ -177,6 +230,31 @@ def format_coverage(
         )
     else:
         lines.append("None.")
+    lines.extend(
+        [
+            "",
+            "## Revenue answers between 1/5 and 1/2 of a larger revenue-like fact",
+            "",
+            (
+                "Listed, not dropped; an answer at most 1/5 of one is dropped as a "
+                "component. Share: the fact compared over the larger one."
+            ),
+            "",
+        ]
+    )
+    checks = revenue_check_rows(revenue_checks, split_of, printed)
+    header = [
+        "ticker",
+        "release",
+        "split",
+        "period",
+        "answer",
+        "tag",
+        "larger",
+        "share",
+        "printed in",
+    ]
+    lines.extend(table(header, checks) if checks else ["None."])
     lines.extend(["", "## Failures by kind and company split", ""])
     kinds = Counter((f["kind"], f["split"]) for f in failures)
     if kinds:
@@ -230,8 +308,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--stage2", type=Path, default=DEFAULT_STAGE2)
     parser.add_argument("--companies", type=Path, default=DEFAULT_COMPANIES)
+    parser.add_argument("--stage1-releases", type=Path, default=STAGE1_RELEASES)
     args = parser.parse_args(argv)
-    needed = [args.stage2 / n for n in ("releases.csv", "answers.csv", "failures.csv")]
+    names = ("releases.csv", "answers.csv", "failures.csv", "revenue_checks.csv")
+    needed = [args.stage2 / n for n in names]
     absent = [str(p) for p in [*needed, args.companies] if not p.is_file()]
     if absent:
         print(
@@ -239,9 +319,20 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    releases, answers, failures = (read_csv(p) for p in needed)
+    releases, answers, failures, revenue_checks = (read_csv(p) for p in needed)
     company_splits = {c.ticker: c.split for c in load_companies(args.companies)}
-    text = format_coverage(releases, answers, failures, company_splits)
+    # Validation releases are stage 1's; the others are saved under <stage2>/releases.
+    records = release_records(args.stage1_releases) | release_records(
+        args.stage2 / "releases"
+    )
+    text = format_coverage(
+        releases,
+        answers,
+        failures,
+        company_splits,
+        revenue_checks,
+        lambda c: printed_in(Decimal(c["answer"]), records.get(c["release_accession"])),
+    )
     write_text(args.stage2 / REPORT, text)
     print(text, end="")
     print(f"wrote {args.stage2 / REPORT}")

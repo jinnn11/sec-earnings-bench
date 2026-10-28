@@ -17,6 +17,7 @@ from secbench.answers import (
     CONFLICTING,
     FIELDS,
     FULL_YEAR,
+    LOOKS_LIKE_COMPONENT,
     NO_FACT,
     NO_PERIOD,
     NO_TAG,
@@ -28,6 +29,7 @@ from secbench.answers import (
     YEAR_TO_DATE,
     Answer,
     LinkedRelease,
+    RevenueCheck,
     ThirdQuarter,
     answer_release,
     answers_csv,
@@ -35,6 +37,7 @@ from secbench.answers import (
     find_third_quarter,
     format_report,
     index_facts,
+    is_revenue_like,
     load_company_facts,
     load_links,
 )
@@ -1000,6 +1003,168 @@ def test_diluted_eps_needs_no_check_for_discontinued_operations() -> None:
     assert values(run(linked(), document))["eps_diluted", QUARTER][1] == EPS
 
 
+# Revenue components (Decisions 2026-10-28)
+
+LEASE = "OperatingLeaseLeaseIncome"
+
+
+@pytest.mark.parametrize(
+    ("larger", "dropped", "listed"),
+    [
+        (Decimal(300), True, False),  # 5x: a component
+        (Decimal("299.99"), False, True),  # just under 5x
+        (Decimal(120), False, True),  # 2x
+        (Decimal("119.99"), False, False),  # just under 2x
+    ],
+)
+def test_revenue_component_is_dropped(larger, dropped, listed) -> None:
+    # Camden: RevenueFromContractWithCustomerExcludingAssessedTax 1,077K beside
+    # OperatingLeaseLeaseIncome 390,778K.
+    document = second_quarter(
+        **{
+            REV: {USD: [fact(Q2, 60), fact(H1, 550)]},
+            LEASE: {USD: [fact(Q2, larger)]},
+        }
+    )
+    results = run(linked(), document)
+    if dropped:
+        assert missing(results)["revenue", QUARTER] == (
+            LOOKS_LIKE_COMPONENT,
+            # A drop ends the search: no later tag is tried.
+            f"{REV}: 60, but {LEASE} is 300 (5.0x)",
+        )
+    else:
+        assert values(results)["revenue", QUARTER] == ("60", REV)
+    assert values(results)["revenue", YEAR_TO_DATE] == ("550", REV)  # not compared
+    checks = [(c.period_type, c.tag, c.larger_tag) for c in results.revenue_checks]
+    assert checks == ([(QUARTER, REV, LEASE)] if listed else [])
+
+
+def test_component_is_not_replaced_by_a_later_tag() -> None:
+    # General Mills FY2024: Revenues 2,037.8M beside net sales tagged
+    # RevenueFromContractWithCustomerExcludingAssessedTax, 19,857.2M.
+    document = second_quarter(
+        **{REV: {USD: [fact(Q2, 60), fact(H1, 550)]}, RFC: {USD: [fact(Q2, 300)]}}
+    )
+    assert missing(run(linked(), document))["revenue", QUARTER] == (
+        LOOKS_LIKE_COMPONENT,
+        f"{REV}: 60, but {RFC} is 300 (5.0x)",
+    )
+
+
+@pytest.mark.parametrize(
+    "larger",
+    [
+        {LEASE: {USD: [fact(Q2_PRIOR, 300)]}},  # another period
+        {LEASE: {USD: [fact(Q2, 300, accn=LATER)]}},  # another filing
+        {"PaymentsToAcquireAvailableForSaleSecuritiesDebt": {USD: [fact(Q2, 300)]}},
+        {"RevenueRemainingPerformanceObligation": {USD: [fact("2026-06-30", 900)]}},
+        {REV: {USD: [fact(Q2, 60)]}, "Revenues2": {"EUR": [fact(Q2, 300)]}},
+    ],
+    ids=["other-period", "other-filing", "not-revenue-like", "instant", "not-usd"],
+)
+def test_which_facts_count_against_a_revenue_answer(larger) -> None:
+    document = second_quarter(**({REV: {USD: [fact(Q2, 60)]}} | larger))
+    results = run(linked(), document)
+    assert values(results)["revenue", QUARTER] == ("60", REV)
+    assert results.revenue_checks == []
+
+
+@pytest.mark.parametrize(
+    ("tag", "expected"),
+    [
+        (REV, True),
+        (RFC, True),
+        (RUU, True),
+        (RIA, True),
+        ("SalesRevenueNet", True),
+        ("RevenueFromRelatedParties", True),
+        (LEASE, True),
+        ("LeaseIncome", True),
+        ("CostOfRevenue", False),
+        ("ContractWithCustomerLiabilityRevenueRecognized", False),
+        ("PaymentsToAcquireAvailableForSaleSecuritiesDebt", False),
+        ("InterestIncomeOperating", False),
+    ],
+)
+def test_revenue_like_tags(tag, expected) -> None:
+    assert is_revenue_like(tag) is expected
+
+
+def test_only_positive_revenue_can_be_a_component() -> None:
+    document = second_quarter(
+        **{REV: {USD: [fact(Q2, 0)]}, LEASE: {USD: [fact(Q2, 300)]}}
+    )
+    assert values(run(linked(), document))["revenue", QUARTER] == ("0", REV)
+
+
+def test_net_income_and_eps_are_not_checked_for_components() -> None:
+    # Net income is a tenth of revenue in second_quarter.
+    results = run(linked(), second_quarter())
+    assert values(results)["net_income", QUARTER] == ("30", NI)
+    assert values(results)["eps_diluted", QUARTER] == ("1.57", EPS)
+
+
+def test_derived_quarter_with_a_component_full_year_is_dropped() -> None:
+    document = fiscal_year(LeaseIncome={USD: [fact(FY, 6000)]})
+    results = run(ten_k(), document)
+    reasons = {key: reason for key, (reason, _) in missing(results).items()}
+    assert reasons == {
+        ("revenue", QUARTER): f"full year: {LOOKS_LIKE_COMPONENT}",
+        ("revenue", FULL_YEAR): LOOKS_LIKE_COMPONENT,
+    }
+    assert (
+        f"full year {REV}: 1200, but LeaseIncome is 6000 (5.0x)"
+        in (missing(results)["revenue", QUARTER][1])
+    )
+
+
+def test_derived_quarter_with_a_component_nine_months_is_dropped() -> None:
+    document = fiscal_year(LeaseIncome={USD: [fact(NINE_MONTHS, 4400, accn=Q3_10Q)]})
+    results = run(ten_k(), document)
+    reason, detail = missing(results)["revenue", QUARTER]
+    assert reason == f"nine months: {LOOKS_LIKE_COMPONENT}"
+    assert f"nine months {REV}: 880, but LeaseIncome is 4400 (5.0x)" in detail
+    assert values(results)["revenue", FULL_YEAR] == ("1200", REV)
+
+
+def test_derived_quarter_near_a_component_is_listed() -> None:
+    document = fiscal_year(LeaseIncome={USD: [fact(NINE_MONTHS, 1760, accn=Q3_10Q)]})
+    results = run(ten_k(), document)
+    assert values(results)["revenue", QUARTER] == ("320", REV)
+    assert results.revenue_checks == [
+        RevenueCheck(
+            ticker="TEST",
+            release_accession="0000000001-26-000009",
+            period_type=QUARTER,
+            derived=True,
+            answer=Decimal(320),
+            accession=Q3_10Q,
+            tag=REV,
+            start=date(2025, 1, 1),
+            end=date(2025, 9, 30),
+            value=Decimal(880),
+            larger_tag="LeaseIncome",
+            larger_value=Decimal(1760),
+        )
+    ]
+
+
+def test_near_components_in_report() -> None:
+    document = second_quarter(
+        **{REV: {USD: [fact(Q2, 100)]}, LEASE: {USD: [fact(Q2, 300)]}}
+    )
+    release = linked()
+    report = format_report([release], run(release, document)).splitlines()
+    start = report.index(
+        "revenue answers between 1/5 and 1/2 of a larger revenue-like fact (listed, "
+        "not dropped): 1"
+    )
+    assert report[start + 1] == (
+        f"  TEST 0000000001-26-000009 quarter {REV} 100; {LEASE} 300"
+    )
+
+
 def test_period_detail_is_capped() -> None:
     periods = [(f"20{y}-04-01", f"20{y}-06-30") for y in range(19, 25)]
     document = second_quarter(**{NI: {USD: [fact(p, 1) for p in periods]}})
@@ -1341,6 +1506,10 @@ def test_cli_report_on_fixtures(fixture_run) -> None:
     ]
     assert lines[16] == "missing: 0"
     assert lines[17:] == [
+        (
+            "revenue answers between 1/5 and 1/2 of a larger revenue-like fact "
+            "(listed, not dropped): 0"
+        ),
         "other revenue tags at the headline period (reported, not used):",
         f"  ORCL {RFC}: 2 filings, 2 equal to the revenue answer",
         (
