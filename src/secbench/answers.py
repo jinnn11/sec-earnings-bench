@@ -98,6 +98,7 @@ FIELDS = (
 )
 REVENUE = FIELDS[0]
 NET_INCOME = FIELDS[1]
+EPS_DILUTED = FIELDS[2]
 # Tag -> a tag that must be tagged 0 for the same filing and period before the first
 # is used. ProfitLoss includes noncontrolling interests, so it is net income only
 # when they are 0.
@@ -149,6 +150,11 @@ REVENUE_LIKE = re.compile(r"^(Revenue|SalesRevenue)")
 LEASE_INCOME_TAGS = ("OperatingLeaseLeaseIncome", "LeaseIncome")
 COMPONENT_RATIO = 5
 NEAR_COMPONENT_RATIO = 2
+# An EPS answer of MAX_EPS or more, either sign, is dropped, never rescaled
+# (Decisions 2026-10-28): Halliburton's 2023-2024 filings tag EPS a million times
+# too large (790000 for $0.79). The largest real one in the stage 2 data is NVR's
+# full-year 506.69.
+MAX_EPS = 1000
 
 # Why a field has no answer, from a tag that got least far to one that got furthest.
 NO_TAG = "no tag"
@@ -157,6 +163,7 @@ NO_PERIOD = "no matching period"
 CONDITION_NOT_MET = "condition not met"  # see unmet_condition
 CONFLICTING = "conflicting values"
 LOOKS_LIKE_COMPONENT = "looks like a component"  # see dropped
+IMPLAUSIBLE_EPS = "implausible EPS"  # see dropped
 REASONS = (
     NO_TAG,
     NO_FACT,
@@ -164,9 +171,10 @@ REASONS = (
     CONDITION_NOT_MET,
     CONFLICTING,
     LOOKS_LIKE_COMPONENT,
+    IMPLAUSIBLE_EPS,
 )
 # Reasons that end the search: a later tag never replaces the value that had them.
-STOPS = (CONFLICTING, LOOKS_LIKE_COMPONENT)
+STOPS = (CONFLICTING, LOOKS_LIKE_COMPONENT, IMPLAUSIBLE_EPS)
 PERIODS_IN_DETAIL = 4
 
 # A 10-K's fourth quarter is derived for these fields (EPS doesn't subtract).
@@ -387,8 +395,8 @@ def dropped(
 ) -> tuple[str, str] | None:
     """The reason and note if fact, found as field's answer, is dropped rather than
     used (Decisions 2026-10-28): a revenue value that looks like a component (see
-    COMPONENT_RATIO). Otherwise None. field may be a one-tag copy (see
-    derive_quarter), so it is compared by name."""
+    COMPONENT_RATIO), or an EPS of MAX_EPS or more either way. Otherwise None.
+    field may be a one-tag copy (see derive_quarter), so it is compared by name."""
     if field.name == REVENUE.name:
         larger = largest_revenue_like(fact, filing_facts)
         if larger is not None and is_component(fact, larger):
@@ -396,6 +404,8 @@ def dropped(
                 f"{fact.value}, but {larger.tag} is {larger.value} "
                 f"({larger.value / fact.value:.1f}x)"
             )
+    if field.name == EPS_DILUTED.name and abs(fact.value) >= MAX_EPS:
+        return IMPLAUSIBLE_EPS, f"{fact.value}, {MAX_EPS:,} or more per share"
     return None
 
 

@@ -17,6 +17,7 @@ from secbench.answers import (
     CONFLICTING,
     FIELDS,
     FULL_YEAR,
+    IMPLAUSIBLE_EPS,
     LOOKS_LIKE_COMPONENT,
     NO_FACT,
     NO_PERIOD,
@@ -1163,6 +1164,58 @@ def test_near_components_in_report() -> None:
     assert report[start + 1] == (
         f"  TEST 0000000001-26-000009 quarter {REV} 100; {LEASE} 300"
     )
+
+
+# Implausible EPS (Decisions 2026-10-28)
+
+
+@pytest.mark.parametrize(
+    ("value", "kept"),
+    [
+        (Decimal(790000), False),  # Halliburton's $0.79
+        (Decimal(1000), False),
+        (Decimal(-1000), False),
+        (Decimal("999.99"), True),
+        (Decimal("-999.99"), True),
+        (Decimal("506.69"), True),  # NVR's full year
+    ],
+)
+def test_eps_of_1000_or_more_is_dropped(value, kept) -> None:
+    document = second_quarter(**{EPS: {PER_SHARE: [fact(Q2, value), fact(H1, 2.84)]}})
+    results = run(linked(), document)
+    if kept:
+        assert values(results)["eps_diluted", QUARTER] == (str(value), EPS)
+    else:
+        assert missing(results)["eps_diluted", QUARTER] == (
+            IMPLAUSIBLE_EPS,
+            f"{EPS}: {value}, 1,000 or more per share",
+        )
+    assert values(results)["eps_diluted", YEAR_TO_DATE] == ("2.84", EPS)
+
+
+def test_implausible_eps_is_not_replaced_or_rescaled() -> None:
+    document = second_quarter(
+        **{
+            EPS: {PER_SHARE: [fact(Q2, 790000)]},
+            EPS_BD: {PER_SHARE: [fact(Q2, 0.79)]},
+            CONT: {PER_SHARE: [fact(Q2, 0.79)]},
+        }
+    )
+    results = run(linked(), document)
+    assert missing(results)["eps_diluted", QUARTER] == (
+        IMPLAUSIBLE_EPS,
+        f"{EPS}: 790000, 1,000 or more per share",
+    )
+    assert ("eps_diluted", QUARTER) not in values(results)
+
+
+def test_large_revenue_and_net_income_are_not_implausible() -> None:
+    document = second_quarter(
+        **{REV: {USD: [fact(Q2, 10**12)]}, NI: {USD: [fact(Q2, -(10**11))]}}
+    )
+    results = run(linked(), document)
+    assert values(results)["revenue", QUARTER] == (str(10**12), REV)
+    assert values(results)["net_income", QUARTER] == (str(-(10**11)), NI)
 
 
 def test_period_detail_is_capped() -> None:
