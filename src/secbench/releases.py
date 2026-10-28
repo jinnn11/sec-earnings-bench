@@ -17,6 +17,7 @@ import os
 import re
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -523,12 +524,15 @@ def collect_releases(
     since: date,
     until: date | None = None,
     out_dir: Path = DEFAULT_OUT_DIR,
+    *,
+    ciks: Sequence[int] | None = None,
 ) -> tuple[list[int], list[Outcome]]:
     """Save every Item 2.02 release for ticker in the date range, from each of its
-    CIKs (see edgar.TICKER_CIKS). A filing listed under several CIKs is saved once,
-    under the first. Returns the CIKs and one outcome per filing, oldest first."""
+    CIKs: ciks if given, else the ticker's (see edgar.TICKER_CIKS). A filing listed
+    under several CIKs is saved once, under the first. Returns the CIKs and one
+    outcome per filing, oldest first."""
     ticker = normalize_ticker(ticker)
-    ciks = client.ticker_to_ciks(ticker)
+    ciks = list(ciks) if ciks is not None else client.ticker_to_ciks(ticker)
     filings = pd.concat(
         [
             select_releases(client.get_filings(cik), since, until).assign(cik=cik)

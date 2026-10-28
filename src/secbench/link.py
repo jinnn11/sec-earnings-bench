@@ -22,6 +22,7 @@ import logging
 import re
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, fields, replace
 from datetime import date
 from pathlib import Path
@@ -284,15 +285,18 @@ def combine_filings(filings_by_cik: dict[int, pd.DataFrame]) -> pd.DataFrame:
 
 
 def ticker_filings(
-    client: EdgarClient, ticker: str, *, refresh: bool = False
+    client: EdgarClient,
+    ticker: str,
+    *,
+    refresh: bool = False,
+    ciks: Sequence[int] | None = None,
 ) -> pd.DataFrame:
-    """Filings under every CIK of ticker (edgar.TICKER_CIKS), current CIK first;
-    refresh re-downloads the submissions JSON."""
+    """Filings under every CIK of ticker (edgar.TICKER_CIKS), current CIK first, or
+    under ciks if given; refresh re-downloads the submissions JSON."""
+    if ciks is None:
+        ciks = client.ticker_to_ciks(ticker)
     return combine_filings(
-        {
-            cik: client.get_filings(cik, refresh=refresh)
-            for cik in client.ticker_to_ciks(ticker)
-        }
+        {cik: client.get_filings(cik, refresh=refresh) for cik in ciks}
     )
 
 

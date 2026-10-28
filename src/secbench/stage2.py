@@ -9,6 +9,12 @@ Validation companies: the stage 1 releases and links as they are (data/links.csv
 nothing fetched), answered again from the cached company facts, which must give
 data/answers.csv's rows.
 
+Filings, submissions and company facts are fetched by the company's CIK in
+companies.csv, plus the other CIKs of its edgar.TICKER_CIKS group (ExxonMobil's
+predecessor), never by looking up its ticker. Where SEC's ticker map (the cached
+company_tickers.json) disagrees, that is reported in <out>/ticker_map.csv, not
+followed.
+
 Each company's results go to <out>/companies/<cik>/ (releases.csv, links.csv,
 answers.csv, preferred_dividends.csv, revenue_checks.csv, failures.csv), then
 status.json. A company
@@ -57,9 +63,24 @@ from secbench.answers import (
     answer_ticker,
     answers_csv,
 )
-from secbench.companies import COMPANY_TEST, TRAIN, VALIDATION, Company, load_companies
+from secbench.companies import (
+    COMPANY_TEST,
+    TRAIN,
+    VALIDATION,
+    Company,
+    cik_mismatches,
+    load_companies,
+)
 from secbench.companies import DEFAULT_OUT as DEFAULT_COMPANIES
-from secbench.edgar import EdgarClient, EdgarError, default_client, format_cik
+from secbench.edgar import (
+    TICKER_CIKS,
+    TICKERS_URL,
+    EdgarClient,
+    EdgarError,
+    default_client,
+    format_cik,
+    parse_company_tickers,
+)
 from secbench.link import COLUMNS as LINK_COLUMNS
 from secbench.link import (
     CONFLICT,
@@ -98,6 +119,8 @@ KINDS = (NO_ITEM_202, NO_PRESS_RELEASE, NO_LINKED_FILING, NO_XBRL_ANSWER, ERROR)
 DONE = "done"
 FAILED = "failed"
 STATUS = "status.json"
+TICKER_MAP = "ticker_map.csv"
+TICKER_MAP_COLUMNS = ["ticker", "cik", "sec_cik"]
 
 
 @dataclass(frozen=True)
@@ -201,6 +224,25 @@ class CompanyResult:
         )
 
 
+def company_ciks(company: Company) -> list[int]:
+    """The CIKs whose filings are the company's: its CIK in companies.csv, then the
+    others of the edgar.TICKER_CIKS group holding it. Never a ticker lookup."""
+    for ciks in TICKER_CIKS.values():
+        if company.cik in ciks:
+            return [company.cik, *(cik for cik in ciks if cik != company.cik)]
+    return [company.cik]
+
+
+def ticker_map_rows(
+    client: EdgarClient, companies: Sequence[Company]
+) -> list[dict[str, Any]]:
+    """Companies whose CIK SEC's ticker map (company_tickers.json, from the cache
+    once downloaded) doesn't give for their ticker (see companies.cik_mismatches):
+    reported, never followed. sec_cik is blank for a ticker not in the map."""
+    sec_ciks = parse_company_tickers(client.fetch_json(TICKERS_URL))
+    return [asdict(m) for m in cik_mismatches(companies, sec_ciks)]
+
+
 def link_failures(result: CompanyResult) -> None:
     for link in result.links:
         if link.status == EXCLUDED:
@@ -236,7 +278,9 @@ def answer(client: EdgarClient, result: CompanyResult) -> None:
     if not linked:
         return
     try:
-        result.results = answer_ticker(client, result.company.ticker, linked)
+        result.results = answer_ticker(
+            client, result.company.ticker, linked, ciks=company_ciks(result.company)
+        )
     except EdgarError as exc:
         result.fail("answers", NO_XBRL_ANSWER, f"company facts: {exc}")
         return
@@ -279,7 +323,7 @@ def build_company(
     """Releases, links and answers for a train or company_test company."""
     result = CompanyResult(company)
     ciks, outcomes = collect_releases(
-        client, company.ticker, since, until, releases_dir
+        client, company.ticker, since, until, releases_dir, ciks=company_ciks(company)
     )
     if not outcomes:
         result.fail(
@@ -320,7 +364,8 @@ def build_company(
                 "link", NO_PRESS_RELEASE, f"saved record unreadable: {exc}", accession
             )
     if releases:
-        result.links = link_releases(releases, ticker_filings(client, company.ticker))
+        filings = ticker_filings(client, company.ticker, ciks=ciks)
+        result.links = link_releases(releases, filings)
         link_failures(result)
         answer(client, result)
     fill_release_rows(result)
@@ -522,6 +567,22 @@ def main(argv: list[str] | None = None, client: EdgarClient | None = None) -> in
         flush=True,
     )
     client = client or default_client()
+    try:
+        mismatches = ticker_map_rows(client, selected)
+    except EdgarError as exc:
+        print(f"SEC's ticker map not checked: {exc}")
+    else:
+        args.out.mkdir(parents=True, exist_ok=True)
+        write_text(args.out / TICKER_MAP, rows_csv(mismatches, TICKER_MAP_COLUMNS))
+        print(
+            f"SEC's ticker map disagrees with companies.csv for {len(mismatches)} "
+            f"of {len(selected)} companies (in {args.out / TICKER_MAP}; not followed)"
+            + "".join(
+                f"\n  {m['ticker']}: companies.csv {m['cik']}, SEC "
+                f"{m['sec_cik'] if m['sec_cik'] is not None else 'not in the map'}"
+                for m in mismatches
+            )
+        )
     errors = 0
     for number, company in enumerate(todo, 1):
         start = time.monotonic()

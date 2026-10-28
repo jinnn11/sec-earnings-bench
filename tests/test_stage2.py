@@ -235,7 +235,7 @@ COMPANIES = [
     Company("NOPR", NOPR, "No Press Release Co", "Industrials", TRAIN),
     Company("UNLNK", UNLNK, "Unlinked Co", "Industrials", TRAIN),
     Company("NOXBRL", NOXBRL, "No XBRL Co", "Utilities", COMPANY_TEST),
-    # Not in SEC's ticker map: an error, logged.
+    # Not in SEC's ticker map (reported) and nothing at its CIK: an error, logged.
     Company("BADCO", BAD, "Bad Co", "Energy", TRAIN),
 ]
 
@@ -268,10 +268,17 @@ def test_build_logs_every_failure_and_goes_on(tmp_path) -> None:
         "6 companies selected, 0 already done, 6 to run (releases filed 2023-10-01 to "
         "2026-09-30)"
     )
-    assert lines[1].startswith(
+    assert lines[1:3] == [
+        (
+            "SEC's ticker map disagrees with companies.csv for 1 of 6 companies "
+            f"(in {tmp_path / 'stage2' / 'ticker_map.csv'}; not followed)"
+        ),
+        "  BADCO: companies.csv 106, SEC not in the map",
+    ]
+    assert lines[3].startswith(
         "[1/6] OKCO (train): 2 8-Ks, 2 linked, 5 answers; no_xbrl_answer 1; done "
     )
-    assert lines[6].startswith(
+    assert lines[8].startswith(
         "[6/6] BADCO (train): 0 8-Ks, 0 linked, 0 answers; error 1; failed"
     )
     folder = tmp_path / "stage2"
@@ -302,7 +309,12 @@ def test_build_logs_every_failure_and_goes_on(tmp_path) -> None:
         "eps_diluted quarter: no fact for that accession"
     )
     assert reasons["NOXBRL", ""].startswith("company facts: ")
-    assert reasons["BADCO", ""] == f"EdgarError: ticker 'BADCO' is not in {TICKERS}"
+    assert reasons["BADCO", ""] == (
+        f"EdgarError: GET {SUBMISSIONS.format(BAD)} returned HTTP 404"
+    )
+    assert read(folder / "ticker_map.csv") == [
+        {"ticker": "BADCO", "cik": "106", "sec_cik": ""}
+    ]
 
     releases = read(folder / "releases.csv")
     assert [
@@ -355,13 +367,14 @@ def test_a_second_run_resumes_from_the_cache(tmp_path) -> None:
     first = {name: (tmp_path / "stage2" / name).read_text() for name in stage2.FILES}
     sec.requests.clear()
     status, out = run(tmp_path, sec)
-    # Only the failed company runs again; nothing is fetched.
+    # Only the failed company runs again; nothing else is fetched (an error
+    # response is never cached).
     assert out.splitlines()[0] == (
         "6 companies selected, 5 already done, 1 to run (releases filed 2023-10-01 to "
         "2026-09-30)"
     )
-    assert "BADCO" in out.splitlines()[1]
-    assert status == 1 and sec.requests == []
+    assert "BADCO" in out.splitlines()[3]
+    assert status == 1 and sec.requests == [SUBMISSIONS.format(BAD)]
     assert {n: (tmp_path / "stage2" / n).read_text() for n in stage2.FILES} == first
 
 
@@ -581,7 +594,15 @@ def test_coverage_report(tmp_path) -> None:
         "| no_xbrl_answer | 0 | 1 | 1 |",
         "| error | 0 | 0 | 1 |",
     ]
-    assert "- BADCO (train): build: EdgarError: ticker 'BADCO' is not in " in text
+    assert "- BADCO (train): build: EdgarError: GET " in text
+    start = lines.index("## CIKs that differ from SEC's ticker map")
+    assert lines[start + 2 : start + 7] == [
+        "Reported, not followed: stage 2 fetches by companies.csv's CIK.",
+        "",
+        "| ticker | companies.csv | SEC |",
+        "|" + "|".join([" --- "] * 3) + "|",
+        "| BADCO | 106 | not in the map |",
+    ]
     start = lines.index(
         "## Revenue answers between 1/5 and 1/2 of a larger revenue-like fact"
     )
@@ -739,3 +760,46 @@ def test_coverage_lists_revenue_checks() -> None:
             "2025-01-01..2025-09-30 880 | LeaseIncome 2200 | 40% | row for 320 |"
         ),
     ]
+
+
+# CIKs from companies.csv, never a ticker lookup
+
+
+def test_company_ciks_come_from_companies_csv() -> None:
+    assert stage2.company_ciks(COMPANIES[0]) == [OK]
+    xom = Company("XOM", 2115436, "Exxon Mobil", "Energy", VALIDATION)
+    assert stage2.company_ciks(xom) == [2115436, 34088]  # its TICKER_CIKS group
+    old = Company("XOM", 34088, "Exxon Mobil", "Energy", VALIDATION)
+    assert stage2.company_ciks(old) == [34088, 2115436]
+
+
+def test_a_moved_ticker_is_reported_not_followed(tmp_path) -> None:
+    sec = fake_sec()
+    # SEC's ticker map now points OKCO at UNLNK's CIK.
+    sec.tickers["OKCO"] = UNLNK
+    sec.finish()
+    status, out = run(tmp_path, sec, "--tickers", "OKCO")
+    assert status == 0
+    assert "  OKCO: companies.csv 101, SEC 104" in out.splitlines()
+    assert read(tmp_path / "stage2" / "ticker_map.csv") == [
+        {"ticker": "OKCO", "cik": "101", "sec_cik": "104"}
+    ]
+    # OKCO's own filings and facts, under CIK 101; nothing under 104.
+    assert SUBMISSIONS.format(OK) in sec.requests
+    assert COMPANYFACTS.format(OK) in sec.requests
+    assert not any(
+        f"{UNLNK:010d}" in url or f"/{UNLNK}/" in url for url in sec.requests
+    )
+    releases = read(tmp_path / "stage2" / "releases.csv")
+    assert [(r["ticker"], r["cik"], r["link_status"]) for r in releases] == [
+        ("OKCO", "101", "linked"),
+        ("OKCO", "101", "linked"),
+    ]
+
+
+def test_coverage_without_a_ticker_map_check() -> None:
+    lines = coverage.format_coverage([], [], [], {}).splitlines()
+    start = lines.index("## CIKs that differ from SEC's ticker map")
+    assert lines[start + 2] == "Not checked (no ticker_map.csv)."
+    lines = coverage.format_coverage([], [], [], {}, ticker_map=[]).splitlines()
+    assert lines[start + 2] == "None."

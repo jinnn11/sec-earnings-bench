@@ -15,7 +15,9 @@ data/companies.csv, and writes data/stage2/coverage.md (also printed):
 - revenue answers between 1/5 and 1/2 of a larger revenue-like fact (revenue_checks.csv;
   at most 1/5 is dropped as a component), with the row of the release input that
   prints each;
-- failures by kind and company split, and the companies with errors.
+- failures by kind and company split, and the companies with errors;
+- companies whose CIK SEC's ticker map disagrees with (ticker_map.csv; reported by
+  secbench.stage2, which fetches by companies.csv's CIKs regardless).
 
 Usage: uv run python -m secbench.coverage [--stage2 data/stage2]
        [--companies data/companies.csv] [--stage1-releases data/releases]
@@ -40,7 +42,13 @@ from secbench.inputs import build_input, release_records
 from secbench.link import CONFLICT, EXCLUDED, LINKED, UNLINKED, shorten
 from secbench.releases import DEFAULT_OUT_DIR as STAGE1_RELEASES
 from secbench.releases import write_text
-from secbench.stage2 import COMPANY_TEST_RELEASES, ERROR, KINDS, RELEASE_SPLITS
+from secbench.stage2 import (
+    COMPANY_TEST_RELEASES,
+    ERROR,
+    KINDS,
+    RELEASE_SPLITS,
+    TICKER_MAP,
+)
 from secbench.stage2 import DEFAULT_OUT as DEFAULT_STAGE2
 
 REPORT = "coverage.md"
@@ -162,6 +170,7 @@ def format_coverage(
     company_splits: dict[str, str],
     revenue_checks: Sequence[dict[str, str]] = (),
     printed: Callable[[dict[str, str]], str] = lambda check: "",
+    ticker_map: Sequence[dict[str, str]] | None = None,
 ) -> str:
     by_split: dict[str, list[dict[str, str]]] = defaultdict(list)
     by_quarter: dict[str, list[dict[str, str]]] = defaultdict(list)
@@ -277,6 +286,23 @@ def format_coverage(
             f"- {f['ticker']} ({f['split']}): {f['step']}: {f['reason']}"
             for f in errors
         )
+    lines.extend(["", "## CIKs that differ from SEC's ticker map", ""])
+    if ticker_map is None:
+        lines.append("Not checked (no ticker_map.csv).")
+    elif ticker_map:
+        lines.append("Reported, not followed: stage 2 fetches by companies.csv's CIK.")
+        lines.append("")
+        lines.extend(
+            table(
+                ["ticker", "companies.csv", "SEC"],
+                (
+                    [m["ticker"], m["cik"], m["sec_cik"] or "not in the map"]
+                    for m in ticker_map
+                ),
+            )
+        )
+    else:
+        lines.append("None.")
     lines.extend(
         [
             "",
@@ -325,6 +351,7 @@ def main(argv: list[str] | None = None) -> int:
     records = release_records(args.stage1_releases) | release_records(
         args.stage2 / "releases"
     )
+    ticker_map_path = args.stage2 / TICKER_MAP
     text = format_coverage(
         releases,
         answers,
@@ -332,6 +359,7 @@ def main(argv: list[str] | None = None) -> int:
         company_splits,
         revenue_checks,
         lambda c: printed_in(Decimal(c["answer"]), records.get(c["release_accession"])),
+        read_csv(ticker_map_path) if ticker_map_path.is_file() else None,
     )
     write_text(args.stage2 / REPORT, text)
     print(text, end="")

@@ -23,7 +23,7 @@ import logging
 import re
 import sys
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, fields
 from dataclasses import field as dataclass_field
 from datetime import date, timedelta
@@ -1004,18 +1004,18 @@ def answer_ticker(
     releases: list[LinkedRelease],
     *,
     refresh: bool = False,
+    ciks: Sequence[int] | None = None,
 ) -> Results:
     """Answers for one ticker's linked releases, from the company facts of every
-    CIK in edgar.TICKER_CIKS, and for a 10-K, its third-quarter 10-Q from their
-    submissions; refresh re-downloads both."""
-    companyfacts = [
-        load_company_facts(client, cik, refresh=refresh)
-        for cik in client.ticker_to_ciks(ticker)
-    ]
+    CIK in edgar.TICKER_CIKS (or of ciks if given), and for a 10-K, its
+    third-quarter 10-Q from their submissions; refresh re-downloads both."""
+    if ciks is None:
+        ciks = client.ticker_to_ciks(ticker)
+    companyfacts = [load_company_facts(client, cik, refresh=refresh) for cik in ciks]
     third_quarters: dict[str, ThirdQuarter] = {}
     tenks = [r for r in releases if r.linked_form == "10-K"]
     if tenks:
-        filings = ticker_filings(client, ticker, refresh=refresh)
+        filings = ticker_filings(client, ticker, refresh=refresh, ciks=ciks)
         third_quarters = {
             r.release_accession: find_third_quarter(filings, r.period_end)
             for r in tenks
