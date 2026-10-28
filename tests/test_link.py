@@ -12,6 +12,7 @@ import pytest
 
 from secbench import edgar, link
 from secbench.edgar import EdgarClient, RateLimiter, parse_submissions
+from secbench.inputs import build_input
 from secbench.link import (
     COLUMNS,
     EXCLUDED_RELEASES,
@@ -69,14 +70,18 @@ def make_client(cache_dir: Path) -> EdgarClient:
 
 
 def write_releases(entries: list[dict], folder: Path) -> None:
-    """Lay out release fixtures as secbench.releases saves them."""
+    """Lay out release fixtures as secbench.releases saves them. The fixtures keep
+    only the chosen exhibit's text; other saved exhibits are written empty, so they
+    are never part of the input (see link.input_exhibits)."""
     for entry in entries:
         record = entry["record"]
         cik_dir = folder / edgar.format_cik(record["cik"])
         cik_dir.mkdir(parents=True, exist_ok=True)
         (cik_dir / f"{record['accession_number']}.json").write_text(json.dumps(record))
-        chosen = next(e for e in record["exhibits"] if e["chosen"])
-        (cik_dir / chosen["file"]).write_text(entry["markdown"])
+        for exhibit in record["exhibits"]:
+            if exhibit["file"]:
+                text = entry["markdown"] if exhibit["chosen"] else ""
+                (cik_dir / exhibit["file"]).write_text(text)
 
 
 def table(header: list[str], *rows: list[str]) -> str:
@@ -318,6 +323,14 @@ EARNINGS = table(
     HEADER, ["Net income", "$10", "$9"], ["Diluted earnings per share", "1", "2"]
 )
 NO_TABLES = "not an earnings release: no tables"
+# An income statement (see link.has_income_statement): revenue, net income and per
+# share rows. EARNINGS has no revenue row.
+STATEMENT = table(
+    HEADER,
+    ["Total revenues", "$100", "$90"],
+    ["Net income", "$10", "$9"],
+    ["Diluted earnings per share", "1", "2"],
+)
 
 
 def save_record(folder: Path, exhibits: list[tuple[str, str | None, bool]]) -> Path:
@@ -370,15 +383,15 @@ def test_load_releases_checks_the_chosen_exhibit(tmp_path) -> None:
     [
         # Statements only in EX-99.2 (ConocoPhillips, Philip Morris).
         (
-            [("EX-99.1", "Results.\n", True), ("EX-99.2", EARNINGS, False)],
+            [("EX-99.1", "Results.\n", True), ("EX-99.2", STATEMENT, False)],
             EarningsCheck(True, exhibit="EX-99.2"),
         ),
-        # The first that passes, in filing-index order.
+        # The first with an income statement, in filing-index order.
         (
             [
                 ("EX-99.1", "Results.\n", True),
-                ("EX-99.3", EARNINGS, False),
-                ("EX-99.2", EARNINGS, False),
+                ("EX-99.3", STATEMENT, False),
+                ("EX-99.2", STATEMENT, False),
             ],
             EarningsCheck(True, exhibit="EX-99.3"),
         ),
@@ -387,30 +400,64 @@ def test_load_releases_checks_the_chosen_exhibit(tmp_path) -> None:
             [
                 ("EX-99.1", "Results.\n", True),
                 ("EX-99.2", None, False),
-                ("EX-99.3", EARNINGS, False),
+                ("EX-99.3", STATEMENT, False),
             ],
             EarningsCheck(True, exhibit="EX-99.3"),
         ),
-        # None passes: the chosen exhibit's reason, naming the others checked.
+        # An exhibit that passes the earnings check without an income statement
+        # isn't part of the input, so the release doesn't link through it.
+        (
+            [("EX-99.1", "Results.\n", True), ("EX-99.2", EARNINGS, False)],
+            EarningsCheck(False, f"{NO_TABLES}; no income statement in EX-99.2"),
+        ),
+        # None passes: the chosen exhibit's reason, naming the others.
         (
             [
                 ("EX-99.1", "Results.\n", True),
                 ("EX-99.2", "Slides.\n", False),
                 ("EX-99.3", None, False),
             ],
-            EarningsCheck(False, f"{NO_TABLES}; also checked: EX-99.2"),
+            EarningsCheck(False, f"{NO_TABLES}; no income statement in EX-99.2"),
         ),
         # No other exhibit: the reason is unchanged (Nike's CFO news, stage 1).
         (
             [("EX-99.1", "Nike names a new CFO.\n", True)],
             EarningsCheck(False, NO_TABLES),
         ),
+        # The chosen exhibit passes; another is read only for the input.
+        (
+            [("EX-99.1", EARNINGS, True), ("EX-99.2", STATEMENT, False)],
+            EarningsCheck(True, exhibit="EX-99.1"),
+        ),
     ],
-    ids=["ex-99.2", "index-order", "non-html-skipped", "none-pass", "chosen-only"],
+    ids=[
+        "ex-99.2",
+        "index-order",
+        "non-html-skipped",
+        "not-in-input",
+        "none-pass",
+        "chosen-only",
+        "chosen-passes",
+    ],
 )
-def test_load_release_reads_every_saved_exhibit(tmp_path, exhibits, expected) -> None:
+def test_load_release_reads_the_input_exhibits(tmp_path, exhibits, expected) -> None:
     path = save_record(tmp_path / "0000320193", exhibits)
     assert load_release(path).earnings == expected
+
+
+def test_a_release_never_links_through_an_exhibit_outside_its_input(tmp_path) -> None:
+    for n, exhibits in enumerate(
+        [
+            [("EX-99.1", "Results.\n", True), ("EX-99.2", STATEMENT, False)],
+            [("EX-99.1", EARNINGS, True), ("EX-99.2", STATEMENT, False)],
+            [("EX-99.1", STATEMENT, True), ("EX-99.2", STATEMENT, False)],
+            [("EX-99.1", "Results.\n", True), ("EX-99.2", EARNINGS, False)],
+        ]
+    ):
+        path = save_record(tmp_path / str(n), exhibits)
+        earnings = load_release(path).earnings
+        if earnings.ok:
+            assert earnings.exhibit in build_input(path).exhibits
 
 
 def test_load_release_needs_one_chosen_exhibit(tmp_path) -> None:

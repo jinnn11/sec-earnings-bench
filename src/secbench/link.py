@@ -1,9 +1,10 @@
 """Link each saved earnings release to the 10-Q or 10-K that reports its period.
 
-A saved release (see secbench.releases) counts only if one of its saved EX-99.x
-exhibits (the press release, then the others, as secbench.inputs.build_input reads
-them) has a table with a net income row and a per-share row, and it isn't in the
-hand-kept EXCLUDED_RELEASES; others are excluded. Each remaining
+A saved release (see secbench.releases) counts only if one of the exhibits of its
+model input (see input_exhibits, which secbench.inputs.build_input reads too) has a
+table with a net income row and a per-share row, and it isn't in the hand-kept
+EXCLUDED_RELEASES; others are excluded. So a release never links through an exhibit
+that isn't in its input. Each remaining
 release links to the first 10-Q or 10-K filed on or after it whose period ended 0 to
 100 days before it, searched across every CIK of the ticker. If several releases link
 to one filing, the one filed closest to it keeps the link; the others are conflicts.
@@ -61,6 +62,11 @@ NET_INCOME = re.compile(
 # EPS from continuing operations", AEP's "EPS ($):").
 PER_SHARE = re.compile(r"\bper\s+([\w-]+\s+){0,3}shares?\b", re.IGNORECASE)
 EPS = re.compile(r"\bEPS\b")
+# "Total net sales", "Total revenues and other income", "Sales and other operating
+# revenue", "Total sales and revenues"; not "Cost of sales" or "Cost of revenue".
+REVENUE_LABEL = re.compile(
+    r"(?<!cost of )\b(revenues?|net sales|sales)\b", re.IGNORECASE
+)
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
 # Item 2.02 8-Ks that pass the earnings check but aren't earnings releases, kept by
 # hand: accession -> why. link_releases excludes them before linking, so they never
@@ -128,12 +134,38 @@ def is_net_income_row(row: list[str]) -> bool:
     )
 
 
-def is_per_share_row(row: list[str]) -> bool:
-    # A label alone counts: Apple's "Earnings per share:" heads its Basic and
-    # Diluted rows.
+def is_per_share_row(row: list[str], *, eps: bool = True) -> bool:
+    """A label alone counts: Apple's "Earnings per share:" heads its Basic and
+    Diluted rows. eps=False leaves out a label that says EPS without "per ...
+    share" (see has_income_statement)."""
     return any(
-        PER_SHARE.search(label) or EPS.search(label) for label in row_labels(row)
+        PER_SHARE.search(label) or (eps and EPS.search(label))
+        for label in row_labels(row)
     )
+
+
+def is_revenue_row(row: list[str]) -> bool:
+    return any(is_amount(c) for c in row) and any(
+        REVENUE_LABEL.search(label) for label in row_labels(row)
+    )
+
+
+def has_income_statement(markdown: str) -> bool:
+    """A table whose body (below its header row) has a revenue row, a net income row
+    and a row that says "per ... share". Stricter than check_earnings, which
+    ExxonMobil's Q2 2026 EX-99.1 passes with a summary table of earnings and
+    per-share rows; and an "EPS" label alone doesn't count, since Johnson & Johnson's
+    and T-Mobile's highlight tables (quarter columns only) say "EPS (diluted)" and
+    "Diluted EPS", while their statements are in EX-99.2."""
+    for table in markdown_tables(markdown):
+        body = table[1:]
+        if (
+            any(map(is_revenue_row, body))
+            and any(map(is_net_income_row, body))
+            and any(is_per_share_row(row, eps=False) for row in body)
+        ):
+            return True
+    return False
 
 
 def check_earnings(markdown: str) -> EarningsCheck:
@@ -174,31 +206,54 @@ class Release:
     earnings: EarningsCheck
 
 
-def load_release(record_path: Path) -> Release:
-    """Read <accession>.json and check its exhibits' markdown: the chosen exhibit,
-    then every other saved EX-99.x in filing-index order (the exhibits
-    secbench.inputs.build_input reads; some companies put their statements in
-    EX-99.2). The first that passes makes the release an earnings release; if none
-    does, the reason is the chosen exhibit's."""
-    record = json.loads(record_path.read_text(encoding="utf-8"))
+def input_exhibits(record: dict, folder: Path) -> list[tuple[dict, str]]:
+    """The exhibits of a release's model input, each with its markdown: the chosen
+    press release, plus, if it has no income statement (see has_income_statement),
+    the first other saved EX-99.x in filing-index order that has one (some companies
+    put their statements in EX-99.2). record is the release's <accession>.json and
+    folder holds its files. The one rule for which exhibits count: the earnings
+    check (load_release) and the model input (secbench.inputs.build_input) both
+    read exactly these."""
     chosen = [e for e in record["exhibits"] if e["chosen"]]
     if len(chosen) != 1 or not chosen[0]["file"]:
-        raise ValueError(f"{record_path}: no single chosen exhibit with a file")
-    others = [e for e in record["exhibits"] if not e["chosen"] and e["file"]]
-    failed = []
-    for exhibit in [chosen[0], *others]:
-        markdown = (record_path.parent / exhibit["file"]).read_text(encoding="utf-8")
-        check = check_earnings(markdown)
-        if check.ok:
-            earnings = replace(check, exhibit=exhibit["type"])
+        raise ValueError(
+            f"{folder / record['accession_number']}.json: no single chosen exhibit "
+            "with a file"
+        )
+    release = chosen[0]
+    text = (folder / release["file"]).read_text(encoding="utf-8")
+    exhibits = [(release, text)]
+    if has_income_statement(text):
+        return exhibits
+    for exhibit in record["exhibits"]:
+        if exhibit is release or not exhibit["file"]:
+            continue
+        markdown = (folder / exhibit["file"]).read_text(encoding="utf-8")
+        if has_income_statement(markdown):
+            return [*exhibits, (exhibit, markdown)]
+    return exhibits
+
+
+def load_release(record_path: Path) -> Release:
+    """Read <accession>.json and check the markdown of each exhibit of its model
+    input (see input_exhibits), in order; the first that passes makes the release
+    an earnings release. An appended exhibit has an income statement, so it always
+    passes: if none does, the input is the chosen exhibit alone, and the reason is
+    its own, naming the other saved exhibits (none with an income statement)."""
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    for exhibit, markdown in input_exhibits(record, record_path.parent):
+        earnings = check_earnings(markdown)
+        if earnings.ok:
+            earnings = replace(earnings, exhibit=exhibit["type"])
             break
-        failed.append(check)
-    else:
-        earnings = failed[0]
+    if not earnings.ok:
+        others = [
+            e["type"] for e in record["exhibits"] if not e["chosen"] and e["file"]
+        ]
         if others:
-            checked = ", ".join(e["type"] for e in others)
             earnings = replace(
-                earnings, reason=f"{earnings.reason}; also checked: {checked}"
+                earnings,
+                reason=f"{earnings.reason}; no income statement in {', '.join(others)}",
             )
     return Release(
         ticker=record["ticker"],

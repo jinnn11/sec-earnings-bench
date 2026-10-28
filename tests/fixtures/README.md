@@ -37,7 +37,9 @@ and the saved releases (`data/releases/`) of the 10-company release run:
 | `link_submissions.json` | Responses by URL. `company_tickers.json`: the 10 tickers' entries (original keys). One submissions JSON per CIK (the 10 tickers plus XOM's predecessor, 34088): every top-level field kept; `filings.recent` holds every row from `recent` and the older-filings files whose form contains "10-Q" or "10-K" and that was filed on or after 2025-01-01 (every column kept); `filings.files` is set to `[]` |
 
 The filter accepts a release if any one of its tables qualifies, so trimming a
-release to the table it accepted gives the same verdict as the whole markdown.
+release to the table it accepted gives the same verdict as the whole markdown. The
+fixtures hold no other exhibit's text: tests write those files empty, so they never
+join a release's input (`link.input_exhibits`).
 `tests/fixtures/links_handchecked.csv` is hand-checked and maintained by hand.
 
 Answer-key fixtures (`tests/test_answers.py`), built 2026-10-11 from the cache

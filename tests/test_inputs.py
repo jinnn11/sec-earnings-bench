@@ -3,14 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from secbench.inputs import (
-    ReleaseInput,
-    build_input,
-    has_income_statement,
-    is_revenue_row,
-    release_records,
-)
-from secbench.link import check_earnings
+from secbench.inputs import ReleaseInput, build_input, release_records
+from secbench.link import check_earnings, has_income_statement, is_revenue_row
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RELEASES = FIXTURES / "input_releases"
@@ -91,6 +85,40 @@ def test_stricter_than_the_link_filter() -> None:
     markdown = (XOM_Q2_2026.parent / "0002115436-26-000006.md").read_text()
     assert check_earnings(markdown).ok
     assert not has_income_statement(markdown)
+
+
+# Johnson & Johnson's and T-Mobile's EX-99.1 highlight tables, quarter columns only.
+JNJ_HIGHLIGHTS = table(
+    ["($ in Millions, except EPS)", "Q2 2025", "Q2 2024"],
+    ["Reported Sales", "$23,743", "$22,447"],
+    ["Net Earnings", "$5,537", "$4,686"],
+    ["EPS (diluted)", "$2.29", "$1.93"],
+)
+TMUS_HIGHLIGHTS = table(
+    ["(in millions, except EPS)", "Quarter Q2 2025", "Quarter Q2 2024"],
+    ["Total revenues", "21,132", "19,772"],
+    ["Net income", "3,222", "2,925"],
+    ["Diluted EPS", "2.84", "2.49"],
+)
+
+
+@pytest.mark.parametrize("highlights", [JNJ_HIGHLIGHTS, TMUS_HIGHLIGHTS])
+def test_an_eps_label_alone_is_no_income_statement(highlights) -> None:
+    # Enough for the earnings check (dbf712c), not for an income statement, so
+    # their EX-99.2 with the statements joins the input.
+    assert check_earnings(highlights).ok
+    assert not has_income_statement(highlights)
+
+
+def test_highlights_with_eps_append_the_statements(tmp_path) -> None:
+    record = write_release(
+        tmp_path / "0000200406",
+        [
+            ("EX-99.1", "PRESS RELEASE", JNJ_HIGHLIGHTS),
+            ("EX-99.2", "SUPPLEMENTARY", STATEMENT),
+        ],
+    )
+    assert build_input(record).exhibits == ("EX-99.1", "EX-99.2")
 
 
 # Building inputs
