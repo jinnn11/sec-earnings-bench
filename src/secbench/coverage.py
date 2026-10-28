@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
@@ -46,6 +47,7 @@ from secbench.stage2 import (
     COMPANY_TEST_RELEASES,
     ERROR,
     KINDS,
+    MERGED,
     RELEASE_SPLITS,
     TICKER_MAP,
 )
@@ -171,6 +173,7 @@ def format_coverage(
     revenue_checks: Sequence[dict[str, str]] = (),
     printed: Callable[[dict[str, str]], str] = lambda check: "",
     ticker_map: Sequence[dict[str, str]] | None = None,
+    merged: dict | None = None,
 ) -> str:
     by_split: dict[str, list[dict[str, str]]] = defaultdict(list)
     by_quarter: dict[str, list[dict[str, str]]] = defaultdict(list)
@@ -188,6 +191,17 @@ def format_coverage(
             + f"; with releases in the data: {len(with_releases)}."
         ),
         "",
+        *(
+            [
+                f"Built by commit {merged['commit']}: {merged['companies']} companies "
+                f"merged, {len(merged['left_out'])} left out"
+                + (f" ({', '.join(merged['left_out'])})" if merged["left_out"] else "")
+                + ".",
+                "",
+            ]
+            if merged
+            else []
+        ),
         "## By release split",
         "",
         *table(
@@ -352,6 +366,7 @@ def main(argv: list[str] | None = None) -> int:
         args.stage2 / "releases"
     )
     ticker_map_path = args.stage2 / TICKER_MAP
+    merged_path = args.stage2 / MERGED
     text = format_coverage(
         releases,
         answers,
@@ -360,6 +375,7 @@ def main(argv: list[str] | None = None) -> int:
         revenue_checks,
         lambda c: printed_in(Decimal(c["answer"]), records.get(c["release_accession"])),
         read_csv(ticker_map_path) if ticker_map_path.is_file() else None,
+        json.loads(merged_path.read_text()) if merged_path.is_file() else None,
     )
     write_text(args.stage2 / REPORT, text)
     print(text, end="")

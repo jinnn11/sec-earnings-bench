@@ -17,25 +17,31 @@ followed.
 
 Each company's results go to <out>/companies/<cik>/ (releases.csv, links.csv,
 answers.csv, preferred_dividends.csv, revenue_checks.csv, failures.csv), then
-status.json. A company
-whose status is done is skipped on the next run (--redo runs it again); one that
-failed or was interrupted runs again, from the cache. Every request goes through the
+status.json, which records the git commit that built them. A company counts as done
+only if the current commit (HEAD) built it and finished: it is then skipped (--redo
+runs it again); any other runs again, from the cache. A build refuses to start
+while tracked files have uncommitted changes, so the commit is the code that ran
+(untracked files such as data/ don't count). Every request goes through the
 EDGAR cache at 8 requests per second. Failures never stop the run; each is logged
 with its company and release: no Item 2.02 8-K in the window (no_item_202), an 8-K
 without an HTML press release or that isn't an earnings release (no_press_release),
 a release without its 10-Q/10-K (no_linked_filing), a figure without an XBRL answer
-(no_xbrl_answer), and any other error (error). After the selected companies, every
-company's files are merged into <out>/{releases,links,answers,preferred_dividends,
-revenue_checks,failures}.csv (failures from every company that ran; the rest from
-finished ones). revenue_checks.csv lists the revenue answers between 1/5 and 1/2 of
-a larger revenue-like fact (see secbench.answers.RevenueCheck).
+(no_xbrl_answer), and any other error (error). After the selected companies, the
+files of every company built by the current commit are merged into
+<out>/{releases,links,answers,preferred_dividends,revenue_checks,failures}.csv
+(failures from every such company, the rest from finished ones); companies built by
+another commit, or not at all, are left out and named. <out>/merged.json records the
+commit, the companies left out and the rows. --merge-only merges without building.
+revenue_checks.csv lists the revenue answers between 1/5 and 1/2 of a larger
+revenue-like fact (see secbench.answers.RevenueCheck).
 
 Release splits (releases.csv's split column): a train company's releases filed
 before TIME_TEST_START are train and the rest time_test; a company_test company's
 latest COMPANY_TEST_RELEASES linked releases are company_test and its others unused;
 a validation company's are validation.
 
-Usage: uv run python -m secbench.stage2 [--tickers T ...] [--redo] [--out data/stage2]
+Usage: uv run python -m secbench.stage2 [--tickers T ...] [--redo] [--merge-only]
+       [--out data/stage2]
 """
 
 from __future__ import annotations
@@ -45,6 +51,7 @@ import csv
 import io
 import json
 import logging
+import subprocess
 import sys
 import time
 from collections import Counter
@@ -119,6 +126,9 @@ KINDS = (NO_ITEM_202, NO_PRESS_RELEASE, NO_LINKED_FILING, NO_XBRL_ANSWER, ERROR)
 DONE = "done"
 FAILED = "failed"
 STATUS = "status.json"
+MERGED = "merged.json"
+REPO = Path(__file__).resolve().parents[2]
+LEFT_OUT_SHOWN = 10
 TICKER_MAP = "ticker_map.csv"
 TICKER_MAP_COLUMNS = ["ticker", "cik", "sec_cik"]
 
@@ -425,14 +435,38 @@ def company_dir(out: Path, company: Company) -> Path:
     return out / "companies" / format_cik(company.cik)
 
 
+def current_commit(repo: Path = REPO) -> tuple[str, bool]:
+    """HEAD's commit in repo, and whether tracked files differ from it (untracked
+    files, such as data/, don't count)."""
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(repo), *args], capture_output=True, text=True, check=True
+        ).stdout
+
+    commit = git("rev-parse", "HEAD").strip()
+    return commit, bool(git("status", "--porcelain", "--untracked-files=no").strip())
+
+
 def read_status(out: Path, company: Company) -> dict[str, Any] | None:
     path = company_dir(out, company) / STATUS
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
-def write_company(out: Path, result: CompanyResult, seconds: float) -> None:
+def built_by(status: dict[str, Any] | None, commit: str) -> bool:
+    """Whether the company's status says commit built it (finished or not)."""
+    return status is not None and status.get("commit") == commit
+
+
+def is_done(status: dict[str, Any] | None, commit: str) -> bool:
+    return built_by(status, commit) and status is not None and status["status"] == DONE
+
+
+def write_company(
+    out: Path, result: CompanyResult, seconds: float, commit: str
+) -> None:
     """The company's files, then its status, last (an interrupted write leaves no
-    done status, so the company runs again)."""
+    done status, so the company runs again). The status records commit."""
     folder = company_dir(out, result.company)
     folder.mkdir(parents=True, exist_ok=True)
     texts = {
@@ -454,6 +488,7 @@ def write_company(out: Path, result: CompanyResult, seconds: float) -> None:
         "cik": result.company.cik,
         "split": result.company.split,
         "status": result.status,
+        "commit": commit,
         "finished": datetime.now(UTC).isoformat(timespec="seconds"),
         "seconds": round(seconds, 1),
         "releases": len(result.releases),
@@ -464,16 +499,25 @@ def write_company(out: Path, result: CompanyResult, seconds: float) -> None:
     write_text(folder / STATUS, json.dumps(status, indent=2) + "\n")
 
 
-def merge(out: Path, companies: Sequence[Company]) -> dict[str, int]:
-    """Concatenate every company's files into <out>/<name>, in companies.csv order:
-    failures from every company that ran, the rest from finished ones. Returns the
-    rows per file."""
+def merge(
+    out: Path, companies: Sequence[Company], commit: str
+) -> tuple[dict[str, int], list[Company]]:
+    """Concatenate the files of every company that commit built into <out>/<name>,
+    in companies.csv order: failures from each, the rest from finished ones; then
+    write <out>/merged.json. Returns the rows per file and the companies left out
+    (built by another commit, or not at all)."""
+    out.mkdir(parents=True, exist_ok=True)
+    statuses = {c.cik: read_status(out, c) for c in companies}
+    left_out = [c for c in companies if not built_by(statuses[c.cik], commit)]
     counts = {}
     for name, columns in FILES.items():
         rows: list[dict[str, str]] = []
         for company in companies:
-            status = read_status(out, company)
-            if status is None or (status["status"] != DONE and name != "failures.csv"):
+            status = statuses[company.cik]
+            if not built_by(status, commit):
+                continue
+            assert status is not None
+            if status["status"] != DONE and name != "failures.csv":
                 continue
             path = company_dir(out, company) / name
             if not path.is_file():
@@ -485,7 +529,15 @@ def merge(out: Path, companies: Sequence[Company]) -> dict[str, int]:
                 rows.extend(reader)
         write_text(out / name, rows_csv(rows, columns))
         counts[name] = len(rows)
-    return counts
+    note = {
+        "commit": commit,
+        "merged": datetime.now(UTC).isoformat(timespec="seconds"),
+        "companies": len(companies) - len(left_out),
+        "left_out": [c.ticker for c in left_out],
+        "rows": counts,
+    }
+    write_text(out / MERGED, json.dumps(note, indent=2) + "\n")
+    return counts, left_out
 
 
 def run_company(
@@ -525,7 +577,13 @@ def progress_line(done: int, total: int, result: CompanyResult, seconds: float) 
     )
 
 
-def main(argv: list[str] | None = None, client: EdgarClient | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    client: EdgarClient | None = None,
+    commit: str | None = None,
+) -> int:
+    """commit: the commit to record and merge by; None reads it from git (see
+    current_commit) and refuses to build with uncommitted changes."""
     parser = argparse.ArgumentParser(
         prog="python -m secbench.stage2",
         description="Build stage 2 releases, links and answers, one company at a time.",
@@ -533,6 +591,11 @@ def main(argv: list[str] | None = None, client: EdgarClient | None = None) -> in
     parser.add_argument("--tickers", nargs="+", metavar="TICKER")
     parser.add_argument(
         "--redo", action="store_true", help="run finished companies again"
+    )
+    parser.add_argument(
+        "--merge-only",
+        action="store_true",
+        help="merge the companies the current commit built, without building any",
     )
     parser.add_argument("--companies", type=Path, default=DEFAULT_COMPANIES)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
@@ -556,14 +619,30 @@ def main(argv: list[str] | None = None, client: EdgarClient | None = None) -> in
             )
             return 1
         selected = [c for c in companies if c.ticker in wanted]
+    if commit is None:
+        try:
+            commit, dirty = current_commit()
+        except (OSError, subprocess.CalledProcessError) as exc:
+            print(f"error: no git commit to record: {exc}", file=sys.stderr)
+            return 1
+        if dirty and not args.merge_only:
+            print(
+                "error: tracked files have uncommitted changes; commit them first "
+                "(status.json records the commit that built each company)",
+                file=sys.stderr,
+            )
+            return 1
+    if args.merge_only:
+        return report_merge(args.out, companies, commit)
     todo = [
         c
         for c in selected
-        if args.redo or (read_status(args.out, c) or {}).get("status") != DONE
+        if args.redo or not is_done(read_status(args.out, c), commit)
     ]
     print(
-        f"{len(selected)} companies selected, {len(selected) - len(todo)} already done, "
-        f"{len(todo)} to run (releases filed {args.since} to {args.until})",
+        f"{len(selected)} companies selected, {len(selected) - len(todo)} already done "
+        f"at {commit[:12]}, {len(todo)} to run (releases filed {args.since} to "
+        f"{args.until})",
         flush=True,
     )
     client = client or default_client()
@@ -590,19 +669,32 @@ def main(argv: list[str] | None = None, client: EdgarClient | None = None) -> in
             client, company, args.out, args.links, args.answers, args.since, args.until
         )
         seconds = time.monotonic() - start
-        write_company(args.out, result, seconds)
+        write_company(args.out, result, seconds, commit)
         errors += result.status == FAILED or any(
             f.kind == ERROR for f in result.failures
         )
         print(progress_line(number, len(todo), result, seconds), flush=True)
-    counts = merge(args.out, companies)
-    print(
-        "merged: "
-        + ", ".join(f"{args.out / name} {n} rows" for name, n in counts.items())
-    )
+    report_merge(args.out, companies, commit)
     if errors:
         print(f"{errors} companies with errors; see {args.out / 'failures.csv'}")
     return 1 if errors else 0
+
+
+def report_merge(out: Path, companies: Sequence[Company], commit: str) -> int:
+    """Merge (see merge) and print what was merged and left out."""
+    counts, left_out = merge(out, companies, commit)
+    print(
+        f"merged {len(companies) - len(left_out)} companies built by {commit[:12]}: "
+        + ", ".join(f"{out / name} {n} rows" for name, n in counts.items())
+    )
+    if left_out:
+        shown = ", ".join(c.ticker for c in left_out[:LEFT_OUT_SHOWN])
+        more = len(left_out) - LEFT_OUT_SHOWN
+        print(
+            f"left out {len(left_out)} companies not built by {commit[:12]}: {shown}"
+            + (f" and {more} more" if more > 0 else "")
+        )
+    return 0
 
 
 if __name__ == "__main__":

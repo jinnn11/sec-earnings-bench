@@ -2,6 +2,7 @@ import contextlib
 import csv
 import io
 import json
+import subprocess
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -240,8 +241,12 @@ COMPANIES = [
 ]
 
 
+COMMIT = "c0ffee0123456789abcdef0123456789abcdef01"  # the commit tests build with
+LATER_COMMIT = "decaf00123456789abcdef0123456789abcdef01"
+
+
 def run(
-    tmp_path: Path, sec: FakeSec, *args: str, companies=COMPANIES
+    tmp_path: Path, sec: FakeSec, *args: str, companies=COMPANIES, commit=COMMIT
 ) -> tuple[int, str]:
     listing = tmp_path / "companies.csv"
     listing.write_text(companies_csv(companies))
@@ -250,6 +255,7 @@ def run(
         status = stage2.main(
             ["--companies", str(listing), "--out", str(tmp_path / "stage2"), *args],
             client=sec.client(tmp_path / "raw"),
+            commit=commit,
         )
     return status, out.getvalue()
 
@@ -265,8 +271,8 @@ def test_build_logs_every_failure_and_goes_on(tmp_path) -> None:
     assert status == 1  # BADCO's error
     lines = out.splitlines()
     assert lines[0] == (
-        "6 companies selected, 0 already done, 6 to run (releases filed 2023-10-01 to "
-        "2026-09-30)"
+        "6 companies selected, 0 already done at c0ffee012345, 6 to run (releases "
+        "filed 2023-10-01 to 2026-09-30)"
     )
     assert lines[1:3] == [
         (
@@ -370,8 +376,8 @@ def test_a_second_run_resumes_from_the_cache(tmp_path) -> None:
     # Only the failed company runs again; nothing else is fetched (an error
     # response is never cached).
     assert out.splitlines()[0] == (
-        "6 companies selected, 5 already done, 1 to run (releases filed 2023-10-01 to "
-        "2026-09-30)"
+        "6 companies selected, 5 already done at c0ffee012345, 1 to run (releases "
+        "filed 2023-10-01 to 2026-09-30)"
     )
     assert "BADCO" in out.splitlines()[3]
     assert status == 1 and sec.requests == [SUBMISSIONS.format(BAD)]
@@ -487,6 +493,7 @@ def run_validation(tmp_path: Path, links: Path, key: Path) -> tuple[int, str]:
                 str(key),
             ],
             client=fixture_client(tmp_path / "raw"),
+            commit=COMMIT,
         )
     return status, out.getvalue()
 
@@ -545,13 +552,15 @@ def test_coverage_report(tmp_path) -> None:
     text = (tmp_path / "stage2" / "coverage.md").read_text()
     assert out.getvalue() == text + f"wrote {tmp_path / 'stage2' / 'coverage.md'}\n"
     lines = text.splitlines()
-    assert lines[:3] == [
+    assert lines[:5] == [
         "# Stage 2 coverage",
         "",
         (
             "Companies in the list: validation 0, company_test 1, train 5; with "
             "releases in the data: 4."
         ),
+        "",
+        f"Built by commit {COMMIT}: 6 companies merged, 0 left out.",
     ]
     start = lines.index("## By release split")
     assert lines[start + 2 : start + 8] == [
@@ -700,7 +709,7 @@ def test_merge_refuses_a_finished_company_without_a_file(tmp_path) -> None:
     run(tmp_path, sec)
     (tmp_path / "stage2" / "companies" / f"{OK:010d}" / "revenue_checks.csv").unlink()
     with pytest.raises(ValueError, match="revenue_checks.csv: missing"):
-        stage2.merge(tmp_path / "stage2", COMPANIES)
+        stage2.merge(tmp_path / "stage2", COMPANIES, COMMIT)
 
 
 AAPL_Q2_FY25 = FIXTURES / "input_releases" / "0000320193" / "0000320193-25-000055.json"
@@ -803,3 +812,110 @@ def test_coverage_without_a_ticker_map_check() -> None:
     assert lines[start + 2] == "Not checked (no ticker_map.csv)."
     lines = coverage.format_coverage([], [], [], {}, ticker_map=[]).splitlines()
     assert lines[start + 2] == "None."
+
+
+# The commit that built each company (status.json)
+
+
+def status_of(tmp_path: Path, cik: int) -> dict:
+    path = tmp_path / "stage2" / "companies" / f"{cik:010d}" / "status.json"
+    return json.loads(path.read_text())
+
+
+def test_status_records_the_commit(tmp_path) -> None:
+    run(tmp_path, fake_sec())
+    assert {status_of(tmp_path, c.cik)["commit"] for c in COMPANIES} == {COMMIT}
+    merged = json.loads((tmp_path / "stage2" / "merged.json").read_text())
+    assert merged["commit"] == COMMIT
+    assert merged["companies"] == 6 and merged["left_out"] == []
+    assert merged["rows"]["releases.csv"] == 10
+
+
+def test_a_company_built_by_another_commit_runs_again(tmp_path) -> None:
+    sec = fake_sec()
+    run(tmp_path, sec)
+    status, out = run(tmp_path, sec, "--tickers", "OKCO", commit=LATER_COMMIT)
+    assert status == 0
+    lines = out.splitlines()
+    assert lines[0].startswith("1 companies selected, 0 already done at decaf0012345")
+    assert status_of(tmp_path, OK)["commit"] == LATER_COMMIT
+    # Only what the later commit built is merged; the rest are left out, named.
+    assert lines[-2].startswith("merged 1 companies built by decaf0012345: ")
+    assert lines[-1] == (
+        "left out 5 companies not built by decaf0012345: NOREL, NOPR, UNLNK, "
+        "NOXBRL, BADCO"
+    )
+    assert {r["ticker"] for r in read(tmp_path / "stage2" / "releases.csv")} == {"OKCO"}
+    assert {f["ticker"] for f in read(tmp_path / "stage2" / "failures.csv")} == {"OKCO"}
+    merged = json.loads((tmp_path / "stage2" / "merged.json").read_text())
+    assert merged["left_out"] == ["NOREL", "NOPR", "UNLNK", "NOXBRL", "BADCO"]
+
+
+def test_a_status_without_a_commit_is_not_done(tmp_path) -> None:
+    sec = fake_sec()
+    run(tmp_path, sec, "--tickers", "OKCO")
+    path = tmp_path / "stage2" / "companies" / f"{OK:010d}" / "status.json"
+    status = json.loads(path.read_text())
+    del status["commit"]  # written before commits were recorded
+    path.write_text(json.dumps(status))
+    _, out = run(tmp_path, sec, "--tickers", "OKCO")
+    assert "0 already done at c0ffee012345, 1 to run" in out.splitlines()[0]
+
+
+def test_merge_only_builds_nothing(tmp_path) -> None:
+    sec = fake_sec()
+    run(tmp_path, sec)
+    folder = tmp_path / "stage2"
+    built = {name: (folder / name).read_text() for name in stage2.FILES}
+    sec.requests.clear()
+    status, out = run(tmp_path, sec, "--merge-only")
+    assert status == 0 and sec.requests == []
+    assert out.splitlines()[0].startswith("merged 6 companies built by c0ffee012345: ")
+    assert {name: (folder / name).read_text() for name in stage2.FILES} == built
+    # At another commit, nothing it built: every company is left out.
+    status, out = run(tmp_path, sec, "--merge-only", commit=LATER_COMMIT)
+    assert status == 0 and sec.requests == []
+    assert out.splitlines()[1].startswith("left out 6 companies not built by ")
+    assert read(folder / "releases.csv") == []
+
+
+def git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@example.com",
+            *args,
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+def test_current_commit_and_uncommitted_changes(tmp_path) -> None:
+    git(tmp_path, "init", "-q")
+    (tmp_path / "code.py").write_text("x = 1\n")
+    git(tmp_path, "add", "code.py")
+    git(tmp_path, "commit", "-q", "-m", "first")
+    commit, dirty = stage2.current_commit(tmp_path)
+    assert len(commit) == 40 and not dirty
+    (tmp_path / "data.csv").write_text("untracked\n")
+    assert stage2.current_commit(tmp_path) == (commit, False)
+    (tmp_path / "code.py").write_text("x = 2\n")
+    assert stage2.current_commit(tmp_path) == (commit, True)
+
+
+def test_a_build_refuses_uncommitted_changes(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(stage2, "current_commit", lambda: (COMMIT, True))
+    listing = tmp_path / "companies.csv"
+    listing.write_text(companies_csv(COMPANIES))
+    argv = ["--companies", str(listing), "--out", str(tmp_path / "stage2")]
+    assert stage2.main(argv, client=fake_sec().client(tmp_path / "raw")) == 1
+    assert "uncommitted changes; commit them first" in capsys.readouterr().err
+    assert not (tmp_path / "stage2" / "companies").exists()
+    # Merging alone builds nothing, so it may go ahead.
+    assert stage2.main([*argv, "--merge-only"]) == 0
