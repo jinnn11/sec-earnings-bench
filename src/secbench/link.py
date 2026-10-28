@@ -1,7 +1,8 @@
 """Link each saved earnings release to the 10-Q or 10-K that reports its period.
 
-A saved release (see secbench.releases) counts only if its press release has a table
-with a net income row and a per-share row; others are excluded. Each remaining
+A saved release (see secbench.releases) counts only if one of its saved EX-99.x
+exhibits (the press release, then the others, as secbench.inputs.build_input reads
+them) has a table with a net income row and a per-share row; others are excluded. Each remaining
 release links to the first 10-Q or 10-K filed on or after it whose period ended 0 to
 100 days before it, searched across every CIK of the ticker. If several releases link
 to one filing, the one filed closest to it keeps the link; the others are conflicts.
@@ -19,7 +20,7 @@ import logging
 import re
 import sys
 from collections import Counter, defaultdict
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from datetime import date
 from pathlib import Path
 
@@ -67,6 +68,7 @@ class EarningsCheck:
 
     ok: bool
     reason: str = ""
+    exhibit: str = ""  # the exhibit type that passed (set by load_release)
 
 
 def markdown_tables(markdown: str) -> list[list[list[str]]]:
@@ -150,18 +152,37 @@ class Release:
 
 
 def load_release(record_path: Path) -> Release:
-    """Read <accession>.json and check the markdown of its chosen exhibit."""
+    """Read <accession>.json and check its exhibits' markdown: the chosen exhibit,
+    then every other saved EX-99.x in filing-index order (the exhibits
+    secbench.inputs.build_input reads; some companies put their statements in
+    EX-99.2). The first that passes makes the release an earnings release; if none
+    does, the reason is the chosen exhibit's."""
     record = json.loads(record_path.read_text(encoding="utf-8"))
     chosen = [e for e in record["exhibits"] if e["chosen"]]
     if len(chosen) != 1 or not chosen[0]["file"]:
         raise ValueError(f"{record_path}: no single chosen exhibit with a file")
-    markdown = (record_path.parent / chosen[0]["file"]).read_text(encoding="utf-8")
+    others = [e for e in record["exhibits"] if not e["chosen"] and e["file"]]
+    failed = []
+    for exhibit in [chosen[0], *others]:
+        markdown = (record_path.parent / exhibit["file"]).read_text(encoding="utf-8")
+        check = check_earnings(markdown)
+        if check.ok:
+            earnings = replace(check, exhibit=exhibit["type"])
+            break
+        failed.append(check)
+    else:
+        earnings = failed[0]
+        if others:
+            checked = ", ".join(e["type"] for e in others)
+            earnings = replace(
+                earnings, reason=f"{earnings.reason}; also checked: {checked}"
+            )
     return Release(
         ticker=record["ticker"],
         cik=int(record["cik"]),
         accession_number=record["accession_number"],
         filing_date=date.fromisoformat(record["filing_date"]),
-        earnings=check_earnings(markdown),
+        earnings=earnings,
     )
 
 

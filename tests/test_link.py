@@ -19,6 +19,7 @@ from secbench.link import (
     combine_filings,
     find_filing,
     link_releases,
+    load_release,
     load_releases,
     markdown_tables,
     ticker_filings,
@@ -263,42 +264,107 @@ def test_filter_on_saved_release_fixtures() -> None:
 # Saved releases
 
 
-def test_load_releases_checks_the_chosen_exhibit(tmp_path) -> None:
-    earnings = table(
-        HEADER, ["Net income", "$10", "$9"], ["Diluted earnings per share", "1", "2"]
-    )
+EARNINGS = table(
+    HEADER, ["Net income", "$10", "$9"], ["Diluted earnings per share", "1", "2"]
+)
+NO_TABLES = "not an earnings release: no tables"
+
+
+def save_record(folder: Path, exhibits: list[tuple[str, str | None, bool]]) -> Path:
+    """A saved release whose exhibits are (type, markdown or None if not HTML,
+    chosen), in filing-index order."""
+    accession = "0000320193-26-000018"
+    folder.mkdir(parents=True, exist_ok=True)
+    entries = []
+    for doc_type, markdown, chosen in exhibits:
+        name = f"{accession}.md" if chosen else f"{accession}_{doc_type}.md"
+        if markdown is not None:
+            (folder / name).write_text(markdown)
+        entries.append(
+            {
+                "type": doc_type,
+                "file": name if markdown is not None else None,
+                "chosen": chosen,
+            }
+        )
     record = {
         "ticker": "AAPL",
         "cik": 320193,
         "filing_date": "2026-07-30",
-        "accession_number": "0000320193-26-000018",
-        "exhibits": [
-            {
-                "type": "EX-99.2",
-                "file": "0000320193-26-000018_EX-99.2.md",
-                "chosen": False,
-            },
-            {"type": "EX-99.1", "file": "0000320193-26-000018.md", "chosen": True},
-        ],
+        "accession_number": accession,
+        "exhibits": entries,
     }
-    folder = tmp_path / "0000320193"
-    folder.mkdir()
-    (folder / "0000320193-26-000018.json").write_text(json.dumps(record))
-    (folder / "0000320193-26-000018.md").write_text(earnings)
-    (folder / "0000320193-26-000018_EX-99.2.md").write_text("CFO commentary\n")
+    path = folder / f"{accession}.json"
+    path.write_text(json.dumps(record))
+    return path
 
+
+def test_load_releases_checks_the_chosen_exhibit(tmp_path) -> None:
+    save_record(
+        tmp_path / "0000320193",
+        [("EX-99.2", EARNINGS, False), ("EX-99.1", EARNINGS, True)],
+    )
     assert load_releases(tmp_path) == [
         Release(
             "AAPL",
             320193,
             "0000320193-26-000018",
             date(2026, 7, 30),
-            EarningsCheck(True),
+            EarningsCheck(True, exhibit="EX-99.1"),  # chosen first, though listed 2nd
         )
     ]
 
-    record["exhibits"][1]["chosen"] = False
-    (folder / "0000320193-26-000018.json").write_text(json.dumps(record))
+
+@pytest.mark.parametrize(
+    ("exhibits", "expected"),
+    [
+        # Statements only in EX-99.2 (ConocoPhillips, Philip Morris).
+        (
+            [("EX-99.1", "Results.\n", True), ("EX-99.2", EARNINGS, False)],
+            EarningsCheck(True, exhibit="EX-99.2"),
+        ),
+        # The first that passes, in filing-index order.
+        (
+            [
+                ("EX-99.1", "Results.\n", True),
+                ("EX-99.3", EARNINGS, False),
+                ("EX-99.2", EARNINGS, False),
+            ],
+            EarningsCheck(True, exhibit="EX-99.3"),
+        ),
+        # A non-HTML exhibit has no markdown and is skipped.
+        (
+            [
+                ("EX-99.1", "Results.\n", True),
+                ("EX-99.2", None, False),
+                ("EX-99.3", EARNINGS, False),
+            ],
+            EarningsCheck(True, exhibit="EX-99.3"),
+        ),
+        # None passes: the chosen exhibit's reason, naming the others checked.
+        (
+            [
+                ("EX-99.1", "Results.\n", True),
+                ("EX-99.2", "Slides.\n", False),
+                ("EX-99.3", None, False),
+            ],
+            EarningsCheck(False, f"{NO_TABLES}; also checked: EX-99.2"),
+        ),
+        # No other exhibit: the reason is unchanged (Nike's CFO news, stage 1).
+        (
+            [("EX-99.1", "Nike names a new CFO.\n", True)],
+            EarningsCheck(False, NO_TABLES),
+        ),
+    ],
+    ids=["ex-99.2", "index-order", "non-html-skipped", "none-pass", "chosen-only"],
+)
+def test_load_release_reads_every_saved_exhibit(tmp_path, exhibits, expected) -> None:
+    path = save_record(tmp_path / "0000320193", exhibits)
+    assert load_release(path).earnings == expected
+
+
+def test_load_release_needs_one_chosen_exhibit(tmp_path) -> None:
+    save_record(tmp_path / "0000320193", [("EX-99.1", EARNINGS, False)])
     with pytest.raises(ValueError, match="no single chosen exhibit"):
         load_releases(tmp_path)
 
