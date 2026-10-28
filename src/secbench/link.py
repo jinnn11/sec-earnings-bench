@@ -2,7 +2,8 @@
 
 A saved release (see secbench.releases) counts only if one of its saved EX-99.x
 exhibits (the press release, then the others, as secbench.inputs.build_input reads
-them) has a table with a net income row and a per-share row; others are excluded. Each remaining
+them) has a table with a net income row and a per-share row, and it isn't in the
+hand-kept EXCLUDED_RELEASES; others are excluded. Each remaining
 release links to the first 10-Q or 10-K filed on or after it whose period ended 0 to
 100 days before it, searched across every CIK of the ticker. If several releases link
 to one filing, the one filed closest to it keeps the link; the others are conflicts.
@@ -48,9 +49,10 @@ STATUSES = (LINKED, CONFLICT, EXCLUDED, UNLINKED)
 # A bottom-line label: "Net income", "Consolidated net income attributable to
 # Walmart", "Net (loss) income", "NET EARNINGS"; or one that starts with "Profit" or
 # "Earnings" (Caterpillar's "Profit", ExxonMobil's "Earnings/(Loss) (U.S. GAAP)"), but
-# not "Profit per share", "Earnings before income taxes" or "Profit margin".
+# not "Profit per share", "Earnings before income taxes", "Profit margin" or "Net
+# income tax benefit" (Constellation Brands' outlook updates).
 NET_INCOME = re.compile(
-    r"\bnet\s+\(?(income|earnings|loss)\b"
+    r"\bnet\s+\(?(income|earnings|loss)\b(?!\s+tax(es)?\b)"
     r"|^(total\s+)?(profit|earnings)\b(?!.*\b(per|before|margin)\b)",
     re.IGNORECASE,
 )
@@ -60,6 +62,23 @@ NET_INCOME = re.compile(
 PER_SHARE = re.compile(r"\bper\s+([\w-]+\s+){0,3}shares?\b", re.IGNORECASE)
 EPS = re.compile(r"\bEPS\b")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
+# Item 2.02 8-Ks that pass the earnings check but aren't earnings releases, kept by
+# hand: accession -> why. link_releases excludes them before linking, so they never
+# claim a filing.
+EXCLUDED_RELEASES = {
+    "0000007084-24-000031": (
+        "ADM's preliminary third-quarter 2024 results, released before it restated "
+        "its earlier filings"
+    ),
+    "0001659166-25-000104": (
+        "Fortive's announcement of the Ralliant spin-off; its EX-99.2 is pro forma "
+        "statements"
+    ),
+    "0000773840-26-000084": (
+        "Honeywell's announcement of the Aerospace spin-off; its EX-99.3 is pro forma "
+        "statements"
+    ),
+}
 LABELS_IN_REASON = 5
 LABEL_WIDTH = 40
 
@@ -288,6 +307,11 @@ def link_releases(releases: list[Release], filings: pd.DataFrame) -> list[Link]:
             release.ticker, release.cik, release.accession_number, release.filing_date
         )
         links.append(link)
+        listed = EXCLUDED_RELEASES.get(release.accession_number)
+        if listed is not None:
+            link.status = EXCLUDED
+            link.reason = f"not an earnings release (link.EXCLUDED_RELEASES): {listed}"
+            continue
         if not release.earnings.ok:
             link.status, link.reason = EXCLUDED, release.earnings.reason
             continue

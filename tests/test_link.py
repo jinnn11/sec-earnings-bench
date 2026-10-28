@@ -2,6 +2,7 @@ import contextlib
 import csv
 import io
 import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from secbench import edgar, link
 from secbench.edgar import EdgarClient, RateLimiter, parse_submissions
 from secbench.link import (
     COLUMNS,
+    EXCLUDED_RELEASES,
     EarningsCheck,
     Release,
     check_earnings,
@@ -123,6 +125,8 @@ def test_markdown_tables_splits_tables_and_drops_separators() -> None:
         ("Net income", "Diluted EPS"),
         ("Profit", "Continuing EPS"),
         ("Net income", "EPS – diluted <sup>(a)</sup>"),
+        # "tax" later in the label is fine.
+        ("Net income (loss), net of tax", "Diluted earnings per share"),
     ],
 )
 def test_filter_accepts_bottom_line_and_per_share_labels(net_income, per_share) -> None:
@@ -177,6 +181,20 @@ def test_filter_reads_labels_between_figures() -> None:
                 ["Net income", "$10", "$9"],
             ),
             id="per-share-only-in-header",
+        ),
+        pytest.param(
+            # Constellation Brands' outlook updates: a tax line, not net income.
+            table(
+                HEADER,
+                [
+                    "Net income tax benefit recognized as a result of the sale",
+                    "$10",
+                    "$9",
+                ],
+                ["NET INCOME TAXES paid", "$4", "$3"],
+                ["Diluted EPS", "1", "2"],
+            ),
+            id="net-income-tax-lines",
         ),
         pytest.param(
             table(
@@ -588,6 +606,33 @@ def test_excluded_release_does_not_conflict() -> None:
         "",
     )
     assert (earnings.status, earnings.linked_accession) == ("linked", "k")
+
+
+def test_hand_kept_exclusion_comes_before_linking(monkeypatch) -> None:
+    # A preliminary release that passes the check, filed closer to the 10-Q than the
+    # final one, would otherwise take its link.
+    monkeypatch.setitem(EXCLUDED_RELEASES, "prelim", "preliminary results")
+    filings = filings_table(("q", "10-Q", "2026-08-05", "2026-06-27"))
+    final, prelim = link_releases(
+        [release("final", date(2026, 7, 20)), release("prelim", date(2026, 8, 1))],
+        filings,
+    )
+    assert (prelim.status, prelim.reason, prelim.linked_accession) == (
+        "excluded",
+        "not an earnings release (link.EXCLUDED_RELEASES): preliminary results",
+        "",
+    )
+    assert (final.status, final.linked_accession) == ("linked", "q")
+
+
+def test_hand_kept_exclusions_are_accessions_with_reasons() -> None:
+    assert EXCLUDED_RELEASES
+    for accession, reason in EXCLUDED_RELEASES.items():
+        assert re.fullmatch(r"\d{10}-\d{2}-\d{6}", accession)
+        assert reason.strip()
+    # None is a stage 1 release.
+    stage1 = {e["record"]["accession_number"] for e in release_fixtures()}
+    assert len(stage1) == 61 and not stage1 & set(EXCLUDED_RELEASES)
 
 
 # Filings under several CIKs
