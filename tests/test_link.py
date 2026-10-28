@@ -119,6 +119,10 @@ def test_markdown_tables_splits_tables_and_drops_separators() -> None:
         ("Earnings/(Loss) (U.S. GAAP)", "Earnings Per Common Share (U.S. GAAP) ¹"),
         ("Total Earnings/(Loss) (U.S. GAAP)", "Per share data"),
         ("**Net income**", "Earnings per Class A common share"),
+        # EPS, in capitals: Rockwell Automation, GE Aerospace.
+        ("Net income", "Diluted EPS"),
+        ("Profit", "Continuing EPS"),
+        ("Net income", "EPS – diluted <sup>(a)</sup>"),
     ],
 )
 def test_filter_accepts_bottom_line_and_per_share_labels(net_income, per_share) -> None:
@@ -143,6 +147,17 @@ def test_filter_accepts_per_share_heading_without_figures() -> None:
     assert check_earnings(markdown).ok
 
 
+def test_filter_accepts_eps_heading_without_figures() -> None:
+    # AEP's layout (the heading has a footnote mark).
+    markdown = table(
+        HEADER,
+        ["Net income", "$713", "$1,226"],
+        ["EPS ($): (a)", "", ""],
+        ["GAAP", "1.31", "2.29"],
+    )
+    assert check_earnings(markdown).ok
+
+
 def test_filter_reads_labels_between_figures() -> None:
     # ExxonMobil's layout: current quarters, the label, then year-to-date.
     markdown = table(
@@ -162,6 +177,23 @@ def test_filter_reads_labels_between_figures() -> None:
                 ["Net income", "$10", "$9"],
             ),
             id="per-share-only-in-header",
+        ),
+        pytest.param(
+            table(
+                ["(In millions, except EPS)", "2026", "2025"],
+                ["Net income", "$10", "$9"],
+            ),
+            id="eps-only-in-header",
+        ),
+        pytest.param(
+            table(
+                HEADER,
+                ["Net income", "$10", "$9"],
+                ["Diluted eps", "1", "2"],
+                ["STEPS program costs", "1", "2"],
+                ["EPSILON segment", "1", "2"],
+            ),
+            id="eps-not-in-capitals-or-not-a-word",
         ),
         pytest.param(
             table(HEADER, ["Net income", "$10", "$9"])

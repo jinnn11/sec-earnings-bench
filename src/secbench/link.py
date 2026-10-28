@@ -55,8 +55,10 @@ NET_INCOME = re.compile(
     re.IGNORECASE,
 )
 # "Earnings per share:", "Diluted net income per common share", "Profit per common
-# share — diluted".
+# share — diluted"; or the word EPS, in capitals ("Diluted EPS", Rockwell's "Diluted
+# EPS from continuing operations", AEP's "EPS ($):").
 PER_SHARE = re.compile(r"\bper\s+([\w-]+\s+){0,3}shares?\b", re.IGNORECASE)
+EPS = re.compile(r"\bEPS\b")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
 LABELS_IN_REASON = 5
 LABEL_WIDTH = 40
@@ -110,7 +112,9 @@ def is_net_income_row(row: list[str]) -> bool:
 def is_per_share_row(row: list[str]) -> bool:
     # A label alone counts: Apple's "Earnings per share:" heads its Basic and
     # Diluted rows.
-    return any(PER_SHARE.search(label) for label in row_labels(row))
+    return any(
+        PER_SHARE.search(label) or EPS.search(label) for label in row_labels(row)
+    )
 
 
 def check_earnings(markdown: str) -> EarningsCheck:
