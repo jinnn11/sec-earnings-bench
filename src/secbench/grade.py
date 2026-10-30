@@ -4,7 +4,9 @@ A prediction gives, for one release, revenue, net income and diluted EPS for the
 quarter and for the year to date (the full year in a fourth-quarter release), in raw
 dollars or null. Each figure is graded against data/answers.csv (see
 secbench.answers) only if the answer appears in the release's input text (see
-secbench.inputs); otherwise it is not_in_input and left out of accuracy. A wrong
+secbench.inputs) in one of its printed forms (whole millions or thousands, millions to
+one decimal; EPS to two or three decimals: see printed_forms); otherwise it is
+not_in_input and left out of accuracy. A wrong
 figure is classified using the linked filing's other XBRL facts and the input's rows:
 a figure in another period column of the answer's own row ("1Q26") is a wrong
 period, and a row counts as adjusted by its label, the label-only row above it in its
@@ -477,28 +479,49 @@ def input_rows(text: str) -> list[InputRow]:
 # Answerable check
 
 
-def input_forms(value: Decimal, field: str) -> list[str]:
-    """The answer as an input could show it, unsigned: EPS with two decimals; USD in
-    every unit it is whole in, millions and thousands ("94,036", "94,036,000")."""
+@dataclass(frozen=True)
+class PrintedForm:
+    """One way a release can print a value, unsigned: the text ("3,953.9") and the
+    unit it is in (10**6 for millions; 1 for EPS)."""
+
+    text: str
+    unit: int
+
+
+# (unit, decimals) a release prints USD figures in, in the order printed_forms tries
+# them: whole millions, millions to one decimal, whole thousands.
+USD_FORMS = ((10**6, 0), (10**6, 1), (10**3, 0))
+EPS_DECIMALS = (2, 3)
+
+
+def printed_forms(value: Decimal, field: str) -> list[PrintedForm]:
+    """Every way a release can print value exactly, unsigned, never rounded: USD in
+    whole millions ("16,569"), millions to one decimal ("16,569.0", Stanley Black &
+    Decker's "3,953.9") or whole thousands ("16,569,000"); EPS with two decimals
+    ("1.57") or three (Amcor's "0.105"). Not billions, nor EPS with other decimals:
+    in the stage 2 train releases those matched only unrelated rows (an EPS of 0.17
+    read as $170 million in billions)."""
     magnitude = abs(value)
-    if field == EPS:
-        cents = magnitude.quantize(EPS_PRECISION)
-        return [f"{cents}"] if cents == magnitude else []
-    forms = [
-        f"{int(magnitude) // unit:,}"
-        for unit in (10**6, 10**3)
-        if magnitude % unit == 0
-    ]
-    return list(dict.fromkeys(forms))
+    pairs = [(1, d) for d in EPS_DECIMALS] if field == EPS else USD_FORMS
+    forms: dict[str, PrintedForm] = {}
+    for unit, decimals in pairs:
+        shown = magnitude / unit
+        exact = shown.quantize(Decimal(1).scaleb(-decimals))
+        if exact != shown:
+            continue
+        text = f"{exact:.{decimals}f}" if field == EPS else f"{exact:,.{decimals}f}"
+        forms.setdefault(text, PrintedForm(text, unit))
+    return list(forms.values())
 
 
 def find_in_input(
     value: Decimal, field: str, text: str, rows: Sequence[InputRow]
 ) -> str | None:
-    """How the answer appears in the input, or None. A negative answer appears in
-    parentheses, after a minus sign (-, –, −), or unsigned on a row whose label says
-    loss ("Net loss 1,234")."""
-    for form in input_forms(value, field):
+    """How the answer appears in the input in one of its printed forms, or None. A
+    negative answer appears in parentheses, after a minus sign (-, –, −), or unsigned
+    on a row whose label says loss ("Net loss 1,234")."""
+    for printed in printed_forms(value, field):
+        form = printed.text
         number = re.escape(form)
         unsigned = NUMBER_START + number + NUMBER_END
         if value >= 0:
@@ -767,7 +790,7 @@ def grade_value(
     in that order, on the prediction times each factor (smallest first)."""
     field, value = answer.field, answer.value
     if find_in_input(value, field, text, rows) is None:
-        forms = input_forms(value, field)
+        forms = [f.text for f in printed_forms(value, field)]
         return Verdict(
             NOT_IN_INPUT,
             f"searched {', '.join(forms)}" if forms else "no input form for this value",
@@ -1052,7 +1075,7 @@ def check_inputs(answers_path: Path, releases_dir: Path) -> tuple[str, bool]:
         if find_in_input(a.value, a.field, text, rows[a.release_accession]):
             found[a.field, a.period_type] += 1
         else:
-            forms = input_forms(a.value, a.field)
+            forms = [f.text for f in printed_forms(a.value, a.field)]
             missing.append(
                 f"  {a.ticker} {a.release_accession} {a.field} {a.period_type} "
                 f"(answer {a.value}): searched {', '.join(forms) or 'nothing'}"

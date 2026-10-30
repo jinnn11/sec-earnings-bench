@@ -43,13 +43,13 @@ from secbench.grade import (
     format_summary,
     grade_prediction,
     grade_value,
-    input_forms,
     input_rows,
     load_answers,
     load_filing_facts,
     load_predictions,
     other_period,
     precision,
+    printed_forms,
     prose_figures,
 )
 from secbench.inputs import build_input, release_records
@@ -218,22 +218,33 @@ def test_input_rows_skip_each_tables_header() -> None:
 # Answerable check
 
 
+M, K = 10**6, 10**3
+
+
 @pytest.mark.parametrize(
     ("value", "field", "forms"),
     [
-        ("94036000000", "revenue", ["94,036", "94,036,000"]),
-        ("10542801000", "revenue", ["10,542,801"]),  # Netflix reports in thousands
+        ("94036000000", "revenue", [("94,036", M), ("94,036.0", M), ("94,036,000", K)]),
+        ("10542801000", "revenue", [("10,542,801", K)]),  # Netflix reports in thousands
+        # Stanley Black & Decker's Q3 2023 net sales: millions to one decimal.
+        ("3953900000", "revenue", [("3,953.9", M), ("3,953,900", K)]),
+        # Air Products' fiscal 2023 sales, printed "$12,600.0".
+        ("12600000000", "revenue", [("12,600", M), ("12,600.0", M), ("12,600,000", K)]),
         ("1234567", "net_income", []),
-        ("-2500000000", "net_income", ["2,500", "2,500,000"]),
-        ("1.57", "eps_diluted", ["1.57"]),
-        ("0.8", "eps_diluted", ["0.80"]),
-        ("1", "eps_diluted", ["1.00"]),
-        ("-0.25", "eps_diluted", ["0.25"]),
-        ("1.565", "eps_diluted", []),
+        ("3953950000", "net_income", [("3,953,950", K)]),  # not whole in 0.1 million
+        ("-2500000000", "net_income", [("2,500", M), ("2,500.0", M), ("2,500,000", K)]),
+        ("1.57", "eps_diluted", [("1.57", 1), ("1.570", 1)]),
+        ("0.8", "eps_diluted", [("0.80", 1), ("0.800", 1)]),
+        ("1", "eps_diluted", [("1.00", 1), ("1.000", 1)]),
+        ("-0.25", "eps_diluted", [("0.25", 1), ("0.250", 1)]),
+        ("1.565", "eps_diluted", [("1.565", 1)]),
+        ("0.105", "eps_diluted", [("0.105", 1)]),  # Amcor prints three decimals
+        ("1.5651", "eps_diluted", []),
+        ("506.69", "eps_diluted", [("506.69", 1), ("506.690", 1)]),  # NVR's FY2024
     ],
 )
-def test_input_forms(value, field, forms) -> None:
-    assert input_forms(D(value), field) == forms
+def test_printed_forms(value, field, forms) -> None:
+    assert printed_forms(D(value), field) == [grade.PrintedForm(*f) for f in forms]
 
 
 @pytest.mark.parametrize(
@@ -245,6 +256,8 @@ def test_input_forms(value, field, forms) -> None:
         ("| Revenue (in thousands) | 94,036,000 |", "94,036,000"),
         ("| Revenue | 194,036 |", None),
         ("| Revenue | 94,036.5 |", None),
+        ("| Revenue | $94,036.0 |", "94,036.0"),
+        ("| Revenue | 94,036.00 |", None),
         ("| Revenue | 94,0361 |", None),
         ("Revenue grew 94,036%", None),
         ("Revenue grew 94,036 %", None),
@@ -303,18 +316,41 @@ def test_find_negative_eps(text, found) -> None:
     assert find_in_input(D("-0.25"), "eps_diluted", text, input_rows(text)) == found
 
 
+@pytest.mark.parametrize(
+    ("value", "text", "found"),
+    [
+        # Stanley Black & Decker's Q3 2023 net sales, in millions to one decimal.
+        ("3953900000", "| Net sales | $3,953.9 |", "3,953.9"),
+        ("3953900000", "Net sales were $3,953.9 million.", "3,953.9"),
+        ("3953900000", "| Net sales | 3,953.95 |", None),
+        ("3953900000", "| Net sales | 13,953.9 |", None),
+        ("-3953900000", "| Net income | $(3,953.9) |", "(3,953.9)"),
+        ("-3953900000", "| Net loss | 3,953.9 |", "3,953.9 on a loss row (Net loss)"),
+        ("-3953900000", "| Net income | 3,953.9 |", None),
+        # Amcor's Q1 FY24 diluted EPS, to three decimals.
+        ("0.105", "| Diluted earnings per share | 0.105 |", "0.105"),
+        ("0.105", "| Diluted earnings per share | 0.11 |", None),
+        ("-0.019", "| Diluted earnings per share | (0.019) |", "(0.019)"),
+    ],
+)
+def test_find_figures_with_decimals(value, text, found) -> None:
+    text = in_table(text)
+    field = "eps_diluted" if "." in value else "revenue"
+    assert find_in_input(D(value), field, text, input_rows(text)) == found
+
+
 def test_not_in_input_comes_first() -> None:
     # Even a correct prediction is not graded when the answer isn't in the input.
     text = TEXT.replace("14,525", "14,526")
     assert verdict("14525000000", text=text) == grade.Verdict(
-        NOT_IN_INPUT, "searched 14,525, 14,525,000"
+        NOT_IN_INPUT, "searched 14,525, 14,525.0, 14,525,000"
     )
     assert verdict(None, text=text).verdict == NOT_IN_INPUT
 
 
 def test_not_in_input_without_an_input_form() -> None:
-    expected = answer("1.565", "eps_diluted", "EarningsPerShareDiluted")
-    assert verdict("1.565", expected) == grade.Verdict(
+    expected = answer("1.5651", "eps_diluted", "EarningsPerShareDiluted")
+    assert verdict("1.5651", expected) == grade.Verdict(
         NOT_IN_INPUT, "no input form for this value"
     )
 
@@ -1652,11 +1688,11 @@ def test_check_inputs_lists_answers_not_in_input(key_dir, tmp_path, capsys) -> N
         "not in input: 2",
         (
             f"  XOM {XOM} revenue quarter (answer 116017000000): searched 116,017, "
-            "116,017,000"
+            "116,017.0, 116,017,000"
         ),
         (
             f"  XOM {XOM} revenue year_to_date (answer 201155000000): searched 201,155, "
-            "201,155,000"
+            "201,155.0, 201,155,000"
         ),
     ]
 
