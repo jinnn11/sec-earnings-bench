@@ -1,0 +1,17 @@
+{
+  "ticker": "ABT",
+  "cik": 1800,
+  "filing_date": "2024-01-24",
+  "accession_number": "0001628280-24-002009",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1800/000162828024002009/abt-2023q4xexhibitx991.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "EX-99.1",
+      "url": "https://www.sec.gov/Archives/edgar/data/1800/000162828024002009/abt-2023q4xexhibitx991.htm",
+      "file": "0001628280-24-002009.md",
+      "chosen": true
+    }
+  ]
+}

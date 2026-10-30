@@ -1,0 +1,24 @@
+{
+  "ticker": "AMCR",
+  "cik": 1748790,
+  "filing_date": "2023-10-31",
+  "accession_number": "0001748790-23-000034",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1748790/000174879023000034/exhibit991q12024.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "EX-99.1",
+      "url": "https://www.sec.gov/Archives/edgar/data/1748790/000174879023000034/exhibit991q12024.htm",
+      "file": "0001748790-23-000034.md",
+      "chosen": true
+    },
+    {
+      "type": "EX-99.2",
+      "description": "EX-99.2",
+      "url": "https://www.sec.gov/Archives/edgar/data/1748790/000174879023000034/exhibit992.htm",
+      "file": "0001748790-23-000034_EX-99.2.md",
+      "chosen": false
+    }
+  ]
+}

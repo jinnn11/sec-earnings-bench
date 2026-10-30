@@ -1,0 +1,17 @@
+{
+  "ticker": "DOV",
+  "cik": 29905,
+  "filing_date": "2025-01-30",
+  "accession_number": "0000029905-25-000003",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/29905/000002990525000003/a202501308-kexhibit991pr.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "EX-99.1",
+      "url": "https://www.sec.gov/Archives/edgar/data/29905/000002990525000003/a202501308-kexhibit991pr.htm",
+      "file": "0000029905-25-000003.md",
+      "chosen": true
+    }
+  ]
+}

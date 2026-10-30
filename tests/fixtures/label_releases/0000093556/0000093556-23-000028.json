@@ -1,0 +1,24 @@
+{
+  "ticker": "SWK",
+  "cik": 93556,
+  "filing_date": "2023-10-27",
+  "accession_number": "0000093556-23-000028",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/93556/000009355623000028/ex991q32023.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "EX-99.1",
+      "url": "https://www.sec.gov/Archives/edgar/data/93556/000009355623000028/ex991q32023.htm",
+      "file": "0000093556-23-000028.md",
+      "chosen": true
+    },
+    {
+      "type": "EX-99.2",
+      "description": "EX-99.2",
+      "url": "https://www.sec.gov/Archives/edgar/data/93556/000009355623000028/exhibit992financialsq32023.htm",
+      "file": "0000093556-23-000028_EX-99.2.md",
+      "chosen": false
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "ticker": "FSLR",
+  "cik": 1274494,
+  "filing_date": "2025-02-25",
+  "accession_number": "0001274494-25-000009",
+  "exhibit": "EX-99.1",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/1274494/000127449425000009/ex991pressreleaseq4-2024fi.htm",
+  "exhibits": [
+    {
+      "type": "EX-99.1",
+      "description": "EXHIBIT 99.1",
+      "url": "https://www.sec.gov/Archives/edgar/data/1274494/000127449425000009/ex991pressreleaseq4-2024fi.htm",
+      "file": "0001274494-25-000009.md",
+      "chosen": true
+    }
+  ]
+}

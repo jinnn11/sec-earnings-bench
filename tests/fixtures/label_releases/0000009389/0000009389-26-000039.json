@@ -1,0 +1,17 @@
+{
+  "ticker": "BALL",
+  "cik": 9389,
+  "filing_date": "2026-02-03",
+  "accession_number": "0000009389-26-000039",
+  "exhibit": "EX-99",
+  "exhibit_url": "https://www.sec.gov/Archives/edgar/data/9389/000000938926000039/ball-20260203xex99.htm",
+  "exhibits": [
+    {
+      "type": "EX-99",
+      "description": "EX-99",
+      "url": "https://www.sec.gov/Archives/edgar/data/9389/000000938926000039/ball-20260203xex99.htm",
+      "file": "0000009389-26-000039.md",
+      "chosen": true
+    }
+  ]
+}

@@ -77,3 +77,20 @@ cut to its `constituents` table, with the header row and 23 rows copied byte for
 the 10 validation companies, three share-class pairs (GOOGL/GOOG, FOXA/FOX,
 NWSA/NWS), three Financials (BRK.B, JPM, V) and ABT, AMD, APD and LIN. The tests also
 read the tracked `data/companies.csv` to check that its split reproduces.
+
+Training-label fixtures (`tests/test_labels.py`), copied 2026-10-30 byte for byte from
+`data/stage2/releases/` (stage 2 build at commit 51a63ce): `label_releases/{cik10}/`
+holds eight train releases, each record (`<accession>.json`) with every exhibit's
+markdown. `label_answers.csv` is `data/stage2/answers.csv` cut to these releases and to
+AAPL, MSFT and WMT of `input_releases/` (header and rows unchanged).
+
+| Release | Why |
+| --- | --- |
+| DOV `0000029905-25-000003` (Q4 2024) | EPS rows labelled "Net earnings" under a "Diluted earnings per share:" row; in thousands |
+| VLO `0001035002-25-000002` (Q4 2024) | Basic and diluted EPS both $8.58 for the year, $0.89 and $0.88 for the quarter; press release typed EX-99.01 |
+| COP `0001163165-24-000004` (Q4 2023) | Statements in the appended EX-99.2, columns "2023 4th Qtr" and "2023 YTD" |
+| FSLR `0001274494-25-000009` (Q4 2024) | Three three-month columns (Q4 2024, Q3 2024, Q4 2023) beside the years |
+| BALL `0000009389-26-000039` (Q4 2025) | Continuing-operations and total diluted EPS agree for the year ($3.30), not the quarter ($0.74, $0.75) |
+| ABT `0001628280-24-002009` (Q4 2023) | The quarter's and the year's results in separate tables |
+| SWK `0000093556-23-000028` (Q3 2023) | Statements in the appended EX-99.2, in millions to one decimal ("$3,953.9"), a year-to-date loss |
+| AMCR `0001748790-23-000034` (Q1 FY24) | EPS to three decimals (0.105), basic equal to diluted; prior year's column first |
