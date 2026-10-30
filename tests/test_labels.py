@@ -465,6 +465,15 @@ def test_choose_prefers_the_income_statement() -> None:
     assert (cell.row.label, unit) == ("Total revenues", 10**3)
 
 
+def test_quoted_drops_zero_width_spaces() -> None:
+    # Ball's row labels, as its markdown has them.
+    label = "Diluted - continuing operations \u200b \u200b \u200b \u200b"
+    assert labels.quoted(label, 60) == "'Diluted - continuing operations'"
+    assert labels.quoted("Net income attributable to Ball Corporation", 20) == (
+        "'Net income attribut…'"
+    )
+
+
 def test_locate_tables_and_exhibits() -> None:
     # Stanley Black & Decker's input: EX-99.1, then its statements in EX-99.2.
     record = record_of(SWK)
@@ -931,6 +940,9 @@ def test_main_writes_train_releases_only(stage2, tmp_path, capsys) -> None:
     assert "Linked train releases: 3; labelled 3, left out 0." in report
     assert "Examples by split (releases.csv): train 3;" in report
     assert "Problems: none; every graded figure is correct." in report
+    assert "| whole example |" in report and "| median | p90 | p95 | p99 |" in report
+    longest = next(x for x in report.splitlines() if x.startswith("Longest whole"))
+    assert {AAPL, MSFT, WMT} <= set(longest.replace(";", " ").split())
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["commit"] == "test-commit"
     assert manifest["stage2"]["commit"] == "stage2-commit"

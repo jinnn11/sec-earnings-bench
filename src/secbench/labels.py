@@ -142,6 +142,7 @@ TOKENIZER_URL = (
 )
 TOKENIZER_SHA256 = "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
 TOKEN_LIMITS = (8192, 16384, 24576, 32768)
+LONGEST = 5  # longest examples the report names
 
 # Where a label comes from.
 CELL = "cell"  # a table cell printing the XBRL answer
@@ -257,10 +258,16 @@ class Cell:
         """'Net income' row, 'Three Months Ended June 30, 2025' column: $27,233"""
         column = self.column_header
         return (
-            f"{shorten(self.row.label, 60)!r} row"
-            + (f", {shorten(column, 60)!r} column" if column else "")
+            f"{quoted(self.row.label, 60)} row"
+            + (f", {quoted(column, 60)} column" if column else "")
             + f": {self.figure.text}"
         )
+
+
+def quoted(text: str, width: int) -> str:
+    """text for a reader, quoted: without zero-width spaces (Ecolab's and Ball's
+    cells are full of them), spaces collapsed, at most width characters."""
+    return repr(shorten(" ".join(text.replace("\u200b", " ").split()), width))
 
 
 def exhibit_starts(record_path: Path, text: str) -> list[tuple[dict, int]]:
@@ -1229,6 +1236,7 @@ def format_report(
     labelled = [r for r in results if r.labelled]
     left_out = [r for r in results if not r.labelled]
     labels = [label for r in labelled for label in r.labels]
+    tickers = {r.release.accession: r.release.ticker for r in results}
     lines = [
         "# Stage 2 training labels",
         "",
@@ -1340,12 +1348,11 @@ def format_report(
         f"## Tokens ({QWEN3})",
         "",
         *table(
-            ["", "median", "p95", "max", "total"],
+            ["", "median", "p90", "p95", "p99", "max", "total"],
             (
                 [
                     name,
-                    f"{percentile(v, 50):,}",
-                    f"{percentile(v, 95):,}",
+                    *(f"{percentile(v, p):,}" for p in (50, 90, 95, 99)),
                     f"{max(v, default=0):,}",
                     f"{sum(v):,}",
                 ]
@@ -1359,6 +1366,17 @@ def format_report(
             for limit in TOKEN_LIMITS
         )
         + f" (of {len(examples)}).",
+        "",
+        "Longest whole examples: "
+        + "; ".join(
+            f"{tickers[e['release_accession']]} {e['release_accession']} {n:,}"
+            for n, e in sorted(
+                zip(tokens["whole example"], examples, strict=True),
+                key=lambda pair: pair[0],
+                reverse=True,
+            )[:LONGEST]
+        )
+        + ".",
         "",
         "## Splits",
         "",
@@ -1387,11 +1405,11 @@ def describe_label(number: int, result: Result, label: Label) -> list[str]:
         ),
         (
             f"   - printed `{cell.figure.text}` in row "
-            f"{shorten(cell.row.label, 100)!r}, column "
-            f"{shorten(cell.column_header, 100)!r}"
+            f"{quoted(cell.row.label, 100)}, column "
+            f"{quoted(cell.column_header, 100)}"
         ),
-        f"   - table heading {shorten(cell.row.heading, 100)!r}"
-        + (f", section {shorten(cell.row.section, 60)!r}" if cell.row.section else ""),
+        f"   - table heading {quoted(cell.row.heading, 100)}"
+        + (f", section {quoted(cell.row.section, 60)}" if cell.row.section else ""),
         f"   - label {extract.as_json(label.reply_value())}; {answer}",
     ]
     if label.anchor:
