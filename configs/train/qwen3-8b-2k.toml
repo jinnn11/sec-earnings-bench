@@ -1,0 +1,34 @@
+# Stage 2, first run: LoRA on Qwen3-8B (thinking off), 1 epoch on 2,000 examples drawn
+# by quarter kind, 125 steps of 16; a checkpoint every 25 steps (400 examples), chosen
+# on validation only. Reasons: PLAN.md Decisions 2026-11-01.
+#   uv run python -m secbench.train prepare --config configs/train/qwen3-8b-2k.toml
+
+[model]
+name = "Qwen/Qwen3-8B"
+revision = "b968826d9c46dd6066d109eabc6255188de91218"  # main on 2026-10-30, as labels
+tokenizer_sha256 = "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+
+[data]
+examples = "data/stage2/labels/train.jsonl"
+index = "data/stage2/labels/examples.csv"
+subset = 2000  # examples per epoch, or "all"
+max_tokens = 32768  # longer examples are left out (dropped.csv)
+seed = 20261101
+
+[lora]
+r = 16
+alpha = 32
+dropout = 0.0
+target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+[training]
+epochs = 1
+gradient_accumulation = 16  # batch size 1
+learning_rate = 2e-4  # peak
+warmup_steps = 10
+weight_decay = 0.0
+max_grad_norm = 1.0
+save_every = 25
+gradient_checkpointing = true
+dtype = "bfloat16"
+device = "cuda"

@@ -24,3 +24,5 @@ data/*
 !data/companies.csv
 !data/companies.json
 runs/
+# Stage 2 training runs: adapters, optimizer states, logs (secbench.train)
+training/

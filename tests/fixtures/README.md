@@ -94,3 +94,11 @@ AAPL, MSFT and WMT of `input_releases/` (header and rows unchanged).
 | ABT `0001628280-24-002009` (Q4 2023) | The quarter's and the year's results in separate tables |
 | SWK `0000093556-23-000028` (Q3 2023) | Statements in the appended EX-99.2, in millions to one decimal ("$3,953.9"), a year-to-date loss |
 | AMCR `0001748790-23-000034` (Q1 FY24) | EPS to three decimals (0.105), basic equal to diluted; prior year's column first |
+
+Chat template fixture (`tests/test_chat.py`, `tests/conftest.py`), copied 2026-11-01
+byte for byte from the cache: `qwen3_8b_tokenizer_config.json` is Qwen/Qwen3-8B's
+`tokenizer_config.json` at revision b968826d9c46dd6066d109eabc6255188de91218
+(https://huggingface.co/Qwen/Qwen3-8B/resolve/b968826d9c46dd6066d109eabc6255188de91218/tokenizer_config.json,
+the revision labels and training pin), sha256 d5d09f07...8101. Its `chat_template` is
+the template vLLM renders requests with; the tests render it through transformers'
+`apply_chat_template` with a small byte-level tokenizer in place of Qwen3's.
