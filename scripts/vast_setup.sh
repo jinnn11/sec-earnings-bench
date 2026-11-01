@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Stage 2 on a fresh Vast.ai GPU instance, in order: check the GPU, unpack the bundle,
-# install, download the model, prepare, train, score on validation, pack the results.
+# install, download the model, prepare, score the base model on validation, train,
+# score the checkpoints on validation, pack the results. The base model is scored
+# before training, on the server setup the checkpoints get (vLLM with LoRA on), so a
+# bad flag, a broken install or a prompt vLLM tokenizes differently from training
+# (the /tokenize check) stops the script about 30 minutes in, before any training.
 # Running it again continues where it stopped: the install and download are no-ops
 # once done, a prepared run is kept, training resumes from its last checkpoint, and
-# models already scored are kept.
+# models already scored are kept (a rerun during training also scores the checkpoints
+# saved so far before it resumes).
 #
 # Pick an instance with one A100 80GB or H100, a driver for CUDA 13.0 or later
 # (torch 2.13.0 and vLLM 0.32.0 are CUDA 13 builds) and 100 GB of disk.
@@ -77,10 +82,16 @@ else
     uv run --no-sync python -m secbench.train prepare --config "$CONFIG" --run-name "$RUN"
 fi
 
+step "Score the base model on validation, before training"
+uv run --no-sync python -m secbench.score "training/$RUN"
+gpu_used() { nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1; }
+for _ in $(seq 30); do [ "$(gpu_used)" -lt 2048 ] && break; sleep 2; done
+[ "$(gpu_used)" -lt 2048 ] || fail "$(gpu_used) MiB of GPU memory still in use after vLLM stopped"
+
 step "Train (from the last checkpoint, if any)"
 uv run --no-sync python -m secbench.train train "training/$RUN"
 
-step "Score the base model and every checkpoint on validation"
+step "Score every checkpoint on validation (the base model's run is kept)"
 uv run --no-sync python -m secbench.score "training/$RUN"
 
 step "Pack the results"

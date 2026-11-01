@@ -2,6 +2,7 @@ import contextlib
 import csv
 import io
 import json
+import shlex
 import socket
 import sys
 from collections import Counter
@@ -252,7 +253,8 @@ def test_score_chooses_the_earliest_best_checkpoint(
     assert results["layout_prompts"] == 9
     report = (run_dir / "validation.md").read_text()
     assert "Chosen: step-00002, 26/26 (100.0%) (the most figures correct" in report
-    assert "| step-00004 | 4 | 8 | 26/26 (100.0%) |" in report
+    step4 = json.loads((runs / "run--step-00004" / "run.json").read_text())["finished"]
+    assert f"| step-00004 | 4 | 8 | {step4} | 26/26 (100.0%) |" in report
     assert "token ids from the server's /tokenize identical to training's" in report
     env = (run_dir / "validation" / "step-00004.env").read_text()
     assert 'MODEL_NAME="run--step-00004"' in env
@@ -261,6 +263,9 @@ def test_score_chooses_the_earliest_best_checkpoint(
         '"max_tokens": 1024}\'' in env
     )
 
+    assert [m["kept"] for m in results["models"]] == [False, False, False]
+    assert "Kept from an earlier" not in report
+
     # Run again: every model is kept and no server is started.
     server, starts = FakeVLLM(reply), []
     assert run(run_dir, key_dir, server, starts=starts) == 0
@@ -268,10 +273,114 @@ def test_score_chooses_the_earliest_best_checkpoint(
     assert (
         "already scored, kept: base, step-00002, step-00004" in capsys.readouterr().out
     )
-    assert (
-        json.loads((run_dir / "validation.json").read_text())["chosen"] == "step-00002"
+    again = json.loads((run_dir / "validation.json").read_text())
+    assert again["chosen"] == "step-00002"
+    assert [m["kept"] for m in again["models"]] == [True, True, True]
+    assert [m["scored"] for m in again["models"]] == [
+        m["scored"] for m in results["models"]
+    ]
+    report = (run_dir / "validation.md").read_text()
+    assert "Layout check: not run" in report
+    assert "Kept from an earlier scoring session, not called again: base (scored" in (
+        report
     )
-    assert "Layout check: not run" in (run_dir / "validation.md").read_text()
+
+
+def test_the_base_model_is_scored_before_training_and_kept_after(
+    tmp_path, key_dir, perfect, capsys
+) -> None:
+    write_labels(tmp_path / "labels")
+    run_dir = prepare(tmp_path)  # LoRA r 4: vLLM's --max-lora-rank 8
+    server, starts = FakeVLLM(lambda model, text: perfect[text]), []
+
+    # Before training: the base model alone, on a server with LoRA on.
+    assert run(run_dir, key_dir, server, starts=starts) == 0
+    [command] = starts
+    assert command[-7:] == [
+        "--enable-lora",
+        "--max-lora-rank", "8",
+        "--max-loras", "1",
+        "--max-cpu-loras", "1",
+    ]  # fmt: skip
+    assert "--lora-modules" not in command
+    assert {b["model"] for b in server.completions} == {BASE_NAME}
+    assert server.tokenized == 9
+    runs = tmp_path / "runs"
+    assert [p.name for p in runs.iterdir()] == ["run--base"]
+    base_info = json.loads((runs / "run--base" / "run.json").read_text())
+    results = json.loads((run_dir / "validation.json").read_text())
+    assert [(m["label"], m["kept"]) for m in results["models"]] == [("base", False)]
+    assert results["models"][0]["scored"] == base_info["finished"]
+    assert results["chosen"] is None
+    report = (run_dir / "validation.md").read_text()
+    assert "test/tiny-qwen3 alone (no checkpoints yet) of " in report
+    assert "No checkpoint to choose." in report
+    assert "Kept from an earlier" not in report
+
+    # After training: the base model's run is kept, not called again; the same
+    # server flags, plus the checkpoints.
+    add_checkpoint(run_dir, 2, 4)
+    add_checkpoint(run_dir, 4, 8)
+    server, starts = FakeVLLM(lambda model, text: perfect[text]), []
+    assert run(run_dir, key_dir, server, starts=starts) == 0
+    assert "already scored, kept: base" in capsys.readouterr().out
+    [after] = starts
+    assert after[: len(command)] == [*command[:-2], "--max-cpu-loras", "2"]
+    assert after[len(command) :] == [
+        "--lora-modules",
+        f"run--step-00002={run_dir.resolve()}/checkpoints/step-00002",
+        f"run--step-00004={run_dir.resolve()}/checkpoints/step-00004",
+    ]
+    assert {b["model"] for b in server.completions} == {
+        "run--step-00002",
+        "run--step-00004",
+    }
+    assert server.tokenized == 9  # the layout is checked again on the new server
+    assert json.loads((runs / "run--base" / "run.json").read_text()) == base_info
+    results = json.loads((run_dir / "validation.json").read_text())
+    assert [(m["label"], m["kept"]) for m in results["models"]] == [
+        ("base", True),
+        ("step-00002", False),
+        ("step-00004", False),
+    ]
+    assert results["models"][0]["scored"] == base_info["finished"]
+    assert results["chosen"] == "step-00002"
+    report = (run_dir / "validation.md").read_text()
+    assert "test/tiny-qwen3 and 2 checkpoints of " in report
+    assert (
+        "Kept from an earlier scoring session, not called again: base (scored "
+        f"{base_info['finished']}). Each session's server command is in "
+        "validation/server.log." in report
+    )
+    assert f"| base | 0 | 0 | {base_info['finished']}, kept | 26/26 (100.0%) |" in (
+        report
+    )
+    step_rows = [line for line in report.splitlines() if line.startswith("| step-")]
+    assert len(step_rows) == 2 and not any("kept" in line for line in step_rows)
+
+
+def test_a_run_on_other_releases_is_not_kept(run_dir, key_dir, perfect, capsys) -> None:
+    server = FakeVLLM(lambda model, text: perfect[text])
+    assert run(run_dir, key_dir, server, "--limit", "2") == 0
+    server = FakeVLLM(lambda model, text: perfect[text])
+    assert run(run_dir, key_dir, server) == 1
+    assert (
+        "run--base exists but isn't a complete graded run of test/tiny-qwen3 with "
+        "these settings on these 5 releases" in capsys.readouterr().err
+    )
+    assert server.completions == [] and server.tokenized == 0
+
+
+def test_a_checkpoint_with_another_rank_stops_scoring(
+    run_dir, key_dir, perfect, capsys
+) -> None:
+    add_checkpoint(run_dir, 6, 12, r=8)
+    server = FakeVLLM(lambda model, text: perfect[text])
+    assert run(run_dir, key_dir, server) == 1
+    assert "step-00006: LoRA r 8, but the run's config says 4" in (
+        capsys.readouterr().err
+    )
+    assert server.completions == []
 
 
 def test_a_later_checkpoint_that_scores_higher_is_chosen(
@@ -331,7 +440,7 @@ def test_models_and_vllm_command(run_dir) -> None:
         ("step-00002", "run--step-00002", 2, 4),
         ("step-00004", "run--step-00004", 4, 8),
     ]
-    command = score.vllm_command(Path("/snap"), "Qwen/Qwen3-8B", found[1:], 8000)
+    command = score.vllm_command(Path("/snap"), "Qwen/Qwen3-8B", found[1:], 8000, 4)
     assert command[1:] == [
         "serve", "/snap",
         "--served-model-name", "Qwen/Qwen3-8B",
@@ -346,15 +455,30 @@ def test_models_and_vllm_command(run_dir) -> None:
         f"run--step-00002={found[1].adapter}",
         f"run--step-00004={found[2].adapter}",
     ]  # fmt: skip
-    assert score.vllm_command(Path("/snap"), "Q", [], 8000)[-1] == "8000"
-    hf = score.hf_command(Path("/snap"), "Q", found[1:], 8001)
+    # No checkpoints yet: LoRA on all the same, the rank from the config's r.
+    alone = score.vllm_command(Path("/snap"), "Q", [], 8000, 16)
+    assert alone[-9:] == [
+        "--port", "8000",
+        "--enable-lora",
+        "--max-lora-rank", "16",
+        "--max-loras", "1",
+        "--max-cpu-loras", "1",
+    ]  # fmt: skip
+    hf = score.hf_command(Path("/snap"), "Q", found[1:], 8001, 4)
     assert hf[:3] == [sys.executable, "-m", "secbench.hfserve"]
+    assert "--lora-modules" not in score.hf_command(Path("/snap"), "Q", [], 8001, 4)
 
 
-@pytest.mark.parametrize(("r", "rank"), [(4, 8), (16, 16), (20, 32), (64, 64)])
-def test_lora_rank(tmp_path, r, rank) -> None:
-    (tmp_path / "adapter_config.json").write_text(json.dumps({"r": r}))
-    assert score.lora_rank([tmp_path]) == rank
+@pytest.mark.parametrize(
+    ("r", "rank"), [(1, 1), (4, 8), (16, 16), (20, 32), (64, 64), (512, 512)]
+)
+def test_lora_rank(r, rank) -> None:
+    assert score.lora_rank(r) == rank
+
+
+def test_lora_rank_over_vllms_largest() -> None:
+    with pytest.raises(ScoreError, match="LoRA r 513 is over vLLM's largest"):
+        score.lora_rank(513)
 
 
 def test_env_file_gives_the_scoring_settings(tmp_path) -> None:
@@ -395,11 +519,17 @@ def test_run_server_waits_for_health_and_stops_the_server(tmp_path) -> None:
     command = [sys.executable, "-c", SERVER, str(port)]
     root = f"http://127.0.0.1:{port}"
     with httpx.Client() as http:
-        with score.run_server(command, log, root, http):
-            assert http.get(f"{root}/health").status_code == 200
-        with pytest.raises(httpx.TransportError):
-            http.get(f"{root}/health", timeout=2.0)
-    assert "ready" in log.read_text()
+        for _ in range(2):  # a second session appends to the log
+            with score.run_server(command, log, root, http):
+                assert http.get(f"{root}/health").status_code == 200
+            with pytest.raises(httpx.TransportError):
+                http.get(f"{root}/health", timeout=2.0)
+    text = log.read_text()
+    first, second = text.split(f" {shlex.join(command)}\n")[:2]
+    assert first.startswith("== ") and first.count("\n") == 0
+    between = second.splitlines()  # the first session's output, then the 2nd header
+    assert between.count("ready") == 1 and between[-1].startswith("== ")
+    assert text.splitlines().count("ready") == 2
 
 
 def test_run_server_reports_a_server_that_exits(tmp_path) -> None:

@@ -8,9 +8,14 @@ Usage: uv run --group train --group serve python -m secbench.score training/<run
 1. One server for the base model (the run's snapshot, served under the model's name,
    such as Qwen/Qwen3-8B) and every complete checkpoint as a LoRA adapter named
    <run>--step-NNNNN: vLLM (vllm serve with --max-model-len 40960, README's setting
-   for Qwen3-8B, and --enable-lora) or, for the laptop smoke test, secbench.hfserve
-   (--server hf). Its output goes to training/<run>/validation/server.log; it is
-   stopped at the end.
+   for Qwen3-8B) or, for the laptop smoke test, secbench.hfserve (--server hf). vLLM
+   always runs with LoRA on, the same flags before training as after: --max-lora-rank
+   from the run's config r (every checkpoint must have that r), --max-loras 1 and
+   --max-cpu-loras the number of checkpoints, at least 1. So scoring a run before it
+   trains (scripts/vast_setup.sh does) serves the base model alone on the server setup
+   the checkpoints get, and tries the LoRA flags before any GPU-hour of training. Its
+   output is appended to training/<run>/validation/server.log, each session under a
+   line with its time and command; it is stopped at the end.
 2. The layout check: given each validation release's and each training example's
    system and user messages with thinking off, the server's /tokenize must return
    exactly the token ids training used for the prompt (secbench.chat, the model's
@@ -20,12 +25,12 @@ Usage: uv run --group train --group serve python -m secbench.score training/<run
    extract_v2, temperature 0, thinking off, max_tokens 1024 (secbench.chat), graded
    as every run is, with an EDGAR client that reads only the cache. Runs go to
    <runs-dir>/<run>--base and <run>--step-NNNNN (CONTRIBUTING: raw outputs under
-   runs/). A complete graded run already there with the same model and settings is
-   kept and not called again; any other run there stops the scoring.
+   runs/). A complete graded run already there with the same model, settings and
+   releases is kept and not called again; any other run there stops the scoring.
 4. training/<run>/validation.md (also printed) and validation.json: each model's
-   accuracy, overall and by field, and the chosen checkpoint: the most figures
-   correct, ties to the earliest step. The base model is scored for reference and
-   never chosen.
+   accuracy, overall and by field, when its run finished and whether it was kept from
+   an earlier session, and the chosen checkpoint: the most figures correct, ties to
+   the earliest step. The base model is scored for reference and never chosen.
 """
 
 from __future__ import annotations
@@ -34,6 +39,7 @@ import argparse
 import csv
 import json
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -107,15 +113,29 @@ def models(run_dir: Path, base_name: str) -> list[Model]:
     return found
 
 
-def lora_rank(adapters: Sequence[Path]) -> int:
-    """The smallest --max-lora-rank vLLM takes that fits every adapter's r."""
-    r = max(json.loads((a / train.ADAPTER_CONFIG).read_text())["r"] for a in adapters)
-    return next(rank for rank in VLLM_LORA_RANKS if rank >= r)
+def lora_rank(r: int) -> int:
+    """The smallest --max-lora-rank vLLM takes that fits r."""
+    rank = next((rank for rank in VLLM_LORA_RANKS if rank >= r), None)
+    if rank is None:
+        raise ScoreError(f"LoRA r {r} is over vLLM's largest --max-lora-rank")
+    return rank
+
+
+def check_adapters(adapters: Sequence[Model], r: int) -> None:
+    """Every checkpoint's adapter has the config's r, which the server is set for."""
+    for model in adapters:
+        assert model.adapter is not None
+        found = json.loads((model.adapter / train.ADAPTER_CONFIG).read_text())["r"]
+        if found != r:
+            raise ScoreError(
+                f"{model.adapter}: LoRA r {found}, but the run's config says {r}"
+            )
 
 
 def vllm_command(
-    snapshot: Path, base_name: str, adapters: Sequence[Model], port: int
+    snapshot: Path, base_name: str, adapters: Sequence[Model], port: int, r: int
 ) -> list[str]:
+    """vllm serve with LoRA on, whether or not there are adapters yet."""
     executable = Path(sys.executable).with_name("vllm")
     command = [
         str(executable) if executable.exists() else "vllm",
@@ -129,26 +149,23 @@ def vllm_command(
         "127.0.0.1",
         "--port",
         str(port),
+        "--enable-lora",
+        "--max-lora-rank",
+        str(lora_rank(r)),
+        "--max-loras",
+        "1",
+        "--max-cpu-loras",
+        str(max(1, len(adapters))),
     ]
     if adapters:
-        paths = [m.adapter for m in adapters if m.adapter]
-        command += [
-            "--enable-lora",
-            "--max-lora-rank",
-            str(lora_rank(paths)),
-            "--max-loras",
-            "1",
-            "--max-cpu-loras",
-            str(len(adapters)),
-            "--lora-modules",
-            *(f"{m.served}={m.adapter}" for m in adapters),
-        ]
+        command += ["--lora-modules", *(f"{m.served}={m.adapter}" for m in adapters)]
     return command
 
 
 def hf_command(
-    snapshot: Path, base_name: str, adapters: Sequence[Model], port: int
+    snapshot: Path, base_name: str, adapters: Sequence[Model], port: int, r: int
 ) -> list[str]:
+    """The stand-in loads adapters as they come; r doesn't set anything."""
     command = [
         sys.executable,
         "-m",
@@ -191,9 +208,13 @@ def log_tail(path: Path, lines: int = 20) -> str:
 def run_server(
     command: Sequence[str], log_path: Path, root: str, http: httpx.Client
 ) -> Iterator[None]:
-    """Start the server, wait until GET /health answers 200, stop it at the end."""
+    """Start the server, wait until GET /health answers 200, stop it at the end. Its
+    output is appended to log_path, after a line with the time and the command."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("w") as log:
+    with log_path.open("a") as log:
+        started = datetime.now(UTC).isoformat(timespec="seconds")
+        log.write(f"== {started} {shlex.join(command)}\n")
+        log.flush()
         process = subprocess.Popen(
             list(command), stdout=log, stderr=subprocess.STDOUT, start_new_session=True
         )
@@ -332,9 +353,15 @@ def expected_parameters() -> dict[str, Any]:
     }
 
 
-def kept_run(path: Path, model: Model) -> bool:
-    """Whether a complete graded run of model with these settings is at path. Any
-    other run there is an error: it is never overwritten."""
+def run_releases(path: Path) -> list[str]:
+    """The releases of a run's predictions, in order."""
+    lines = (path / grade.PREDICTIONS).read_text().splitlines()
+    return [json.loads(line)["release_accession"] for line in lines if line.strip()]
+
+
+def kept_run(path: Path, model: Model, releases: Sequence[str]) -> bool:
+    """Whether a complete graded run of model with these settings on exactly these
+    releases is at path. Any other run there is an error: it is never overwritten."""
     if not path.exists():
         return False
     info_path = path / extract.RUN_INFO
@@ -345,11 +372,12 @@ def kept_run(path: Path, model: Model) -> bool:
         and info.get("model") == model.served
         and info.get("prompt_version") == labels.PROMPT
         and info.get("request_parameters") == expected_parameters()
+        and run_releases(path) == list(releases)
     ):
         return True
     raise ScoreError(
         f"{path} exists but isn't a complete graded run of {model.served} with these "
-        "settings; move it away to score again"
+        f"settings on these {len(releases)} releases; move it away to score again"
     )
 
 
@@ -362,6 +390,8 @@ class Score:
     by_field: dict[str, tuple[int, int]]  # field -> (correct, graded)
     not_correct: Counter[str]
     fallbacks: int  # releases with an all-null prediction (invalid reply, API error)
+    finished: str  # run.json's finished time
+    kept: bool  # scored in an earlier session, not called again in this one
 
     @property
     def accuracy(self) -> str:
@@ -370,7 +400,7 @@ class Score:
         return f"{self.correct}/{self.graded} ({100 * self.correct / self.graded:.1f}%)"
 
 
-def read_score(model: Model, run_dir: Path) -> Score:
+def read_score(model: Model, run_dir: Path, kept: bool) -> Score:
     with (run_dir / grade.GRADED).open(newline="") as f:
         rows = [r for r in csv.DictReader(f) if r["verdict"] not in UNGRADED]
     info = json.loads((run_dir / extract.RUN_INFO).read_text())
@@ -388,6 +418,8 @@ def read_score(model: Model, run_dir: Path) -> Score:
         {name: field(name) for name in FIELD_NAMES},
         Counter(r["verdict"] for r in rows if r["verdict"] != grade.CORRECT),
         outcomes[extract.INVALID_REPLY] + outcomes[extract.API_ERROR],
+        info["finished"],
+        kept,
     )
 
 
@@ -409,13 +441,20 @@ def format_report(
     def fraction(pair: tuple[int, int]) -> str:
         return f"{pair[0]}/{pair[1]}"
 
+    checkpoints = sum(s.model.label != BASE for s in scores)
+    kept = [s for s in scores if s.kept]
     lines = [
         f"# Validation: {run_dir.name}",
         "",
         (
-            f"{header['base_model']} and {len(scores) - 1} checkpoints of {run_dir}, "
-            f"on {header['releases']} releases of {header['links']}; prompt "
-            f"{labels.PROMPT}, temperature 0, thinking off, max_tokens "
+            f"{header['base_model']} "
+            + (
+                f"and {checkpoints} checkpoints"
+                if checkpoints
+                else "alone (no checkpoints yet)"
+            )
+            + f" of {run_dir}, on {header['releases']} releases of {header['links']}; "
+            f"prompt {labels.PROMPT}, temperature 0, thinking off, max_tokens "
             f"{chat.MAX_TOKENS}; served by {header['server']}."
         ),
         (
@@ -425,17 +464,25 @@ def format_report(
             if header["layout_prompts"]
             else "Layout check: not run (every model was already scored)."
         ),
+    ]
+    if kept:
+        lines.append(
+            "Kept from an earlier scoring session, not called again: "
+            + ", ".join(f"{s.model.label} (scored {s.finished})" for s in kept)
+            + f". Each session's server command is in {VALIDATION}/{SERVER_LOG}."
+        )
+    lines += [
         "",
-        "| model | step | examples seen | accuracy | "
+        "| model | step | examples seen | scored | accuracy | "
         + " | ".join(FIELD_NAMES)
         + " | not correct | fallbacks | run |",
-        "| --- " * (7 + len(FIELD_NAMES)) + "|",
+        "| --- " * (8 + len(FIELD_NAMES)) + "|",
     ]
     for s in scores:
         wrong = ", ".join(f"{v} {n}" for v, n in sorted(s.not_correct.items())) or "–"
         lines.append(
             f"| {s.model.label} | {s.model.step} | {s.model.examples_seen:,} | "
-            f"{s.accuracy} | "
+            f"{s.finished}{', kept' if s.kept else ''} | {s.accuracy} | "
             + " | ".join(fraction(s.by_field[f]) for f in FIELD_NAMES)
             + f" | {wrong} | {s.fallbacks} | {s.run_dir} |"
         )
@@ -465,6 +512,8 @@ def results_json(
                 "step": s.model.step,
                 "examples_seen": s.model.examples_seen,
                 "run": str(s.run_dir),
+                "scored": s.finished,  # its run.json's finished time
+                "kept": s.kept,  # scored in an earlier session, not called again
                 "correct": s.correct,
                 "graded": s.graded,
                 "by_field": {f: list(s.by_field[f]) for f in FIELD_NAMES},
@@ -552,13 +601,18 @@ def score(
     info, config, _ = train.read_run(run_dir)
     every = models(run_dir, config.model)
     adapters = every[1:]
+    check_adapters(adapters, config.r)
     root = f"http://127.0.0.1:{port}"
     folder = run_dir / VALIDATION
     folder.mkdir(exist_ok=True)
-    to_score = [m for m in every if not kept_run(runs_dir / m.run_name, m)]
-    kept = [m.label for m in every if m not in to_score]
+    linked = load_links(links)[0]
+    selected = [
+        r.release_accession for r in extract.select_releases(linked, limit=limit)
+    ]
+    to_score = [m for m in every if not kept_run(runs_dir / m.run_name, m, selected)]
+    kept = [m for m in every if m not in to_score]
     if kept:
-        out(f"already scored, kept: {', '.join(kept)}")
+        out(f"already scored, kept: {', '.join(m.label for m in kept)}")
     prompt = extract.load_prompt(labels.PROMPT)
     prompts = (
         layout_prompts(info, config, run_dir, links, releases, prompt.text)
@@ -566,8 +620,7 @@ def score(
         else []
     )
     make = vllm_command if server == VLLM else hf_command
-    command = make(snapshot, config.model, adapters, port)
-    linked = len(load_links(links)[0])
+    command = make(snapshot, config.model, adapters, port, config.r)
     header = {
         "run": str(run_dir),
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -576,7 +629,7 @@ def score(
         "server": server_version(server),
         "server_command": command,
         "links": str(links),
-        "releases": min(linked, limit) if limit else linked,
+        "releases": len(selected),
         "layout_prompts": len(prompts) if to_score else None,
     }
     failed = []
@@ -607,7 +660,7 @@ def score(
             edgar_client,
         )
     scores = [
-        read_score(m, runs_dir / m.run_name)
+        read_score(m, runs_dir / m.run_name, m in kept)
         for m in every
         if (runs_dir / m.run_name / grade.GRADED).is_file()
     ]

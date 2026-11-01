@@ -26,3 +26,7 @@ data/*
 runs/
 # Stage 2 training runs: adapters, optimizer states, logs (secbench.train)
 training/
+# Tars for and from a GPU instance (secbench.bundle, scripts/vast_setup.sh)
+gpu-bundle-*.tar
+gpu-bundle-*.tar.part
+results-*.tar
