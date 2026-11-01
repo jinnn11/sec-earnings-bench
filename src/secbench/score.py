@@ -659,7 +659,7 @@ def main(
     try:
         _, config, _ = train.read_run(args.run_dir)
         if snapshot is None:
-            snapshot = train.snapshot_path(config, args.hf_cache)
+            snapshot = train.snapshot_path(config, args.hf_cache).resolve()
         if encode is None:
             from transformers import AutoTokenizer
 
