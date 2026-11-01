@@ -845,6 +845,22 @@ def pick_device(name: str) -> str:
     return name
 
 
+def load_model(snapshot: Path, dtype: Any, device: str) -> Any:
+    """The snapshot's model in dtype on device. On a GPU it loads straight there;
+    elsewhere on the CPU first, then moves (transformers' threaded loading onto
+    Apple's GPU can crash while converting the dtype)."""
+    from transformers import AutoModelForCausalLM
+
+    if device == "cuda":
+        return AutoModelForCausalLM.from_pretrained(
+            snapshot, dtype=dtype, attn_implementation="sdpa", device_map={"": device}
+        )
+    model = AutoModelForCausalLM.from_pretrained(
+        snapshot, dtype=dtype, attn_implementation="sdpa"
+    )
+    return model.to(device)
+
+
 def rng_states(device: str) -> dict[str, Any]:
     import torch
 
@@ -1017,7 +1033,7 @@ def train(
 
     import torch
     from peft import LoraConfig, get_peft_model
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
     out(f"checking {len(by_accession):,} examples against the chat template")
@@ -1034,9 +1050,7 @@ def train(
     random.seed(config.seed)
     torch.manual_seed(config.seed)
     dtype = getattr(torch, config.dtype)
-    model = AutoModelForCausalLM.from_pretrained(
-        snapshot, dtype=dtype, attn_implementation="sdpa", device_map={"": device}
-    )
+    model = load_model(snapshot, dtype, device)
     eos = model.generation_config.eos_token_id
     if end not in (eos if isinstance(eos, list) else [eos]):
         raise TrainError(
