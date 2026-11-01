@@ -38,3 +38,16 @@ dev = [
     "ruff>=0.17.0",
     "tokenizers>=0.23.3",
 ]
+# Stage 2 fine-tuning (secbench.train), not needed for the benchmark: uv sync --group
+# train. torch and transformers are the versions vLLM 0.32.0 requires, so training
+# and serving share one environment on the GPU.
+train = [
+    "peft==0.21.2",
+    "torch==2.13.0",
+    "transformers==5.19.0",
+]
+# vLLM, to serve the base model and adapters for scoring (secbench.score); Linux GPUs
+# only, so nothing is installed on other platforms.
+serve = [
+    "vllm==0.32.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
