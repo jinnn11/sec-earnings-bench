@@ -927,6 +927,14 @@ def test_main_writes_train_releases_only(stage2, tmp_path, capsys) -> None:
     with (out / "selfcheck" / "graded.csv").open(newline="") as f:
         graded = list(csv.DictReader(f))
     assert Counter(r["verdict"] for r in graded) == {"correct": 14, "no_answer": 4}
+    with (out / "examples.csv").open(newline="") as f:
+        index = list(csv.DictReader(f))
+    assert [(r["release_accession"], r["ticker"], r["kind"]) for r in index] == [
+        (AAPL, "AAPL", "second or third quarter"),
+        (MSFT, "MSFT", "fourth quarter"),
+        (WMT, "WMT", "first quarter"),
+    ]
+    assert [r["linked_form"] for r in index] == ["10-Q", "10-K", "10-Q"]
     assert (out / "left_out.csv").read_text().count("\n") == 1  # the header
     with (out / "figures.csv").open(newline="") as f:
         figures = list(csv.DictReader(f))

@@ -37,7 +37,8 @@ changes (manifest.json records the commit). Writes to <out>: train.jsonl (the
 examples), figures.csv (each labelled figure and the cell it came from), left_out.csv
 (each reason a release was left out), selfcheck/ (predictions.jsonl, graded.csv,
 summary.txt), report.md (also printed), handcheck.md (figures drawn for checking by
-hand) and manifest.json. Token counts use Qwen3-8B's tokenizer at a pinned revision,
+hand), examples.csv (each example's release and quarter kind, in train.jsonl's
+order; secbench.train draws its subsets by kind) and manifest.json. Token counts use Qwen3-8B's tokenizer at a pinned revision,
 downloaded once into <raw>.
 """
 
@@ -110,6 +111,7 @@ PROMPT = "extract_v2"
 DEFAULT_OUT = DEFAULT_STAGE2 / "labels"
 DEFAULT_RAW = Path("data/raw")
 EXAMPLES = "train.jsonl"
+EXAMPLE_INDEX = "examples.csv"
 FIGURES = "figures.csv"
 LEFT_OUT = "left_out.csv"
 SELF_CHECK = "selfcheck"
@@ -203,6 +205,7 @@ FIGURE_COLUMNS = [
     "column",
     "anchor",
 ]
+EXAMPLE_COLUMNS = ["release_accession", "ticker", "kind", "linked_form", "filing_date"]
 LEFT_OUT_COLUMNS = [
     "ticker",
     "release_accession",
@@ -1002,6 +1005,21 @@ def figure_rows(results: Iterable[Result]) -> list[dict[str, Any]]:
     return rows
 
 
+def example_rows(results: Iterable[Result]) -> list[dict[str, Any]]:
+    """examples.csv: each labelled release, in train.jsonl's order, with its kind."""
+    return [
+        {
+            "release_accession": result.release.accession,
+            "ticker": result.release.ticker,
+            "kind": result.kind,
+            "linked_form": result.release.linked_form,
+            "filing_date": result.release.filing_date.isoformat(),
+        }
+        for result in results
+        if result.labelled
+    ]
+
+
 def left_out_rows(results: Iterable[Result]) -> list[dict[str, Any]]:
     """left_out.csv: every reason of every release left out."""
     return [
@@ -1507,6 +1525,12 @@ def main(
         )
         if problems:
             raise LabelError(f"{args.out / EXAMPLES}: " + "; ".join(problems))
+        index = example_rows(built.results)
+        if [row["release_accession"] for row in index] != [
+            e["release_accession"] for e in built.examples
+        ]:
+            raise LabelError("examples.csv and train.jsonl list different releases")
+        write_text(args.out / EXAMPLE_INDEX, rows_csv(index, EXAMPLE_COLUMNS))
         write_text(
             args.out / FIGURES, rows_csv(figure_rows(built.results), FIGURE_COLUMNS)
         )
