@@ -13,8 +13,12 @@ links.csv go in the main table, with cost per 1,000 releases; runs on fewer rele
 stopped or not graded go in a smaller table below it, so a short run's cost per
 release doesn't sit beside full runs. A run whose graded.csv doesn't match the
 current answers.csv, or has other columns than the grader writes (graded by an older
-grader), is marked stale (re-grade it with secbench.grade). Nothing from .env is
-shown: settings come from run.json's request_parameters.
+grader), is marked stale (re-grade it with secbench.grade). A run whose run.json
+records the sha256 of its links file (secbench.extract records it from 2026-11-05)
+is left out, and named under the tables, when that isn't --links's: runs on a test
+split (data/splits/<split>/links.csv) never enter the validation comparison. Runs
+that record none are compared as before. Nothing from .env is shown: settings come
+from run.json's request_parameters.
 
 Usage: uv run python -m secbench.compare [--runs-dir runs]
        [--out results/comparison.md] [--links data/links.csv] [--answers data/answers.csv]
@@ -25,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import sys
@@ -123,10 +128,11 @@ def is_stale(
 
 
 def load_runs(
-    runs_dir: Path, key: dict[tuple[str, str, str], Answer]
+    runs_dir: Path, key: dict[tuple[str, str, str], Answer], *, links_sha256: str
 ) -> tuple[list[Run], list[str]]:
-    """Every run folder with a readable run.json, by start time; and the folders
-    left out, with why."""
+    """Every run folder with a readable run.json and no other links file recorded
+    than the one of links_sha256, by start time; and the folders left out, with
+    why."""
     runs, skipped = [], []
     for folder in sorted(p for p in runs_dir.iterdir() if p.is_dir()):
         info_path = folder / RUN_INFO
@@ -137,6 +143,12 @@ def load_runs(
             info = json.loads(info_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             skipped.append(f"{folder.name} ({RUN_INFO} is not valid JSON)")
+            continue
+        recorded = info.get("links_sha256")
+        if recorded is not None and recorded != links_sha256:
+            skipped.append(
+                f"{folder.name} (on another links file, {info.get('links')})"
+            )
             continue
         graded = None
         columns: list[str] = []
@@ -501,7 +513,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     linked = {r.release_accession for r in load_links(args.links)[0]}
-    runs, skipped = load_runs(args.runs_dir, key)
+    links_sha256 = hashlib.sha256(args.links.read_bytes()).hexdigest()
+    runs, skipped = load_runs(args.runs_dir, key, links_sha256=links_sha256)
     text = format_comparison(
         runs,
         skipped,

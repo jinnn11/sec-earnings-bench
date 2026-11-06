@@ -1,4 +1,5 @@
 import dataclasses
+import hashlib
 import json
 from datetime import date
 from decimal import Decimal
@@ -396,6 +397,36 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
     ]
 
 
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_runs_on_another_links_file_are_left_out(fake_runs, tmp_path) -> None:
+    runs, links, answers = fake_runs
+    split_links = tmp_path / "splits" / "company_test" / "links.csv"
+    split_links.parent.mkdir(parents=True)
+    split_links.write_text(LINKS_HEADER + "\n")
+    info = json.loads((runs / "a-opus" / "run.json").read_text())
+    # A test split's run (its predictions graded on the laptop), and a validation
+    # run that recorded the same links file compare reads.
+    test_run = info | {"links": str(split_links), "links_sha256": sha256(split_links)}
+    graded = graded_rows(*[grade.CORRECT] * 6)
+    write_run(runs, "h-test", test_run, graded)
+    same = info | {"links": str(links), "links_sha256": sha256(links)}
+    write_run(runs, "i-validation", same, graded)
+    out = tmp_path / "comparison.md"
+    argv = ["--runs-dir", str(runs), "--out", str(out), "--links", str(links)]
+    assert compare.main([*argv, "--answers", str(answers)]) == 0
+    text = out.read_text()
+    assert "| h-test |" not in text
+    assert "| i-validation | claude-test | anthropic |" in text
+    assert f"6 runs in {runs}/" in text  # a-opus to e-stale, and i-validation
+    assert text.splitlines()[-1] == (
+        f"- Not listed: f-empty (no run.json), g-bad (run.json is not valid JSON), "
+        f"h-test (on another links file, {split_links})."
+    )
+
+
 def test_no_full_runs(tmp_path) -> None:
     runs = tmp_path / "runs"
     runs.mkdir()
@@ -437,12 +468,14 @@ def test_is_stale(tmp_path) -> None:
 def test_graded_by_an_older_grader_is_stale(fake_runs) -> None:
     # graded.csv from before the factor column: its answers match, but unit slips
     # can't be counted.
-    runs, _, answers = fake_runs
+    runs, links, answers = fake_runs
     old = runs / "a-opus" / "graded.csv"
     lines = old.read_text().splitlines()
     assert lines[0].endswith(",factor")
     old.write_text("".join(line.rsplit(",", 1)[0] + "\n" for line in lines))
-    runs_loaded, _ = compare.load_runs(runs, load_answers(answers))
+    runs_loaded, _ = compare.load_runs(
+        runs, load_answers(answers), links_sha256=sha256(links)
+    )
     run = next(r for r in runs_loaded if r.name == "a-opus")
     assert (run.status, run.unit_slips()) == ("stale: re-grade", "none")
     assert compare.accuracy(run.verdicts()) == "6/6 (100.0%)"
