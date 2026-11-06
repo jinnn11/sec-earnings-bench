@@ -1,0 +1,27 @@
+# The model under test on the frozen test splits (results/test_protocol.md): the
+# training run qwen3-8b-2k's checkpoint step-00025, chosen on validation (PLAN.md
+# Progress 2026-11-02, Findings 2026-11-03). secbench.score --test-config serves the
+# base model and this one adapter and runs secbench.extract on a frozen split with
+# validation's settings; it refuses a setting below that isn't validation's, and an
+# adapter whose sha256 isn't this one.
+
+[model]
+run = "qwen3-8b-2k"  # training/<run>/config.json
+base = "Qwen/Qwen3-8B"
+revision = "b968826d9c46dd6066d109eabc6255188de91218"
+checkpoint = "step-00025"  # training/<run>/checkpoints/<checkpoint>/
+# Its adapter_model.safetensors (174,655,536 bytes).
+adapter_sha256 = "b93376d91af812159f4bd3a0fb80be090808e6d3539b251dc53ed26b9d27041b"
+
+[server]  # vllm serve, as for validation
+max_model_len = 40960
+max_lora_rank = 16
+max_loras = 1
+max_cpu_loras = 1
+
+[request]  # secbench.extract, as for validation
+prompt = "extract_v2"
+temperature = 0.0
+enable_thinking = false
+max_tokens = 1024
+concurrency = 16
