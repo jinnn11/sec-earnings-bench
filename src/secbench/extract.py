@@ -19,7 +19,7 @@ is never edited; a changed prompt is a new version (extract_v3).
 Usage: uv run python -m secbench.extract [--tickers AAPL ...] [--accessions ...]
            [--limit N] [--run-name NAME] [--prompt extract_v1] [--dry-run]
            [--env-file .env.vllm] [--links] [--answers] [--releases] [--runs-dir]
-           [--prompts-dir]
+           [--prompts-dir] [--no-grade]
 
 Settings come from the environment or .env (the environment wins), or with --env-file
 only from that file (read literally; the environment and .env are not used for them,
@@ -49,8 +49,13 @@ the first selected release, without reading them or making a call.
 
 A run writes runs/<run>/raw/<accession>.json (every HTTP attempt's request body and
 response; no headers) as each release finishes, then predictions.jsonl and run.json
-(model, prompt version, token counts, latency per call, estimated cost, fallbacks),
-grades the run (see secbench.grade) and prints the summary. At most MODEL_CONCURRENCY
+(model, prompt version, token counts, latency per call, estimated cost, fallbacks;
+the commit of the code and whether tracked files had uncommitted changes; the
+--links, --answers and --releases paths, with the sha256 of the links and answers
+files), grades the run (see secbench.grade) and prints the summary. With --no-grade
+the run isn't graded (a GPU instance has no SEC cache): predictions.jsonl and
+run.json are written all the same, the summary gives the command to grade it, and
+the exit code reflects API errors only. At most MODEL_CONCURRENCY
 calls (default 4) run at a time; for both providers, 429, 5xx, timeouts and connection
 errors are retried with
 the same backoff (the SDK's own retries are off). HTTP 401, 403 or 404 (wrong key,
@@ -68,6 +73,7 @@ import math
 import os
 import random
 import re
+import subprocess
 import sys
 import time
 from collections import Counter
@@ -100,6 +106,7 @@ from secbench.link import DEFAULT_OUT as DEFAULT_LINKS
 from secbench.link import shorten
 from secbench.releases import DEFAULT_OUT_DIR as DEFAULT_RELEASES
 from secbench.releases import write_text
+from secbench.stage2 import current_commit
 
 log = logging.getLogger(__name__)
 
@@ -1177,6 +1184,33 @@ def call_rows(results: list[ReleaseResult]) -> list[dict[str, Any]]:
     return rows
 
 
+def code_version() -> dict[str, Any]:
+    """The commit of the code that runs, and whether tracked files had no
+    uncommitted changes; both None outside a git checkout."""
+    try:
+        commit, dirty = current_commit()
+    except (OSError, subprocess.CalledProcessError):
+        return {"commit": None, "clean": None}
+    return {"commit": commit, "clean": not dirty}
+
+
+def file_sha256(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def data_files(links: Path, answers: Path, releases: Path) -> dict[str, Any]:
+    """The answer key and releases a run is for, as run.json records them."""
+    return {
+        "links": str(links),
+        "links_sha256": file_sha256(links),
+        "answers": str(answers),
+        "answers_sha256": file_sha256(answers),
+        "releases_dir": str(releases),  # "releases" is the count
+    }
+
+
 def run_info(
     *,
     run_name: str,
@@ -1188,8 +1222,9 @@ def run_info(
     finished: datetime,
     selection: dict[str, Any],
     results: list[ReleaseResult],
+    provenance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """run.json."""
+    """run.json. provenance: code_version(), data_files() and skip_grading."""
     # Every reply is billed, a refusal too.
     answered = [e for r in results for e in r.exchanges if e.reply is not None]
     tokens = [e.tokens for e in answered]
@@ -1216,6 +1251,7 @@ def run_info(
         "run_name": run_name,
         "status": status,
         "stop_reason": stopped[0].reason if stopped else "",
+        **(provenance or {}),
         "provider": settings.provider,
         "model": settings.model,
         "env_file": None if env_file is None else str(env_file),  # the path only
@@ -1496,6 +1532,12 @@ def main(
     parser.add_argument("--releases", type=Path, default=DEFAULT_RELEASES)
     parser.add_argument("--runs-dir", type=Path, default=RUNS_DIR)
     parser.add_argument("--prompts-dir", type=Path, default=PROMPTS_DIR)
+    parser.add_argument(
+        "--no-grade",
+        action="store_true",
+        help="write predictions.jsonl and run.json but don't grade; the exit code "
+        "then reflects API errors only",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
@@ -1523,6 +1565,11 @@ def main(
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    provenance = {
+        **code_version(),
+        **data_files(args.links, args.answers, args.releases),
+        "skip_grading": args.no_grade,
+    }
     print(
         f"{run_dir}: {plural(len(work), 'release')}, provider {settings.provider}, "
         f"prompt {prompt.version}, "
@@ -1550,6 +1597,7 @@ def main(
             "limit": args.limit,
         },
         results=results,
+        provenance=provenance,
     )
     write_json(run_dir / RUN_INFO, info)
     graded = 1
@@ -1558,6 +1606,9 @@ def main(
             r.prediction.model_dump_json() + "\n" for r in results if r.prediction
         )
         write_text(run_dir / grade.PREDICTIONS, predictions)
+    if status == COMPLETE and args.no_grade:
+        graded = 0
+    elif status == COMPLETE:
         graded = grade.main(
             [
                 str(run_dir),
@@ -1571,6 +1622,12 @@ def main(
             client=edgar_client,
         )
     print(format_run_summary(info, run_dir))
+    if status == COMPLETE and args.no_grade:
+        print(
+            f"not graded (--no-grade); to grade it: uv run python -m secbench.grade "
+            f"{run_dir} --links {args.links} --answers {args.answers} --releases "
+            f"{args.releases}"
+        )
     return 0 if graded == 0 and not info["outcomes"][API_ERROR] else 1
 
 

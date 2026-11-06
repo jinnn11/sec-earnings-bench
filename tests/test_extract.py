@@ -5,6 +5,8 @@ import hashlib
 import io
 import json
 import re
+import shutil
+import subprocess
 import threading
 import time
 from collections import Counter
@@ -54,6 +56,7 @@ from secbench.extract import (
 )
 from secbench.grade import load_answers
 from secbench.inputs import build_input, release_records
+from secbench.stage2 import current_commit
 
 FIXTURES = Path(__file__).parent / "fixtures"
 PROMPTS = Path(__file__).parent.parent / "prompts"
@@ -1121,6 +1124,20 @@ def test_run_with_a_perfect_model(tmp_path, key_dir, perfect_replies, capsys) ->
     assert info["provider"] == "openai"
     assert info["model"] == "fake-model"
     assert info["env_file"] is None
+    # What the run is for and which code ran it.
+    head, dirty = current_commit()
+    assert (info["commit"], info["clean"]) == (head, not dirty)
+    answers_path = key_dir / "answers.csv"
+    assert {k: info[k] for k in ("links", "answers", "releases_dir")} == {
+        "links": str(LINKS),
+        "answers": str(answers_path),
+        "releases_dir": str(RELEASES),
+    }
+    assert info["links_sha256"] == hashlib.sha256(LINKS.read_bytes()).hexdigest()
+    assert info["answers_sha256"] == (
+        hashlib.sha256(answers_path.read_bytes()).hexdigest()
+    )
+    assert info["skip_grading"] is False
     assert info["extra_body"] is None
     assert info["prompt_version"] == "extract_v1"
     assert info["prompt_sha256"] == RELEASED_PROMPTS["extract_v1"]
@@ -1293,6 +1310,58 @@ def test_api_errors_are_missing_and_listed_for_a_rerun(
     assert len(read_jsonl(run_dir / "predictions.jsonl")) == 5
     graded = (run_dir / "graded.csv").read_text().splitlines()
     assert all(",missing," in line for line in graded if CAT in line)
+
+
+def test_no_grade_writes_the_predictions_only(
+    tmp_path, key_dir, perfect_replies, capsys
+) -> None:
+    model = FakeModel(lambda a, call, body: completion(json.dumps(perfect_replies[a])))
+    assert run(tmp_path, key_dir, model, "--no-grade") == 0
+    run_dir = tmp_path / "runs" / "test"
+    assert sorted(p.name for p in run_dir.iterdir()) == [
+        "predictions.jsonl",
+        "raw",
+        "run.json",
+    ]
+    assert not (tmp_path / "raw").exists()  # no company facts read
+    predictions = read_jsonl(run_dir / "predictions.jsonl")
+    assert [p["release_accession"] for p in predictions] == FIXTURE_RELEASES
+    info = json.loads((run_dir / "run.json").read_text())
+    assert info["status"] == "complete" and info["skip_grading"] is True
+    out = capsys.readouterr().out
+    assert "accuracy" not in out
+    assert (
+        f"not graded (--no-grade); to grade it: uv run python -m secbench.grade "
+        f"{run_dir} --links {LINKS} --answers {key_dir / 'answers.csv'} --releases "
+        f"{RELEASES}" in out.splitlines()
+    )
+
+    # The exit code then reflects API errors only.
+    def script(accession, call, body) -> httpx.Response:
+        if accession == CAT:
+            return httpx.Response(400, json={"error": {"message": "too long"}})
+        return completion(json.dumps(perfect_replies[accession]))
+
+    shutil.rmtree(run_dir)
+    assert run(tmp_path, key_dir, FakeModel(script), "--no-grade") == 1
+    assert len(read_jsonl(run_dir / "predictions.jsonl")) == 5
+    assert not (run_dir / "graded.csv").exists()
+
+    # A stopped run has no predictions and fails, as without --no-grade.
+    shutil.rmtree(run_dir)
+    model = FakeModel(lambda a, call, body: httpx.Response(401))
+    assert run(tmp_path, key_dir, model, "--no-grade") == 1
+    assert not (run_dir / "predictions.jsonl").exists()
+
+
+def test_code_version_outside_a_checkout(monkeypatch) -> None:
+    def fail():
+        raise subprocess.CalledProcessError(128, ["git"])
+
+    monkeypatch.setattr(extract, "current_commit", fail)
+    assert extract.code_version() == {"commit": None, "clean": None}
+    monkeypatch.setattr(extract, "current_commit", lambda: ("abc", True))
+    assert extract.code_version() == {"commit": "abc", "clean": False}
 
 
 @pytest.mark.parametrize("temperature", ["", "0.7"])
