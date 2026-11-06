@@ -124,7 +124,14 @@ def verdicts(run: Path) -> Counter:
         return Counter(r["verdict"] for r in csv.DictReader(f))
 
 
-def test_a_frozen_split_is_scored_with_the_test_config(lab, perfect, capsys) -> None:  # noqa: F811
+def test_a_frozen_split_is_scored_with_the_test_config(
+    lab,
+    perfect,  # noqa: F811
+    capsys,
+    monkeypatch,
+) -> None:
+    gpu = "NVIDIA H100 NVL, 95830 MiB, 580.178.04"
+    monkeypatch.setattr(score, "gpus", lambda: [gpu])
     server, starts = FakeVLLM(lambda model, text: perfect[text]), []
     assert score_split(server, starts=starts) == 0
     out = capsys.readouterr().out
@@ -176,6 +183,7 @@ def test_a_frozen_split_is_scored_with_the_test_config(lab, perfect, capsys) -> 
 
     record = json.loads((lab / RUN / "test" / "validation.json").read_text())
     assert record["split"] == "validation" and record["server_command"] == command
+    assert record["gpus"] == [gpu]
     config_sha = hashlib.sha256((lab / CONFIG).read_bytes()).hexdigest()
     assert record["test_config"] == {"path": str(CONFIG), "sha256": config_sha}
     assert record["checkpoint"] == {
@@ -391,6 +399,11 @@ def test_test_options(args, message, capsys) -> None:
         score.main(["training/run", *args])
     assert stop.value.code == 2
     assert message in capsys.readouterr().err
+
+
+def test_gpus_without_nvidia_smi(monkeypatch) -> None:
+    monkeypatch.setenv("PATH", "")
+    assert score.gpus() is None
 
 
 def test_split_names_are_the_splits_modules() -> None:

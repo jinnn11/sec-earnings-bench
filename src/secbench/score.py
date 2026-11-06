@@ -60,8 +60,8 @@ data/splits/<split>/ (secbench.splits), that split's release files and prompts/.
    already there is kept if it is complete, with no API error, the same model,
    settings and releases, and the split's links file; any other stops scoring, as
    does a run made now that isn't, with what to move it to (<name>--attempt-N).
-4. training/<run>/test/<split>.json: the server command, the layout check, each
-   run, the commit and the test config's sha256; the server's output is appended
+4. training/<run>/test/<split>.json: the server command, the GPUs (nvidia-smi), the
+   layout check, each run, the commit and the test config's sha256; the server's output is appended
    to training/<run>/test/server.log. Grading happens on the laptop (secbench.grade
    with the split's links.csv and answers.csv).
 """
@@ -955,6 +955,25 @@ def prompt_lengths(
     ]
 
 
+def gpus() -> list[str] | None:
+    """nvidia-smi's name, memory and driver of each GPU; None without nvidia-smi."""
+    try:
+        listed = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,driver_version",
+                "--format=csv,noheader",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return [line.strip() for line in listed.splitlines() if line.strip()]
+
+
 def next_attempt(path: Path) -> Path:
     """<path>--attempt-N, the first N not taken."""
     n = 1
@@ -1143,6 +1162,7 @@ def score_test(
         "limit": limit,
         "server": server_version(server),
         "server_command": command,
+        "gpus": gpus(),  # for the cost's GPU type
         "layout_check": (
             {
                 "prompts": len(prompts),
