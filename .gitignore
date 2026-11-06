@@ -23,6 +23,8 @@ wheels/
 data/*
 !data/companies.csv
 !data/companies.json
+# The frozen test releases (secbench.splits): a test split can't change once frozen
+!data/frozen_test_releases.csv
 runs/
 # Stage 2 training runs: adapters, optimizer states, logs (secbench.train)
 training/
