@@ -8,6 +8,8 @@ import csv
 import hashlib
 import json
 import shutil
+import subprocess
+import tarfile
 from collections import Counter
 from pathlib import Path
 
@@ -26,12 +28,13 @@ from test_splits import AAPL, MSFT, PROMPTS, repo  # noqa: F401 (repo is a fixtu
 from test_splits import run as build_splits
 from test_train import prepare, write_labels
 
-from secbench import grade, score, splits
+from secbench import bundle, grade, score, splits
 
 WEIGHTS = b"adapter weights"
 CONFIG = Path("configs/test/run.toml")
 RUN = Path("training/run")
 VALIDATION_LINKS = "data/splits/validation/links.csv"
+SPLIT_FILES = (*splits.FILES, splits.MANIFEST)
 
 
 def write_test_config(path: Path, **changes) -> Path:
@@ -392,3 +395,102 @@ def test_test_options(args, message, capsys) -> None:
 
 def test_split_names_are_the_splits_modules() -> None:
     assert splits.SPLITS == ("validation", "company_test", "time_test")
+
+
+# The bundle for a test split, unpacked as scripts/vast_setup.sh unpacks it
+
+
+def test_score_a_split_from_an_unpacked_bundle(
+    lab,
+    perfect,  # noqa: F811
+    tmp_path_factory,
+    monkeypatch,
+) -> None:
+    state = lab / RUN / "checkpoints/step-00002/training_state.pt"
+    state.write_bytes(b"optimizer")  # not packed
+    files, entry = bundle.files_for_split(CONFIG, "validation")
+    assert [str(p) for p in files] == [
+        "configs/test/run.toml",
+        "training/run/config.json",
+        "training/run/checkpoints/step-00002/adapter_config.json",
+        "training/run/checkpoints/step-00002/adapter_model.safetensors",
+        "training/run/checkpoints/step-00002/state.json",
+        *(f"data/splits/validation/{name}" for name in SPLIT_FILES),
+        f"data/releases/0000320193/{AAPL}.json",
+        f"data/releases/0000320193/{AAPL}.md",
+        f"data/releases/0000789019/{MSFT}.json",
+        f"data/releases/0000789019/{MSFT}.md",
+    ]
+    assert entry == {
+        "config": str(CONFIG),
+        "config_sha256": hashlib.sha256((lab / CONFIG).read_bytes()).hexdigest(),
+        "config_tracked": False,
+        "run": "run",
+        "checkpoint": "step-00002",
+        "adapter_sha256": hashlib.sha256(WEIGHTS).hexdigest(),
+        "split": "validation",
+        "split_built_at": "c0ffee" * 6,
+        "split_files": {
+            f"data/splits/validation/{name}": hashlib.sha256(
+                (lab / "data/splits/validation" / name).read_bytes()
+            ).hexdigest()
+            for name in SPLIT_FILES
+        },
+        "releases": 2,
+        "release_files": 4,
+    }
+    out = tmp_path_factory.mktemp("tar") / "bundle.tar"
+    branch = bundle.git("rev-parse", "--abbrev-ref", "HEAD")
+    info = bundle.make_bundle(out, files, "abc123", branch, {"test": entry})
+    assert info["test"] == entry and info["files"] == len(files)
+
+    instance = tmp_path_factory.mktemp("instance")
+    staging = instance / "bundle"
+    with tarfile.open(out) as tar:
+        tar.extractall(staging, filter="data")
+    clone = instance / "sec-earnings-bench"
+    git = ["git", "clone", "-q", "-b", branch, str(staging / "repo.bundle"), str(clone)]
+    subprocess.run(git, check=True)
+    for name in ("configs", "data", "training"):
+        shutil.copytree(staging / name, clone / name, dirs_exist_ok=True)
+    assert not (clone / "data/raw").exists() and not (clone / "data/stage2").exists()
+    assert not (clone / RUN / "examples.csv").exists()
+    assert not list(clone.rglob(state.name))
+    bundle.check_test_unpacked(clone, "validation", splits.DEFAULT_OUT)
+
+    # Anything score reads beyond the bundle (the laptop's files) would fail here.
+    monkeypatch.chdir(clone)
+    server = FakeVLLM(lambda model, text: perfect[text])
+    assert score_split(server) == 0
+    assert sorted(p.name for p in (clone / "runs").iterdir()) == [
+        "run--validation--base",
+        "run--validation--step-00002",
+    ]
+    assert server.tokenized == 2 and len(server.completions) == 4
+    record = json.loads((clone / RUN / "test" / "validation.json").read_text())
+    assert record["checkpoint"]["adapter_sha256"] == entry["adapter_sha256"]
+    assert record["test_config"]["sha256"] == entry["config_sha256"]
+    assert {
+        f"data/splits/validation/{name}": digest
+        for name, digest in record["split_files"]["files"].items()
+    } == {k: v for k, v in entry["split_files"].items() if "manifest" not in k}
+
+
+def test_a_bundle_refuses_a_provisional_split_or_another_adapter(lab) -> None:
+    with pytest.raises(score.ScoreError, match="time_test is provisional"):
+        bundle.files_for_split(CONFIG, "time_test")
+    change_weights(lab)
+    with pytest.raises(score.ScoreError, match="has sha256 .*, not the test config's"):
+        bundle.files_for_split(CONFIG, "validation")
+
+
+def test_a_split_without_its_release_files_fails_the_unpacked_check(
+    lab, tmp_path
+) -> None:
+    files, _ = bundle.files_for_split(CONFIG, "validation")
+    copy = tmp_path / "copy"
+    bundle.symlinked_copy(copy, [f for f in files if MSFT not in f.name])
+    with pytest.raises(
+        bundle.BundleError, match=f"unpacked bundle: no saved release {MSFT}"
+    ):
+        bundle.check_test_unpacked(copy, "validation", splits.DEFAULT_OUT)
