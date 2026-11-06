@@ -1,41 +1,86 @@
 #!/usr/bin/env bash
-# Stage 2 on a fresh Vast.ai GPU instance, in order: check the GPU, unpack the bundle,
-# install, download the model, prepare, score the base model on validation, train,
-# score the checkpoints on validation, pack the results. The base model is scored
-# before training, on the server setup the checkpoints get (vLLM with LoRA on), so a
-# bad flag, a broken install or a prompt vLLM tokenizes differently from training
-# (the /tokenize check) stops the script about 30 minutes in, before any training.
-# Running it again continues where it stopped: the install and download are no-ops
-# once done, a prepared run is kept, training resumes from its last checkpoint, and
-# models already scored are kept (a rerun during training also scores the checkpoints
-# saved so far before it resumes).
+# Stage 2 on a fresh Vast.ai GPU instance, in one of two modes.
+#
+# Training (bash vast_setup.sh BUNDLE [CONFIG]), in order: check the GPU, unpack the
+# bundle, install, download the model, prepare, score the base model on validation,
+# train, score the checkpoints on validation, pack the results. The base model is
+# scored before training, on the server setup the checkpoints get (vLLM with LoRA
+# on), so a bad flag, a broken install or a prompt vLLM tokenizes differently from
+# training (the /tokenize check) stops the script about 30 minutes in, before any
+# training. Running it again continues where it stopped: the install and download
+# are no-ops once done, a prepared run is kept, training resumes from its last
+# checkpoint, and models already scored are kept (a rerun during training also
+# scores the checkpoints saved so far before it resumes).
+#
+# A test split (bash vast_setup.sh BUNDLE --split SPLIT --gpu-hourly PRICE), from a
+# bundle made with secbench.bundle --test-config ... --split SPLIT: check the GPU,
+# unpack (the training run's config and checkpoint too), install, download the base
+# model, then secbench.score's test mode: the base model's and the test config's
+# checkpoint's predictions on the frozen split, not graded (the laptop grades). No
+# prepare, no training. Whatever score does, the runs and training/<run>/test/ are
+# then packed into results-<run>-<split>.tar, and the script exits with score's
+# status. PRICE is the instance's price in dollars per hour, recorded as the runs'
+# cost basis. A run that failed is never overwritten: score says to move it to
+# <name>--attempt-N first (results/test_protocol.md).
 #
 # Pick an instance with one A100 80GB or H100, a driver for CUDA 13.0 or later
 # (torch 2.13.0 and vLLM 0.32.0 are CUDA 13 builds) and 100 GB of disk.
 #
 # On the laptop, at a clean commit:
 #   uv run python -m secbench.bundle                        # gpu-bundle-<commit>.tar
+#   (or: uv run python -m secbench.bundle --test-config configs/test/qwen3-8b-2k.toml
+#        --split company_test                               # gpu-bundle-<commit>-<split>.tar)
 #   scp -P <port> gpu-bundle-<commit>.tar scripts/vast_setup.sh root@<host>:/workspace/
 # On the instance:
 #   cd /workspace && nohup bash vast_setup.sh gpu-bundle-<commit>.tar > setup.log 2>&1 &
+#   (or: nohup bash vast_setup.sh gpu-bundle-<commit>-<split>.tar --split <split>
+#        --gpu-hourly <price> > setup.log 2>&1 &)
 #   tail -f setup.log
 # Back on the laptop, when it has finished:
-#   scp -P <port> root@<host>:/workspace/results-<run>.tar .
+#   scp -P <port> root@<host>:/workspace/results-<run>.tar .   (or results-<run>-<split>.tar)
 #
 # Usage: bash vast_setup.sh BUNDLE [CONFIG]   (CONFIG: configs/train/qwen3-8b-2k.toml)
-# The run is named after CONFIG's file (RUN=... to choose another name).
+#        bash vast_setup.sh BUNDLE --split SPLIT --gpu-hourly PRICE
+# In training mode the run is named after CONFIG's file (RUN=... to choose another
+# name); in test mode the run, the test config and the split come from the bundle.
 set -euo pipefail
 
-BUNDLE=$(realpath "${1:?usage: bash vast_setup.sh BUNDLE [CONFIG]}")
-CONFIG=${2:-configs/train/qwen3-8b-2k.toml}
-RUN=${RUN:-$(basename "$CONFIG" .toml)}
+step() { printf '\n== %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+fail() { echo "error: $*" >&2; exit 1; }
+
+BUNDLE=$(realpath "${1:?usage: bash vast_setup.sh BUNDLE [CONFIG] | BUNDLE --split SPLIT --gpu-hourly PRICE}")
+shift
 WORK=$(dirname "$BUNDLE")
 REPO="$WORK/sec-earnings-bench"
 UV_VERSION=0.13.0
 MIN_DISK_GB=80
+# BUNDLE.json's value for a key ("commit", or the test entry's "run").
+info=$(tar -xOf "$BUNDLE" BUNDLE.json)
+field() { printf '%s\n' "$info" | sed -n "s/.*\"$1\": \"\([^\"]*\)\".*/\1/p" | head -1; }
 
-step() { printf '\n== %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
-fail() { echo "error: $*" >&2; exit 1; }
+case "${1:-}" in
+    --split | --gpu-hourly)
+        MODE=test
+        SPLIT= PRICE=
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --split) SPLIT=${2:?--split needs a value}; shift 2 ;;
+                --gpu-hourly) PRICE=${2:?--gpu-hourly needs a value}; shift 2 ;;
+                *) fail "unknown argument $1" ;;
+            esac
+        done
+        [ -n "$SPLIT" ] && [ -n "$PRICE" ] || fail "a test split needs --split and --gpu-hourly"
+        [ "$(field split)" = "$SPLIT" ] ||
+            fail "$BUNDLE is for split '$(field split)', not $SPLIT (secbench.bundle --test-config ... --split $SPLIT)"
+        RUN=$(field run)
+        TEST_CONFIG=$(field config)
+        ;;
+    *)
+        MODE=train
+        CONFIG=${1:-configs/train/qwen3-8b-2k.toml}
+        RUN=${RUN:-$(basename "$CONFIG" .toml)}
+        ;;
+esac
 
 step "GPU, driver and disk"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
@@ -52,11 +97,15 @@ if [ ! -d "$REPO/.git" ]; then
     rm -rf "$staging" && mkdir -p "$staging"
     tar -xf "$BUNDLE" -C "$staging"
     (cd "$staging" && sha256sum --quiet -c SHA256SUMS)
-    commit=$(sed -n 's/.*"commit": "\([0-9a-f]*\)".*/\1/p' "$staging/BUNDLE.json")
-    branch=$(sed -n 's/.*"branch": "\([^"]*\)".*/\1/p' "$staging/BUNDLE.json")
+    commit=$(field commit)
+    branch=$(field branch)
     git clone -q -b "$branch" "$staging/repo.bundle" "$REPO"
     [ "$(git -C "$REPO" rev-parse HEAD)" = "$commit" ] || fail "the bundle's branch isn't at $commit"
-    cp -a "$staging/data" "$REPO/"
+    for dir in data training configs; do
+        [ ! -d "$staging/$dir" ] || cp -a "$staging/$dir" "$REPO/"
+    done
+    [ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ] ||
+        fail "the bundle's files differ from tracked files at $commit"
     rm -rf "$staging"
 fi
 cd "$REPO"
@@ -71,6 +120,36 @@ import torch, transformers, peft, vllm
 assert torch.cuda.is_available(), "torch sees no GPU"
 print(f"torch {torch.__version__} (CUDA {torch.version.cuda}) on {torch.cuda.get_device_name()}; "
       f"transformers {transformers.__version__}, peft {peft.__version__}, vLLM {vllm.__version__}")'
+
+if [ "$MODE" = test ]; then
+    step "Download the base model at training/$RUN's revision"
+    uv run --no-sync python -c '
+import sys
+from pathlib import Path
+from secbench import train
+_, config, _ = train.read_run(Path(sys.argv[1]))
+print(f"{config.model} at {config.revision}: {train.download(config, train.DEFAULT_HF_CACHE)}")' \
+        "training/$RUN"
+
+    step "Predictions on $SPLIT: the base model and $TEST_CONFIG's checkpoint (not graded)"
+    status=0
+    uv run --no-sync python -m secbench.score "training/$RUN" --test-config "$TEST_CONFIG" \
+        --split "$SPLIT" --gpu-hourly "$PRICE" || status=$?
+
+    step "Pack the results (score exited $status)"
+    results="$WORK/results-$RUN-$SPLIT.tar"
+    paths=()
+    for path in runs/"$RUN--$SPLIT"--* "training/$RUN/test"; do
+        [ ! -e "$path" ] || paths+=("$path")
+    done
+    if [ ${#paths[@]} -gt 0 ]; then
+        tar -cf "$results" "${paths[@]}"
+        echo "wrote $results: ${paths[*]}"
+    else
+        echo "nothing to pack"
+    fi
+    exit "$status"
+fi
 
 step "Download the model at the config's revision"
 uv run --no-sync python -m secbench.train download --config "$CONFIG"
