@@ -1088,6 +1088,41 @@ def test_the_freeze_excluded_estimate(world: World, tmp_path: Path):
         testreport.freeze_entry(run, base, late, log, billed=3.6)
 
 
+def test_the_freeze_sentence_gives_the_window_to_the_second(
+    world: World, tmp_path: Path
+):
+    # Seconds of 30 or more: a time rounded to the minute and then given its
+    # seconds again would read a minute late (11:23:37 for 11:22:37).
+    run, base = world.run("step-00025"), world.run("base")
+    run.info |= {
+        "started": "2026-11-07T11:20:00+00:00",
+        "finished": "2026-11-07T11:31:00+00:00",
+        "wall_time_s": 600.0,
+        "releases": 48,
+        "latency_s": {"p50": 10.0, "p95": 135.0, "max": 135.0},
+        "calls": [{"latency_s": x} for x in [10.0] * 32 + [135.0] * 16],
+    }
+    base.info |= {"wall_time_s": 21.0, "calls": [{"latency_s": 10.0}] * 32}
+    start = datetime(2026, 11, 7, 11, 20, tzinfo=UTC)
+    freeze = Freeze(
+        SPLIT,
+        "step-00025",
+        start.replace(minute=22, second=37),
+        start.replace(minute=29, second=58),
+    )
+    log = tmp_path / "server.log"
+    freeze_log(
+        log,
+        start,
+        (start.replace(minute=22, second=31), start.replace(minute=29, second=59)),
+        start.replace(minute=31),
+    )
+    entry = testreport.freeze_entry(run, base, freeze, log, billed=3.6)
+    text = "\n".join(testreport.freeze_lines(entry, {"billed_usd_per_hour": 3.6}))
+    assert "froze from about 11:22:37 to 11:29:58 UTC (441 s)" in text
+    assert "no timestamped line between 11:22:30 and 11:30:00," in text
+
+
 # Config and formatting
 
 

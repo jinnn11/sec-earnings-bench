@@ -1716,6 +1716,11 @@ def utc_time(stamp: str) -> str:
     return (moment + timedelta(seconds=30)).strftime("%H:%M")
 
 
+def utc_clock(stamp: str) -> str:
+    """HH:MM:SS UTC, as recorded (not rounded)."""
+    return datetime.fromisoformat(stamp).astimezone(UTC).strftime("%H:%M:%S")
+
+
 def render(report: Mapping[str, Any]) -> str:
     labels = report["models"]
     under, base = report["under_test"], report["base"]
@@ -2225,10 +2230,10 @@ def freeze_lines(f: Mapping[str, Any], s: Mapping[str, Any]) -> list[str]:
     return [
         (
             f"Instance freeze (descriptive): {f['run']} took {f['wall_time_s']:.1f} s, "
-            f"but the whole instance froze from about {utc_time(f['start'])}:"
-            f"{f['start'][17:19]} to {utc_time(f['end'])}:{f['end'][17:19]} UTC "
+            f"but the whole instance froze from about {utc_clock(f['start'])} to "
+            f"{utc_clock(f['end'])} UTC "
             f"({f['window_s']:.0f} s). {f['log']} has no timestamped line between "
-            f"{f['log_gap'][0][11:19]} and {f['log_gap'][1][11:19]}, while vLLM "
+            f"{utc_clock(f['log_gap'][0])} and {utc_clock(f['log_gap'][1])}, while vLLM "
             f"otherwise logs its throughput every {f['throughput_spacing_s']:.0f} s; "
             f"the {f['frozen_calls']} requests in flight each took "
             f"{f['frozen_latency_s'][0]:.0f}-{f['frozen_latency_s'][1]:.0f} s (the next "
