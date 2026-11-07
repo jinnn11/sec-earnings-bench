@@ -1,0 +1,101 @@
+# The stage 2 test report (secbench.testreport): the facts the run files don't hold.
+# The report computes everything else from the runs, the frozen split files, the test
+# records and the logs named here; results/test_protocol.md fixes the analysis.
+
+under_test = "step-00025"
+base = "base"
+# The bootstrap's details (company order, how draws are made and summed, the
+# percentile method) were fixed on this day, after the test runs were graded.
+bootstrap_details_fixed = 2026-11-07
+gpu_host = "Vast"
+
+# The reported run of each model on each test split, and its validation reference
+# run (results/test_protocol.md, References), in report order: the model under test,
+# its base, then the API models.
+[[models]]
+key = "step-00025"
+label = "step-00025"
+validation = "runs/qwen3-8b-2k--step-00025"
+company_test = "runs/qwen3-8b-2k--company_test--step-00025"
+time_test = "runs/qwen3-8b-2k--time_test--step-00025"
+
+[[models]]
+key = "base"
+label = "Qwen3-8B base"
+validation = "runs/qwen3-8b-2k--base"
+company_test = "runs/qwen3-8b-2k--company_test--base"
+time_test = "runs/qwen3-8b-2k--time_test--base"
+
+[[models]]
+key = "gpt-6.1-sol"
+label = "GPT-6.1 Sol"
+validation = "runs/2026-11-07T105947_gpt-6.1-sol_extract_v2"
+company_test = "runs/gpt-6.1-sol--company_test"
+time_test = "runs/gpt-6.1-sol--time_test"
+
+[[models]]
+key = "claude-haiku-5-5"
+label = "Claude Haiku 5.5"
+validation = "runs/2026-10-17T222907_claude-haiku-5-5_extract_v2"
+company_test = "runs/claude-haiku-5-5--company_test"
+time_test = "runs/claude-haiku-5-5--time_test"
+
+[[models]]
+key = "gpt-6-luna"
+label = "GPT-6 Luna"
+validation = "runs/2026-10-27T001339_gpt-6-luna_extract_v2"
+company_test = "runs/gpt-6-luna--company_test"
+time_test = "runs/gpt-6-luna--time_test"
+
+# The price billed for each GPU session, all on a Vast H100 NVL (the test splits' GPU
+# is listed in training/qwen3-8b-2k/test/<split>.json).
+[gpu.validation]
+# The qwen3-8b-2k validation runs record $1/h (PLAN.md Progress 2026-11-02).
+gpu = "H100 NVL"
+billed_usd_per_hour = 2.776
+
+[gpu.company_test]
+billed_usd_per_hour = 2.538
+# Why both GPU runs record gpu_hourly_usd 2.776 instead.
+recorded_price_note = "an example price passed to vast_setup.sh by mistake"
+
+[gpu.time_test]
+billed_usd_per_hour = 2.589  # recorded correctly
+
+[logs.company_test]
+server = "training/qwen3-8b-2k/test/server-company_test.log"
+setup = "training/qwen3-8b-2k/test/setup-company_test.log"
+
+[logs.time_test]
+server = "training/qwen3-8b-2k/test/server.log"
+setup = "training/qwen3-8b-2k/test/setup-time_test.log"
+
+# The whole GPU instance froze during the company test's step-00025 run, from about
+# start to end (UTC); the report checks the server log's gap covers it.
+[freeze]
+split = "company_test"
+model = "step-00025"
+start = 2026-11-07T11:22:37Z
+end = 2026-11-07T11:29:58Z
+
+# Runs moved aside, with their cause in words: the recorded error text isn't copied
+# (OpenAI's 429 text names the organization).
+[[attempts]]
+split = "time_test"
+model = "gpt-6.1-sol"
+run = "runs/gpt-6.1-sol--time_test--attempt-1"
+cause = "the 1,000,000 tokens-per-minute limit"
+# The rerun's settings file: Sol's settings plus MODEL_CONCURRENCY=2.
+rerun_env_file = ".env.gpt-sol-c2"
+rerun_settings = "Sol's settings plus MODEL_CONCURRENCY=2"
+
+[[attempts]]
+split = "validation"
+model = "gpt-6.1-sol"
+run = "runs/2026-11-07T104935_gpt-6.1-sol_extract_v2"
+cause = "a revoked key"
+
+[[notes]]
+split = "company_test"
+release = "0001051470-26-000052"  # CCI
+note = "a divestiture and outlook announcement, not results"
