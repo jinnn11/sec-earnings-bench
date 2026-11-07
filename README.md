@@ -17,6 +17,13 @@ auto-graded against XBRL from the matching 10-Q/10-K.
   at $1 per GPU-hour). That is about a third of GPT-6 Luna's cost, with 17 misses to
   Luna's 3 on the same prompt.
 
+**Stage 2, on held-out test sets:**
+
+- **Fine-tuning Qwen3-8B with LoRA added 10.1 points on 37 companies it never saw**
+  (89.1% to 99.2% of 662 figures; 95% interval +5.1 to +15.6). On later releases from
+  the training companies it costs $0.59 per 1,000 releases but trails the three API
+  models by 1.8 to 1.9 points. See [Stage 2](#stage-2-fine-tuning-qwen3-8b).
+
 ## Results
 
 | Model | Runs on | Prompt | Accuracy | Unit slips | Cost / 1,000 releases | Typical time per call |
@@ -86,6 +93,114 @@ auto-graded against XBRL from the matching 10-Q/10-K.
   Every v1 miss by the cheap API models is this line (Haiku 1, GPT-6 Luna 2); the
   larger models got it right. On v2, Haiku's and Luna's misses are the same line again,
   apart from Haiku's 2 Netflix unit slips. A prompt fix is queued as its own version.
+
+## Stage 2: fine-tuning Qwen3-8B
+
+Can a small open model, fine-tuned on releases labelled automatically from XBRL,
+match the API models on releases it never saw? Qwen3-8B without thinking was the best
+8B model on prompt v2 in stage 1 (260/293, 88.7%). Every number here is from
+[results/test_results.md](results/test_results.md), which also holds the checks, the
+per-field tables, every miss and the deviations from the protocol.
+
+### Method
+
+- **Companies and splits.** The S&P 500's non-financial companies, split by company
+  with a fixed seed before any download: stage 1's 10 for validation, 40 drawn for the
+  company test, and the rest for training.
+- **Training labels.** Each training example's target reply is written by code from
+  the XBRL answer key, as the release prints it (the figure and its table's unit),
+  never from a model's output. A release with any figure that can't be labelled that
+  way is left out, so no label is null. 3,200 training releases were labelled; 2,000
+  were drawn from the 3,101 under 32,768 tokens.
+- **Training.** LoRA (r 16, alpha 32) on all seven projections of every layer of
+  Qwen3-8B, thinking off, loss on the reply only: one pass of 125 steps of 16 examples,
+  a checkpoint every 25 steps.
+- **Checkpoint choice.** Each checkpoint was scored on stage 1's 60 releases
+  (validation). The best was step 25 of 125, the first one saved, after 400 examples.
+  Its validation score, 98.0% (287/293), is chosen on validation (the checkpoint was
+  picked for that score, so it overstates; the test sets give the estimate). The base
+  model scored 262/293 there.
+- **Test sets.** The company test is 148 releases (each company's latest 4) from 37
+  companies never trained on. The time test is 346 releases from the training
+  companies, filed from 2026-07-01 to 2026-09-30, after the releases trained on; 9 more
+  are left out for every model because their prompts exceed 39,936 tokens (the GPU
+  model's context minus the reply's allowance).
+- **Answer key.** As in stage 1, with additions for the many more companies: revenue
+  also from `RegulatedAndUnregulatedOperatingRevenue` (utilities) or
+  `RevenueFromContractWithCustomerIncludingAssessedTax` when a filing has neither
+  earlier revenue tag; diluted EPS from
+  `IncomeLossFromContinuingOperationsPerDilutedShare` when the filing reports no
+  discontinued operations; a revenue answer dropped when another revenue-like fact for
+  the period is at least 5 times larger (a component, not the total); and an EPS
+  answer of 1,000 or more dropped (mis-scaled XBRL). A figure is graded only if the
+  release prints its answer: in whole millions, millions to one decimal or thousands,
+  and EPS to two or three decimals.
+- **Models.** step-00025 and the base model on vLLM 0.32.0 on one H100 NVL,
+  temperature 0, 16 calls at a time; the API references, GPT-6.1 Sol, Claude Haiku 5.5
+  and GPT-6 Luna, with their stage 1 settings (medium effort) on prompt v2.
+
+### Protocol
+
+The analysis was fixed before any test call, in
+[results/test_protocol.md](results/test_protocol.md) (a timestamped copy is kept
+outside the repo), together with the company test's releases, by sha256. The primary
+result is step-00025's accuracy minus the base model's on the company test, with a 95%
+bootstrap interval over companies; everything else is descriptive. The time test's
+cutoff was set on 2026-11-07, after the company test was scored and before any
+time-test call, although the protocol said it would be set when the Q3 2026 releases
+were added: a deviation, recorded with three others in the results.
+
+### Results
+
+| Model | Runs on | Company test (662 figures) | Time test (1,740 figures) | Cost / 1,000 releases, company / time test |
+| --- | --- | --- | --- | --- |
+| step-00025 (Qwen3-8B + LoRA) | 1× H100 NVL | 657 (99.2%) [98.0, 100.0] | 1,699 (97.6%) [96.6, 98.6] | $2.66 (about $0.56 without the freeze) / $0.59 |
+| Qwen3-8B base | 1× H100 NVL | 590 (89.1%) [83.6, 94.2] | 1,516 (87.1%) [84.7, 89.5] | $0.54 / $0.55 |
+| GPT-6.1 Sol | OpenAI API | 662 (100.0%) [100.0, 100.0] | 1,733 (99.6%) [99.1, 99.9] | $23.78 / $24.11 |
+| Claude Haiku 5.5 | Anthropic API | 662 (100.0%) [100.0, 100.0] | 1,730 (99.4%) [98.9, 99.8] | $1.85 / $1.86 |
+| GPT-6 Luna | OpenAI API | 654 (98.8%) [96.8, 100.0] | 1,731 (99.5%) [99.0, 99.9] | $1.23 / $1.24 |
+
+- **Accuracy:** correct figures, with 95% intervals from a bootstrap over companies.
+  The time test's 317 releases with graded figures come from 315 companies, so there
+  the bootstrap is in effect over releases.
+- **Cost:** GPU runs at the price billed ($2.538 per hour for the company test's
+  session, $2.589 for the time test's) times the run's wall-clock time; API runs at list
+  token prices.
+
+![Accuracy against cost per 1,000 releases on both test sets, with 95% intervals; the company test's fine-tuned point is joined to its cost without the instance freeze](results/test_accuracy_vs_cost.png)
+
+- **Primary result: +10.1 points over the base model on the company test** (+10.12, 95%
+  interval +5.08 to +15.58): 73 figures differ, 70 fixed by training and 3 broken,
+  from 16 companies.
+- **On the time test, step-00025 trails all three API models**, by 1.78 to 1.95 points,
+  with 95% intervals that exclude 0. Without the releases whose filing reports
+  preferred dividends it still trails them, by 0.79 to 0.85 points.
+- **On the company test it made 5 errors where GPT-6.1 Sol and Claude Haiku 5.5 made
+  none** (−0.76 points, interval −1.95 to 0.00), and it is level with GPT-6 Luna
+  (+0.45, interval −1.41 to +2.67).
+- **Its case is cost, not accuracy.** It is about 10 points better than its base model
+  and costs $0.59 per 1,000 releases on the time test, against $1.24 for GPT-6 Luna,
+  $1.86 for Claude Haiku 5.5 and $24.11 for GPT-6.1 Sol. On the company test, the
+  protocol's wall-time cost is $2.66, because the GPU instance froze for 441 s during
+  the run; without the freeze it is about $0.56. It doesn't beat the API models on
+  accuracy.
+
+### Failure modes (descriptive, not pre-registered)
+
+- **The common shareholders' line.** 29 of step-00025's 41 time-test misses, from 16
+  companies, are net income read from a line naming common shareholders, stockholders,
+  shares or stock: income after preferred dividends or participating securities, where
+  the answer key's `NetIncomeLoss` comes before them. 20 are in releases whose filing
+  reports preferred dividends, and 9 are not: HPE, KDP and LHX print preferred-stock
+  lines the XBRL check missed, and DOC and TDG report income after participating
+  securities. So the preferred-dividend sensitivity understates this failure. The
+  group includes 11 of the 14 time-test figures training broke (the base model had
+  them right). On the company test it is 3 of the 5 misses, all Boeing's.
+- **The quarter copied into year to date.** In second- or third-quarter releases whose
+  income statement has quarter columns only, with the year to date printed elsewhere,
+  step-00025 repeated the quarter: Weyerhaeuser twice on the company test (its year
+  to date is in an Adjusted EBITDA reconciliation) and Twilio once on the time test
+  (its cash flow statement).
 
 ## Method
 
@@ -219,17 +334,78 @@ Claude models use `MODEL_PROVIDER=anthropic`. Every run saves its raw requests a
 replies under `runs/`. SEC data can be amended, so a fresh download may differ
 slightly.
 
+Stage 2 (each module's docstring gives its options):
+
+```sh
+# 1. Data: the companies and splits, every company's releases, links and answers,
+#    the frozen split files, and the training labels
+uv run python -m secbench.companies
+uv run python -m secbench.stage2
+uv run python -m secbench.splits
+uv run python -m secbench.labels
+
+# 2. Training and checkpoint choice on validation, on a GPU instance
+uv run python -m secbench.bundle
+bash scripts/vast_setup.sh gpu-bundle-<commit>.tar configs/train/qwen3-8b-2k.toml
+
+# 3. Test predictions on a GPU instance, one split at a time, graded on the laptop
+uv run python -m secbench.bundle --test-config configs/test/qwen3-8b-2k.toml \
+    --split company_test
+bash scripts/vast_setup.sh gpu-bundle-<commit>-company_test.tar --split company_test \
+    --gpu-hourly <price per hour>
+uv run python -m secbench.grade runs/qwen3-8b-2k--company_test--step-00025/ \
+    --links data/splits/company_test/links.csv \
+    --answers data/splits/company_test/answers.csv --releases data/stage2/releases
+
+# 4. The API references on the same split
+uv run python -m secbench.extract --env-file .env.gpt-6-luna --prompt extract_v2 \
+    --run-name gpt-6-luna--company_test --links data/splits/company_test/links.csv \
+    --answers data/splits/company_test/answers.csv --releases data/stage2/releases
+
+# 5. The report and its chart
+uv run python -m secbench.testreport
+uv run python scripts/plot_test_results.py
+```
+
 ## Limitations
 
+Stage 1's benchmark:
+
 - **Small sample:** 293 graded figures from 10 companies.
-- **No held-out set yet:** prompt v2 was designed on this same set.
-- **Sampling:** runs without temperature 0 vary from run to run, and repeat runs are
-  pending.
-- **GPU cost:** counts only the run's wall-clock time, not model loading, setup or idle
-  time.
+- **No held-out set:** prompt v2 was designed on these same releases (stage 2's test
+  sets are held out).
 - **Fourth-quarter EPS isn't graded:** XBRL has no fourth-quarter value, and EPS can't
   be derived by subtraction.
 
+Stage 2:
+
+- **No Q3 2026 releases in the time test:** its cutoff was set before their 10-Qs, which
+  give the answer key, were filed (a deviation from the protocol).
+- **Answer-key gaps:** 124 of the 1,916 figures the time test's releases should report
+  (6.5%) have no XBRL answer, including every figure of 11 of its 23 utilities; the
+  company test is missing 28 of 728 (3.8%).
+- **One non-earnings release in the company test:** Crown Castle's divestiture and
+  outlook announcement; none of its answers is printed, so it adds no graded figure.
+- **37 of the 40 companies drawn:** AEP, FDXF and VYLR have no linked release.
+- **One untuned training run,** whose chosen checkpoint is the first one saved.
+- **Survivorship:** the universe is the index's current members only.
+- **Abstention isn't scored:** neither Qwen3-8B model ever answered null, while the API
+  models left 31-50% of the figures their release doesn't print empty. Accuracy leaves
+  those figures out, and no training label was null.
+
+Both:
+
+- **Sampling:** runs without temperature 0 vary from run to run; there is one run per
+  model and split (the API models' sampling isn't fixed), and repeat runs are pending.
+- **GPU cost:** counts only each run's wall-clock time, not model loading, setup or idle
+  time.
+
 ## Next
 
-Fine-tuning Qwen3-8B with LoRA, tested on companies it never saw in training.
+- **Stage 3:** serving the fine-tuned model with vLLM (throughput, p50 and p95
+  latency, cost per 1,000 filings, 4-bit), CI, and a Hugging Face dataset and demo.
+- **Optional:** the Q3 2026 releases as a second time test, frozen and planned before
+  any call on it; repeat runs of the models that don't run at temperature 0; the
+  rule-based table reader baseline; and a fix for the common shareholders' line (the
+  training-label rule, or the prompt naming the line), judged on validation only. A
+  new model would need new test data.
