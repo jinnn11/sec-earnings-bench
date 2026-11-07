@@ -1,0 +1,3164 @@
+{
+  "protocol": {
+    "path": "results/test_protocol.md",
+    "sha256": "99767156e46cc99cf80e62688339aeef4d119419745413c625e97a356dd9c186",
+    "commit": "cf77acb9e502769aff36b31d35e288a8fbb05c0e"
+  },
+  "config": "configs/report/stage2.toml",
+  "models": {
+    "step-00025": "step-00025",
+    "base": "Qwen3-8B base",
+    "gpt-6.1-sol": "GPT-6.1 Sol",
+    "claude-haiku-5-5": "Claude Haiku 5.5",
+    "gpt-6-luna": "GPT-6 Luna"
+  },
+  "under_test": "step-00025",
+  "base": "base",
+  "checks": {
+    "frozen": [
+      "protocol results/test_protocol.md sha256 99767156\u2026",
+      "15 split files under data/splits/ by sha256 (the protocol's table; the time test's from PLAN.md Decisions 2026-11-07)",
+      "data/frozen_test_releases.csv sha256 46c185e2\u2026, its validation and company_test rows as at cf77acb (6cba5eb2\u2026)",
+      "prompts/extract_v2.txt 2e9e9893\u2026, configs/test/qwen3-8b-2k.toml e211fe0d\u2026",
+      "training/qwen3-8b-2k/test/<split>.json: that config, adapter b93376d9\u2026, prompts identical to training's layout",
+      "no change since cf77acb (git diff, committed and working tree) to src/secbench/inputs.py, src/secbench/link.py, src/secbench/answers.py, src/secbench/extract.py, src/secbench/grade.py, src/secbench/splits.py, prompts/extract_v2.txt, configs/test/qwen3-8b-2k.toml"
+    ],
+    "company_test": [
+      "runs: all 5 complete with no selection, covering the 148 kept releases, no stop and no API error but refusals (0 refusals), on the frozen links and answers, at commit cf77acb, clean",
+      "graded.csv: current in all 5 (not stale; predicted values are predictions.jsonl's; re-graded in memory, byte for byte)",
+      "settings: provider, model, request_parameters, prompt_sha256 and price_per_million_tokens equal to each model's validation reference",
+      "keys: the same 662 graded and 38 not_in_input figures in all 5 runs"
+    ],
+    "time_test": [
+      "runs: all 5 complete with no selection, covering the 346 kept releases, no stop and no API error but refusals (0 refusals), on the frozen links and answers, at commit e352c14, clean",
+      "graded.csv: current in all 5 (not stale; predicted values are predictions.jsonl's; re-graded in memory, byte for byte)",
+      "settings: provider, model, request_parameters, prompt_sha256 and price_per_million_tokens equal to each model's validation reference",
+      "keys: the same 1,740 graded and 52 not_in_input figures in all 5 runs"
+    ]
+  },
+  "model_under_test": {
+    "base_model": "Qwen/Qwen3-8B",
+    "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "lora": {
+      "r": 16,
+      "alpha": 32,
+      "dropout": 0.0,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ]
+    },
+    "steps": 125,
+    "examples_per_step": 16,
+    "selected": 2000,
+    "labelled": 3200,
+    "within_max_tokens": 3101,
+    "max_tokens": 32768,
+    "checkpoint": {
+      "label": "step-00025",
+      "served": "qwen3-8b-2k--step-00025",
+      "step": 25,
+      "examples_seen": 400,
+      "adapter_sha256": "b93376d91af812159f4bd3a0fb80be090808e6d3539b251dc53ed26b9d27041b"
+    },
+    "server": {
+      "company_test": "vLLM 0.32.0",
+      "time_test": "vLLM 0.32.0"
+    },
+    "gpus": {
+      "company_test": [
+        "NVIDIA H100 NVL, 95830 MiB, 580.178.04"
+      ],
+      "time_test": [
+        "NVIDIA H100 NVL, 95830 MiB, 580.178.04"
+      ]
+    }
+  },
+  "bootstrap": {
+    "seed": 20261105,
+    "draws": 10000,
+    "percentiles": [
+      2.5,
+      97.5
+    ],
+    "details_fixed": "2026-11-07"
+  },
+  "gpu_host": "Vast",
+  "time_test": {
+    "first_filed": "2026-07-01",
+    "last_filed": "2026-09-30",
+    "frozen_commit": "e352c14a4ba4a5fa522a33b892d7b0cd0cecd1b0",
+    "frozen_at": "2026-11-07T12:20:17+00:00"
+  },
+  "splits": {
+    "company_test": {
+      "folder": "data/splits/company_test",
+      "commit": "cf77acb9e502769aff36b31d35e288a8fbb05c0e",
+      "runs_started": "2026-11-07T11:16:03+00:00",
+      "runs_finished": "2026-11-07T11:30:59+00:00",
+      "runs": {
+        "step-00025": {
+          "run": "qwen3-8b-2k--company_test--step-00025",
+          "model": "qwen3-8b-2k--step-00025",
+          "provider": "openai",
+          "settings": "temperature 0, chat_template_kwargs {\"enable_thinking\": false}, max_tokens 1024",
+          "concurrency": 16,
+          "releases": 148,
+          "outcomes": {
+            "ok": 148,
+            "ok_after_retry": 0,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "qwen3-8b-2k--step-00025",
+          "setting_notes": [
+            "env_file training/qwen3-8b-2k/test/company_test--step-00025.env (reference training/qwen3-8b-2k/validation/step-00025.env)",
+            "gpu_hourly_usd 2.776 (reference 1.0)"
+          ],
+          "period_end_warnings": [
+            "0000217346-26-000002",
+            "0000721371-26-000004"
+          ]
+        },
+        "base": {
+          "run": "qwen3-8b-2k--company_test--base",
+          "model": "Qwen/Qwen3-8B",
+          "provider": "openai",
+          "settings": "temperature 0, chat_template_kwargs {\"enable_thinking\": false}, max_tokens 1024",
+          "concurrency": 16,
+          "releases": 148,
+          "outcomes": {
+            "ok": 147,
+            "ok_after_retry": 1,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "qwen3-8b-2k--base",
+          "setting_notes": [
+            "env_file training/qwen3-8b-2k/test/company_test--base.env (reference training/qwen3-8b-2k/validation/base.env)",
+            "gpu_hourly_usd 2.776 (reference 1.0)"
+          ],
+          "period_end_warnings": [
+            "0000021665-25-000052",
+            "0000065984-25-000126",
+            "0000217346-26-000009",
+            "0000310764-26-000006",
+            "0000721371-25-000128",
+            "0000721371-26-000004",
+            "0000721371-26-000017",
+            "0000721371-26-000037",
+            "0001048286-26-000005",
+            "0001051470-26-000052",
+            "0001628280-25-046915"
+          ]
+        },
+        "gpt-6.1-sol": {
+          "run": "gpt-6.1-sol--company_test",
+          "model": "gpt-6.1-sol",
+          "provider": "openai",
+          "settings": "reasoning_effort medium, no temperature",
+          "concurrency": 4,
+          "releases": 148,
+          "outcomes": {
+            "ok": 148,
+            "ok_after_retry": 0,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "2026-11-07T105947_gpt-6.1-sol_extract_v2",
+          "setting_notes": [],
+          "period_end_warnings": [
+            "0001051470-26-000052"
+          ]
+        },
+        "claude-haiku-5-5": {
+          "run": "claude-haiku-5-5--company_test",
+          "model": "claude-haiku-5-5",
+          "provider": "anthropic",
+          "settings": "max_tokens 16000, effort medium, no temperature",
+          "concurrency": 4,
+          "releases": 148,
+          "outcomes": {
+            "ok": 147,
+            "ok_after_retry": 1,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "2026-10-17T222907_claude-haiku-5-5_extract_v2",
+          "setting_notes": [
+            "env_file .env.claude-haiku (reference None)"
+          ],
+          "period_end_warnings": [
+            "0001051470-26-000052"
+          ]
+        },
+        "gpt-6-luna": {
+          "run": "gpt-6-luna--company_test",
+          "model": "gpt-6-luna",
+          "provider": "openai",
+          "settings": "reasoning_effort medium, no temperature",
+          "concurrency": 4,
+          "releases": 148,
+          "outcomes": {
+            "ok": 148,
+            "ok_after_retry": 0,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "2026-10-27T001339_gpt-6-luna_extract_v2",
+          "setting_notes": [],
+          "period_end_warnings": [
+            "0001051470-26-000052"
+          ]
+        }
+      },
+      "coverage": {
+        "expected": 728,
+        "answered": 700,
+        "missing": 28,
+        "in_input": 662,
+        "graded": 662,
+        "kept_releases": 148,
+        "kept_companies": 37,
+        "releases_graded": 143,
+        "companies_graded": 37,
+        "no_answer_by_sector": {
+          "Consumer Discretionary": {
+            "no_answer": 0,
+            "kept": 28
+          },
+          "Consumer Staples": {
+            "no_answer": 0,
+            "kept": 12
+          },
+          "Energy": {
+            "no_answer": 0,
+            "kept": 4
+          },
+          "Health Care": {
+            "no_answer": 1,
+            "kept": 28
+          },
+          "Industrials": {
+            "no_answer": 1,
+            "kept": 24
+          },
+          "Information Technology": {
+            "no_answer": 0,
+            "kept": 16
+          },
+          "Materials": {
+            "no_answer": 0,
+            "kept": 12
+          },
+          "Real Estate": {
+            "no_answer": 0,
+            "kept": 16
+          },
+          "Utilities": {
+            "no_answer": 2,
+            "kept": 8
+          }
+        },
+        "releases_without_graded": [
+          {
+            "ticker": "ETR",
+            "release_accession": "0000065984-26-000279",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "CAH",
+            "release_accession": "0000721371-26-000017",
+            "answers": 0,
+            "sector": "Health Care"
+          },
+          {
+            "ticker": "JCI",
+            "release_accession": "0000833444-26-000083",
+            "answers": 0,
+            "sector": "Industrials"
+          },
+          {
+            "ticker": "PPL",
+            "release_accession": "0000922224-26-000042",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "CCI",
+            "release_accession": "0001051470-26-000052",
+            "answers": 3,
+            "sector": "Real Estate"
+          }
+        ]
+      },
+      "bootstrap_companies": 37,
+      "left_out": [],
+      "attempts": [],
+      "accuracy": {
+        "step-00025": {
+          "all": {
+            "correct": 657,
+            "graded": 662,
+            "accuracy": 99.24471299093656,
+            "interval": [
+              98.04511278195488,
+              100.0
+            ]
+          },
+          "revenue": {
+            "correct": 223,
+            "graded": 223,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "net_income": {
+            "correct": 236,
+            "graded": 241,
+            "accuracy": 97.9253112033195,
+            "interval": [
+              94.6938775510204,
+              100.0
+            ]
+          },
+          "eps_diluted": {
+            "correct": 198,
+            "graded": 198,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "quarter": {
+            "correct": 364,
+            "graded": 367,
+            "accuracy": 99.1825613079019,
+            "interval": [
+              97.47899159663865,
+              100.0
+            ]
+          },
+          "year_to_date": {
+            "correct": 190,
+            "graded": 192,
+            "accuracy": 98.95833333333333,
+            "interval": [
+              96.57142857142857,
+              100.0
+            ]
+          },
+          "full_year": {
+            "correct": 103,
+            "graded": 103,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "without_preferred": {
+            "correct": 610,
+            "graded": 612,
+            "accuracy": 99.67320261437908,
+            "interval": [
+              98.9492119089317,
+              100.0
+            ]
+          }
+        },
+        "base": {
+          "all": {
+            "correct": 590,
+            "graded": 662,
+            "accuracy": 89.12386706948641,
+            "interval": [
+              83.63900597845551,
+              94.18777943368107
+            ]
+          },
+          "revenue": {
+            "correct": 207,
+            "graded": 223,
+            "accuracy": 92.82511210762331,
+            "interval": [
+              86.08231110531123,
+              98.20647821909033
+            ]
+          },
+          "net_income": {
+            "correct": 193,
+            "graded": 241,
+            "accuracy": 80.08298755186722,
+            "interval": [
+              69.10569105691057,
+              89.87354584123405
+            ]
+          },
+          "eps_diluted": {
+            "correct": 190,
+            "graded": 198,
+            "accuracy": 95.95959595959596,
+            "interval": [
+              90.0990099009901,
+              99.51219512195122
+            ]
+          },
+          "quarter": {
+            "correct": 323,
+            "graded": 367,
+            "accuracy": 88.0108991825613,
+            "interval": [
+              81.47138964577657,
+              93.76810734246995
+            ]
+          },
+          "year_to_date": {
+            "correct": 174,
+            "graded": 192,
+            "accuracy": 90.625,
+            "interval": [
+              85.36585365853658,
+              95.72192513368984
+            ]
+          },
+          "full_year": {
+            "correct": 93,
+            "graded": 103,
+            "accuracy": 90.29126213592232,
+            "interval": [
+              83.65384615384616,
+              96.11650485436893
+            ]
+          },
+          "without_preferred": {
+            "correct": 551,
+            "graded": 612,
+            "accuracy": 90.0326797385621,
+            "interval": [
+              84.19273181061867,
+              95.35293269738513
+            ]
+          }
+        },
+        "gpt-6.1-sol": {
+          "all": {
+            "correct": 662,
+            "graded": 662,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "revenue": {
+            "correct": 223,
+            "graded": 223,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "net_income": {
+            "correct": 241,
+            "graded": 241,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "eps_diluted": {
+            "correct": 198,
+            "graded": 198,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "quarter": {
+            "correct": 367,
+            "graded": 367,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "year_to_date": {
+            "correct": 192,
+            "graded": 192,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "full_year": {
+            "correct": 103,
+            "graded": 103,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "without_preferred": {
+            "correct": 612,
+            "graded": 612,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          }
+        },
+        "claude-haiku-5-5": {
+          "all": {
+            "correct": 662,
+            "graded": 662,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "revenue": {
+            "correct": 223,
+            "graded": 223,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "net_income": {
+            "correct": 241,
+            "graded": 241,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "eps_diluted": {
+            "correct": 198,
+            "graded": 198,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "quarter": {
+            "correct": 367,
+            "graded": 367,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "year_to_date": {
+            "correct": 192,
+            "graded": 192,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "full_year": {
+            "correct": 103,
+            "graded": 103,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "without_preferred": {
+            "correct": 612,
+            "graded": 612,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          }
+        },
+        "gpt-6-luna": {
+          "all": {
+            "correct": 654,
+            "graded": 662,
+            "accuracy": 98.79154078549848,
+            "interval": [
+              96.8419863665187,
+              100.0
+            ]
+          },
+          "revenue": {
+            "correct": 223,
+            "graded": 223,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "net_income": {
+            "correct": 236,
+            "graded": 241,
+            "accuracy": 97.9253112033195,
+            "interval": [
+              94.62754192243065,
+              100.0
+            ]
+          },
+          "eps_diluted": {
+            "correct": 195,
+            "graded": 198,
+            "accuracy": 98.48484848484848,
+            "interval": [
+              95.95959595959596,
+              100.0
+            ]
+          },
+          "quarter": {
+            "correct": 363,
+            "graded": 367,
+            "accuracy": 98.91008174386921,
+            "interval": [
+              96.98630136986301,
+              100.0
+            ]
+          },
+          "year_to_date": {
+            "correct": 192,
+            "graded": 192,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "full_year": {
+            "correct": 99,
+            "graded": 103,
+            "accuracy": 96.11650485436893,
+            "interval": [
+              90.19607843137256,
+              100.0
+            ]
+          },
+          "without_preferred": {
+            "correct": 604,
+            "graded": 612,
+            "accuracy": 98.69281045751634,
+            "interval": [
+              96.60372778897235,
+              100.0
+            ]
+          }
+        }
+      },
+      "differences": {
+        "base": {
+          "all": {
+            "difference": 10.120845921450151,
+            "interval": [
+              5.076865671641794,
+              15.575394617101935
+            ],
+            "discordant": 73,
+            "first_right": 70,
+            "second_right": 3,
+            "companies": 16
+          },
+          "without_preferred": {
+            "difference": 9.640522875816993,
+            "interval": [
+              4.243460941676545,
+              15.537273844092024
+            ],
+            "discordant": 63,
+            "first_right": 61,
+            "second_right": 2,
+            "companies": 13
+          }
+        },
+        "gpt-6.1-sol": {
+          "all": {
+            "difference": -0.7552870090634441,
+            "interval": [
+              -1.9548872180451156,
+              0.0
+            ],
+            "discordant": 5,
+            "first_right": 0,
+            "second_right": 5,
+            "companies": 2
+          },
+          "without_preferred": {
+            "difference": -0.32679738562091504,
+            "interval": [
+              -1.0507880910682985,
+              0.0
+            ],
+            "discordant": 2,
+            "first_right": 0,
+            "second_right": 2,
+            "companies": 1
+          }
+        },
+        "claude-haiku-5-5": {
+          "all": {
+            "difference": -0.7552870090634441,
+            "interval": [
+              -1.9548872180451156,
+              0.0
+            ],
+            "discordant": 5,
+            "first_right": 0,
+            "second_right": 5,
+            "companies": 2
+          },
+          "without_preferred": {
+            "difference": -0.32679738562091504,
+            "interval": [
+              -1.0507880910682985,
+              0.0
+            ],
+            "discordant": 2,
+            "first_right": 0,
+            "second_right": 2,
+            "companies": 1
+          }
+        },
+        "gpt-6-luna": {
+          "all": {
+            "difference": 0.45317220543806647,
+            "interval": [
+              -1.406305017605634,
+              2.6745913818722187
+            ],
+            "discordant": 13,
+            "first_right": 8,
+            "second_right": 5,
+            "companies": 4
+          },
+          "without_preferred": {
+            "difference": 0.9803921568627451,
+            "interval": [
+              -0.66447946666962,
+              3.1858926768426667
+            ],
+            "discordant": 10,
+            "first_right": 8,
+            "second_right": 2,
+            "companies": 3
+          }
+        }
+      },
+      "preferred": {
+        "releases": 11,
+        "figures": 50,
+        "companies": [
+          "BA",
+          "ETR",
+          "WDC"
+        ],
+        "draws_without_them": 0.0467,
+        "net_income": {
+          "step-00025": {
+            "correct": 12,
+            "graded": 15
+          },
+          "base": {
+            "correct": 5,
+            "graded": 15
+          },
+          "gpt-6.1-sol": {
+            "correct": 15,
+            "graded": 15
+          },
+          "claude-haiku-5-5": {
+            "correct": 15,
+            "graded": 15
+          },
+          "gpt-6-luna": {
+            "correct": 15,
+            "graded": 15
+          }
+        }
+      },
+      "robustness": {
+        "ticker": [
+          5.076865671641794,
+          15.575394617101935
+        ],
+        "links_order": [
+          4.999804992199688,
+          15.669650056442514
+        ],
+        "cik": [
+          4.999804992199688,
+          15.669650056442514
+        ]
+      },
+      "verdicts": {
+        "step-00025": {
+          "correct": 657,
+          "missing": 0,
+          "sign": 0,
+          "scale": 0,
+          "zeros": 0,
+          "wrong_period": 2,
+          "noncontrolling_interest": 0,
+          "rounded": 0,
+          "adjusted": 0,
+          "wrong_line": 3,
+          "other": 0,
+          "not_in_input": 38,
+          "no_answer": 188
+        },
+        "base": {
+          "correct": 590,
+          "missing": 0,
+          "sign": 0,
+          "scale": 2,
+          "zeros": 10,
+          "wrong_period": 3,
+          "noncontrolling_interest": 24,
+          "rounded": 6,
+          "adjusted": 15,
+          "wrong_line": 12,
+          "other": 0,
+          "not_in_input": 38,
+          "no_answer": 188
+        },
+        "gpt-6.1-sol": {
+          "correct": 662,
+          "missing": 0,
+          "sign": 0,
+          "scale": 0,
+          "zeros": 0,
+          "wrong_period": 0,
+          "noncontrolling_interest": 0,
+          "rounded": 0,
+          "adjusted": 0,
+          "wrong_line": 0,
+          "other": 0,
+          "not_in_input": 38,
+          "no_answer": 187
+        },
+        "claude-haiku-5-5": {
+          "correct": 662,
+          "missing": 0,
+          "sign": 0,
+          "scale": 0,
+          "zeros": 0,
+          "wrong_period": 0,
+          "noncontrolling_interest": 0,
+          "rounded": 0,
+          "adjusted": 0,
+          "wrong_line": 0,
+          "other": 0,
+          "not_in_input": 38,
+          "no_answer": 187
+        },
+        "gpt-6-luna": {
+          "correct": 654,
+          "missing": 0,
+          "sign": 0,
+          "scale": 0,
+          "zeros": 0,
+          "wrong_period": 1,
+          "noncontrolling_interest": 0,
+          "rounded": 0,
+          "adjusted": 6,
+          "wrong_line": 1,
+          "other": 0,
+          "not_in_input": 38,
+          "no_answer": 187
+        }
+      },
+      "unit_slips": {
+        "step-00025": 0,
+        "base": 12,
+        "gpt-6.1-sol": 0,
+        "claude-haiku-5-5": 0,
+        "gpt-6-luna": 0
+      },
+      "cost": {
+        "step-00025": {
+          "basis": "gpu",
+          "wall_time_s": 559.0,
+          "recorded_usd_per_hour": 2.776,
+          "billed_usd_per_hour": 2.538,
+          "cost": 0.3940949999999999,
+          "per_1000": 2.662804054054053,
+          "cost_at_1": 0.15527777777777776,
+          "per_1000_at_1": 1.0491741741741742,
+          "cost_at_recorded": 0.43105111111111105,
+          "per_1000_at_recorded": 2.9125075075075073,
+          "releases": 148
+        },
+        "base": {
+          "basis": "gpu",
+          "wall_time_s": 113.7,
+          "recorded_usd_per_hour": 2.776,
+          "billed_usd_per_hour": 2.538,
+          "cost": 0.0801585,
+          "per_1000": 0.5416114864864864,
+          "cost_at_1": 0.03158333333333333,
+          "per_1000_at_1": 0.21340090090090091,
+          "cost_at_recorded": 0.08767533333333333,
+          "per_1000_at_recorded": 0.5924009009009008,
+          "releases": 148
+        },
+        "gpt-6.1-sol": {
+          "basis": "tokens",
+          "wall_time_s": 74.2,
+          "prices": {
+            "input": 2.0,
+            "output": 10.0
+          },
+          "cost": 3.519332,
+          "per_1000": 23.77927027027027,
+          "releases": 148
+        },
+        "claude-haiku-5-5": {
+          "basis": "tokens",
+          "wall_time_s": 66.1,
+          "prices": {
+            "input": 0.1,
+            "output": 0.5
+          },
+          "cost": 0.273679,
+          "per_1000": 1.8491824324324326,
+          "releases": 148
+        },
+        "gpt-6-luna": {
+          "basis": "tokens",
+          "wall_time_s": 99.1,
+          "prices": {
+            "input": 0.1,
+            "output": 0.5
+          },
+          "cost": 0.181364,
+          "per_1000": 1.2254324324324324,
+          "releases": 148
+        }
+      },
+      "latency": {
+        "step-00025": {
+          "p50": 11.49,
+          "p95": 135.951,
+          "max": 137.131
+        },
+        "base": {
+          "p50": 11.251,
+          "p95": 18.454,
+          "max": 21.622
+        },
+        "gpt-6.1-sol": {
+          "p50": 1.79,
+          "p95": 3.683,
+          "max": 6.529
+        },
+        "claude-haiku-5-5": {
+          "p50": 1.58,
+          "p95": 3.048,
+          "max": 5.218
+        },
+        "gpt-6-luna": {
+          "p50": 2.289,
+          "p95": 4.973,
+          "max": 12.304
+        }
+      },
+      "misses": [
+        {
+          "ticker": "BA",
+          "release_accession": "0001628280-26-003518",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "8220000000",
+          "predicted": "1890000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net earnings/(loss) attributable to Boeing common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "BA",
+          "release_accession": "0001628280-26-026391",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "-4000000",
+          "predicted": "-90000000",
+          "verdict": "wrong_line",
+          "base_verdict": "noncontrolling_interest",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net loss attributable to Boeing common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "BA",
+          "release_accession": "0001628280-26-049929",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "-444000000",
+          "predicted": "-620000000",
+          "verdict": "wrong_line",
+          "base_verdict": "noncontrolling_interest",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net loss attributable to Boeing common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "WY",
+          "release_accession": "0001193125-25-258510",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "250000000",
+          "predicted": "80000000",
+          "verdict": "wrong_period",
+          "base_verdict": "correct",
+          "preferred": false,
+          "group": "quarter copied into year to date",
+          "row": "The table below reconciles Adjusted EBITDA for the year-to-date period ended September 30, 2025: \u203a Adjusted EBITDA by Segment: \u203a Net earnings"
+        },
+        {
+          "ticker": "WY",
+          "release_accession": "0001193125-26-326124",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "318000000",
+          "predicted": "162000000",
+          "verdict": "wrong_period",
+          "base_verdict": "correct",
+          "preferred": false,
+          "group": "quarter copied into year to date",
+          "row": "The table below reconciles Adjusted EBITDA for the year-to-date period ended June 30, 2026: \u203a Adjusted EBITDA by Segment: \u203a Net earnings"
+        }
+      ],
+      "miss_summary": {
+        "misses": 5,
+        "groups": {
+          "common shareholders' line": 3,
+          "quarter copied into year to date": 2
+        },
+        "common_companies": [
+          "BA"
+        ],
+        "common_verdicts": {
+          "wrong_line": 3
+        },
+        "common_in_preferred": 3,
+        "common_outside_preferred": 0,
+        "outside_rows": {},
+        "broken": 3,
+        "broken_common": 1,
+        "quarter_as_ytd_companies": [
+          "WY"
+        ]
+      },
+      "abstention": {
+        "step-00025": {
+          "not_in_input": 38,
+          "answered": 38,
+          "figures": 888,
+          "null": 0
+        },
+        "base": {
+          "not_in_input": 38,
+          "answered": 38,
+          "figures": 888,
+          "null": 0
+        },
+        "gpt-6.1-sol": {
+          "not_in_input": 38,
+          "answered": 19,
+          "figures": 888,
+          "null": 20
+        },
+        "claude-haiku-5-5": {
+          "not_in_input": 38,
+          "answered": 26,
+          "figures": 888,
+          "null": 13
+        },
+        "gpt-6-luna": {
+          "not_in_input": 38,
+          "answered": 26,
+          "figures": 888,
+          "null": 13
+        }
+      },
+      "billed_usd_per_hour": 2.538,
+      "recorded_price_note": "an example price passed to vast_setup.sh by mistake",
+      "logs": {
+        "server": "training/qwen3-8b-2k/test/server-company_test.log",
+        "setup": "training/qwen3-8b-2k/test/setup-company_test.log"
+      },
+      "notes": [
+        {
+          "ticker": "CCI",
+          "release_accession": "0001051470-26-000052",
+          "note": "a divestiture and outlook announcement, not results",
+          "answers": 3,
+          "not_in_input": 3,
+          "period_end_warnings": [
+            "base",
+            "gpt-6.1-sol",
+            "claude-haiku-5-5",
+            "gpt-6-luna"
+          ]
+        }
+      ],
+      "freeze": {
+        "run": "qwen3-8b-2k--company_test--step-00025",
+        "start": "2026-11-07T11:22:37+00:00",
+        "end": "2026-11-07T11:29:58+00:00",
+        "window_s": 441.0,
+        "log": "training/qwen3-8b-2k/test/server-company_test.log",
+        "log_gap": [
+          "2026-11-07T11:22:31+00:00",
+          "2026-11-07T11:29:58+00:00"
+        ],
+        "log_gap_s": 447.0,
+        "throughput_spacing_s": 10.0,
+        "wall_time_s": 559.0,
+        "concurrency": 16,
+        "monotonic_s": 240.91749999999993,
+        "base_overhead_s": 1.1378124999999386,
+        "wall_clock_gain_s": 316.94468750000016,
+        "frozen_calls": 16,
+        "other_calls": 132,
+        "frozen_latency_s": [
+          134.054,
+          137.131
+        ],
+        "next_longest_s": 23.521,
+        "p95_and_max_frozen": true,
+        "excluded_s": 118.0,
+        "cross_check_s": 117.39593749999989,
+        "base_wall_time_s": 113.7,
+        "excluded_cost": 0.08319,
+        "excluded_per_1000": 0.5620945945945945,
+        "excluded_cost_at_1": 0.03277777777777778,
+        "excluded_per_1000_at_1": 0.2214714714714715
+      }
+    },
+    "time_test": {
+      "folder": "data/splits/time_test",
+      "commit": "e352c14a4ba4a5fa522a33b892d7b0cd0cecd1b0",
+      "runs_started": "2026-11-07T12:32:26+00:00",
+      "runs_finished": "2026-11-07T12:57:18+00:00",
+      "runs": {
+        "step-00025": {
+          "run": "qwen3-8b-2k--time_test--step-00025",
+          "model": "qwen3-8b-2k--step-00025",
+          "provider": "openai",
+          "settings": "temperature 0, chat_template_kwargs {\"enable_thinking\": false}, max_tokens 1024",
+          "concurrency": 16,
+          "releases": 346,
+          "outcomes": {
+            "ok": 346,
+            "ok_after_retry": 0,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "qwen3-8b-2k--step-00025",
+          "setting_notes": [
+            "env_file training/qwen3-8b-2k/test/time_test--step-00025.env (reference training/qwen3-8b-2k/validation/step-00025.env)",
+            "gpu_hourly_usd 2.589 (reference 1.0)"
+          ],
+          "period_end_warnings": [
+            "0000200406-26-000146",
+            "0000864749-26-000106"
+          ]
+        },
+        "base": {
+          "run": "qwen3-8b-2k--time_test--base",
+          "model": "Qwen/Qwen3-8B",
+          "provider": "openai",
+          "settings": "temperature 0, chat_template_kwargs {\"enable_thinking\": false}, max_tokens 1024",
+          "concurrency": 16,
+          "releases": 346,
+          "outcomes": {
+            "ok": 342,
+            "ok_after_retry": 4,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "qwen3-8b-2k--base",
+          "setting_notes": [
+            "env_file training/qwen3-8b-2k/test/time_test--base.env (reference training/qwen3-8b-2k/validation/base.env)",
+            "gpu_hourly_usd 2.589 (reference 1.0)"
+          ],
+          "period_end_warnings": [
+            "0000078003-26-000094",
+            "0000093410-26-000162",
+            "0000200406-26-000146",
+            "0000864749-26-000106"
+          ]
+        },
+        "gpt-6.1-sol": {
+          "run": "gpt-6.1-sol--time_test",
+          "model": "gpt-6.1-sol",
+          "provider": "openai",
+          "settings": "reasoning_effort medium, no temperature",
+          "concurrency": 2,
+          "releases": 346,
+          "outcomes": {
+            "ok": 346,
+            "ok_after_retry": 0,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "2026-11-07T105947_gpt-6.1-sol_extract_v2",
+          "setting_notes": [
+            "max_parallel 2 (reference 4)",
+            "env_file .env.gpt-sol-c2 (reference .env.gpt-sol)"
+          ],
+          "period_end_warnings": [
+            "0000200406-26-000146",
+            "0000864749-26-000106"
+          ]
+        },
+        "claude-haiku-5-5": {
+          "run": "claude-haiku-5-5--time_test",
+          "model": "claude-haiku-5-5",
+          "provider": "anthropic",
+          "settings": "max_tokens 16000, effort medium, no temperature",
+          "concurrency": 4,
+          "releases": 346,
+          "outcomes": {
+            "ok": 346,
+            "ok_after_retry": 0,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "2026-10-17T222907_claude-haiku-5-5_extract_v2",
+          "setting_notes": [
+            "env_file .env.claude-haiku (reference None)"
+          ],
+          "period_end_warnings": [
+            "0000200406-26-000146"
+          ]
+        },
+        "gpt-6-luna": {
+          "run": "gpt-6-luna--time_test",
+          "model": "gpt-6-luna",
+          "provider": "openai",
+          "settings": "reasoning_effort medium, no temperature",
+          "concurrency": 4,
+          "releases": 346,
+          "outcomes": {
+            "ok": 346,
+            "ok_after_retry": 0,
+            "invalid_reply": 0,
+            "api_error": 0,
+            "aborted": 0
+          },
+          "refusals": 0,
+          "reference": "2026-10-27T001339_gpt-6-luna_extract_v2",
+          "setting_notes": [],
+          "period_end_warnings": [
+            "0000200406-26-000146"
+          ]
+        }
+      },
+      "coverage": {
+        "expected": 1916,
+        "answered": 1792,
+        "missing": 124,
+        "in_input": 1740,
+        "graded": 1740,
+        "kept_releases": 346,
+        "kept_companies": 344,
+        "releases_graded": 317,
+        "companies_graded": 315,
+        "no_answer_by_sector": {
+          "Communication Services": {
+            "no_answer": 0,
+            "kept": 17
+          },
+          "Consumer Discretionary": {
+            "no_answer": 0,
+            "kept": 34
+          },
+          "Consumer Staples": {
+            "no_answer": 3,
+            "kept": 28
+          },
+          "Energy": {
+            "no_answer": 0,
+            "kept": 16
+          },
+          "Health Care": {
+            "no_answer": 4,
+            "kept": 51
+          },
+          "Industrials": {
+            "no_answer": 5,
+            "kept": 75
+          },
+          "Information Technology": {
+            "no_answer": 1,
+            "kept": 66
+          },
+          "Materials": {
+            "no_answer": 2,
+            "kept": 19
+          },
+          "Real Estate": {
+            "no_answer": 3,
+            "kept": 17
+          },
+          "Utilities": {
+            "no_answer": 11,
+            "kept": 23
+          }
+        },
+        "releases_without_graded": [
+          {
+            "ticker": "ABT",
+            "release_accession": "0001628280-26-048377",
+            "answers": 0,
+            "sector": "Health Care"
+          },
+          {
+            "ticker": "CLX",
+            "release_accession": "0000021076-26-000028",
+            "answers": 0,
+            "sector": "Consumer Staples"
+          },
+          {
+            "ticker": "FRT",
+            "release_accession": "0000034903-26-000040",
+            "answers": 0,
+            "sector": "Real Estate"
+          },
+          {
+            "ticker": "GD",
+            "release_accession": "0000040533-26-000029",
+            "answers": 0,
+            "sector": "Industrials"
+          },
+          {
+            "ticker": "HUM",
+            "release_accession": "0000049071-26-000045",
+            "answers": 0,
+            "sector": "Health Care"
+          },
+          {
+            "ticker": "SO",
+            "release_accession": "0000092122-26-000056",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "LNT",
+            "release_accession": "0000352541-26-000042",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "D",
+            "release_accession": "0001193125-26-326812",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "NEE",
+            "release_accession": "0000753308-26-000058",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "EIX",
+            "release_accession": "0000827052-26-000058",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "HCA",
+            "release_accession": "0001193125-26-315151",
+            "answers": 0,
+            "sector": "Health Care"
+          },
+          {
+            "ticker": "INCY",
+            "release_accession": "0000879169-26-000053",
+            "answers": 0,
+            "sector": "Health Care"
+          },
+          {
+            "ticker": "REG",
+            "release_accession": "0001193125-26-323784",
+            "answers": 0,
+            "sector": "Real Estate"
+          },
+          {
+            "ticker": "MAA",
+            "release_accession": "0001193125-26-323756",
+            "answers": 0,
+            "sector": "Real Estate"
+          },
+          {
+            "ticker": "DTE",
+            "release_accession": "0000936340-26-000144",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "FE",
+            "release_accession": "0001031296-26-000122",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "SRE",
+            "release_accession": "0001032208-26-000043",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "ED",
+            "release_accession": "0001047862-26-000143",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "CTSH",
+            "release_accession": "0001058290-26-000030",
+            "answers": 0,
+            "sector": "Information Technology"
+          },
+          {
+            "ticker": "URI",
+            "release_accession": "0001067701-26-000028",
+            "answers": 0,
+            "sector": "Industrials"
+          },
+          {
+            "ticker": "MDLZ",
+            "release_accession": "0001628280-26-050157",
+            "answers": 0,
+            "sector": "Consumer Staples"
+          },
+          {
+            "ticker": "CNP",
+            "release_accession": "0001104659-26-087279",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "DUK",
+            "release_accession": "0001326160-26-000037",
+            "answers": 0,
+            "sector": "Utilities"
+          },
+          {
+            "ticker": "VMC",
+            "release_accession": "0001140361-26-029958",
+            "answers": 0,
+            "sector": "Materials"
+          },
+          {
+            "ticker": "VRSK",
+            "release_accession": "0001437749-26-024748",
+            "answers": 0,
+            "sector": "Industrials"
+          },
+          {
+            "ticker": "DOW",
+            "release_accession": "0001751788-26-000144",
+            "answers": 0,
+            "sector": "Materials"
+          },
+          {
+            "ticker": "CARR",
+            "release_accession": "0001783180-26-000030",
+            "answers": 0,
+            "sector": "Industrials"
+          },
+          {
+            "ticker": "VLTO",
+            "release_accession": "0001967680-26-000043",
+            "answers": 0,
+            "sector": "Industrials"
+          },
+          {
+            "ticker": "BG",
+            "release_accession": "0001628280-26-050334",
+            "answers": 0,
+            "sector": "Consumer Staples"
+          }
+        ]
+      },
+      "bootstrap_companies": 315,
+      "left_out": [
+        {
+          "ticker": "UDR",
+          "release_accession": "0000074208-26-000070",
+          "prompt_tokens": "50970"
+        },
+        {
+          "ticker": "FCX",
+          "release_accession": "0000831259-26-000033",
+          "prompt_tokens": "50171"
+        },
+        {
+          "ticker": "ARE",
+          "release_accession": "0001035443-26-000067",
+          "prompt_tokens": "87822"
+        },
+        {
+          "ticker": "BXP",
+          "release_accession": "0001037540-26-000031",
+          "prompt_tokens": "106137"
+        },
+        {
+          "ticker": "SPG",
+          "release_accession": "0001104659-26-093361",
+          "prompt_tokens": "104334"
+        },
+        {
+          "ticker": "NEM",
+          "release_accession": "0001164727-26-000034",
+          "prompt_tokens": "46825"
+        },
+        {
+          "ticker": "DLR",
+          "release_accession": "0001104659-26-086270",
+          "prompt_tokens": "70776"
+        },
+        {
+          "ticker": "PSX",
+          "release_accession": "0001534701-26-000030",
+          "prompt_tokens": "52257"
+        },
+        {
+          "ticker": "INVH",
+          "release_accession": "0001687229-26-000041",
+          "prompt_tokens": "44808"
+        }
+      ],
+      "attempts": [
+        {
+          "run": "runs/gpt-6.1-sol--time_test--attempt-1",
+          "folder": "gpt-6.1-sol--time_test--attempt-1",
+          "run_name": "gpt-6.1-sol--time_test",
+          "status": "complete",
+          "started": "2026-11-07T12:44:18+00:00",
+          "finished": "2026-11-07T12:47:19+00:00",
+          "cause": "the 1,000,000 tokens-per-minute limit",
+          "http_statuses": [
+            429
+          ],
+          "http_attempts": [
+            6
+          ],
+          "api_errors": [
+            {
+              "ticker": "NCLH",
+              "release_accession": "0001171843-26-005050"
+            },
+            {
+              "ticker": "DIS",
+              "release_accession": "0001744489-26-000056"
+            }
+          ],
+          "max_parallel": 4,
+          "replies": 345,
+          "cost": 8.304562,
+          "rerun": "gpt-6.1-sol--time_test",
+          "rerun_env_file": ".env.gpt-sol-c2",
+          "rerun_settings": "Sol's settings plus MODEL_CONCURRENCY=2",
+          "rerun_max_parallel": 2,
+          "same_settings": [
+            "provider",
+            "model",
+            "request_parameters",
+            "prompt_sha256",
+            "price_per_million_tokens",
+            "reply_format"
+          ],
+          "both_answered": 344,
+          "same_figures": 344,
+          "period_end_differs": [
+            {
+              "ticker": "TRMB",
+              "release_accession": "0000864749-26-000106",
+              "retried_in_attempt": true,
+              "attempt": "2026-07-03",
+              "rerun": "2026-06-30"
+            }
+          ]
+        }
+      ],
+      "accuracy": {
+        "step-00025": {
+          "all": {
+            "correct": 1699,
+            "graded": 1740,
+            "accuracy": 97.64367816091954,
+            "interval": [
+              96.6367585173671,
+              98.56653429852001
+            ]
+          },
+          "revenue": {
+            "correct": 583,
+            "graded": 591,
+            "accuracy": 98.64636209813875,
+            "interval": [
+              97.28813559322033,
+              99.6661101836394
+            ]
+          },
+          "net_income": {
+            "correct": 545,
+            "graded": 577,
+            "accuracy": 94.45407279029463,
+            "interval": [
+              91.85840707964601,
+              96.86411149825784
+            ]
+          },
+          "eps_diluted": {
+            "correct": 571,
+            "graded": 572,
+            "accuracy": 99.82517482517483,
+            "interval": [
+              99.46428571428571,
+              100.0
+            ]
+          },
+          "quarter": {
+            "correct": 867,
+            "graded": 885,
+            "accuracy": 97.96610169491525,
+            "interval": [
+              97.00457632840111,
+              98.85844748858447
+            ]
+          },
+          "year_to_date": {
+            "correct": 758,
+            "graded": 777,
+            "accuracy": 97.55469755469755,
+            "interval": [
+              96.45291074248898,
+              98.57517561616474
+            ]
+          },
+          "full_year": {
+            "correct": 74,
+            "graded": 78,
+            "accuracy": 94.87179487179488,
+            "interval": [
+              85.5421686746988,
+              100.0
+            ]
+          },
+          "without_preferred": {
+            "correct": 1623,
+            "graded": 1642,
+            "accuracy": 98.84287454323996,
+            "interval": [
+              98.08153477218225,
+              99.51010410287815
+            ]
+          }
+        },
+        "base": {
+          "all": {
+            "correct": 1516,
+            "graded": 1740,
+            "accuracy": 87.1264367816092,
+            "interval": [
+              84.72918691286038,
+              89.48879954049397
+            ]
+          },
+          "revenue": {
+            "correct": 505,
+            "graded": 591,
+            "accuracy": 85.44839255499154,
+            "interval": [
+              81.61879284667049,
+              89.00173565684582
+            ]
+          },
+          "net_income": {
+            "correct": 456,
+            "graded": 577,
+            "accuracy": 79.02946273830156,
+            "interval": [
+              74.3859649122807,
+              83.47829907541835
+            ]
+          },
+          "eps_diluted": {
+            "correct": 555,
+            "graded": 572,
+            "accuracy": 97.02797202797203,
+            "interval": [
+              95.14710307144233,
+              98.61351819757365
+            ]
+          },
+          "quarter": {
+            "correct": 764,
+            "graded": 885,
+            "accuracy": 86.32768361581921,
+            "interval": [
+              83.65276211950395,
+              88.90147225368064
+            ]
+          },
+          "year_to_date": {
+            "correct": 684,
+            "graded": 777,
+            "accuracy": 88.03088803088804,
+            "interval": [
+              85.359477124183,
+              90.58683302171724
+            ]
+          },
+          "full_year": {
+            "correct": 68,
+            "graded": 78,
+            "accuracy": 87.17948717948718,
+            "interval": [
+              76.74338961452692,
+              95.71428571428571
+            ]
+          },
+          "without_preferred": {
+            "correct": 1441,
+            "graded": 1642,
+            "accuracy": 87.75883069427528,
+            "interval": [
+              85.29234478601568,
+              90.16602281464105
+            ]
+          }
+        },
+        "gpt-6.1-sol": {
+          "all": {
+            "correct": 1733,
+            "graded": 1740,
+            "accuracy": 99.59770114942529,
+            "interval": [
+              99.14284489095809,
+              99.94272705098774
+            ]
+          },
+          "revenue": {
+            "correct": 584,
+            "graded": 591,
+            "accuracy": 98.81556683587141,
+            "interval": [
+              97.48743718592965,
+              99.83136593591905
+            ]
+          },
+          "net_income": {
+            "correct": 577,
+            "graded": 577,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "eps_diluted": {
+            "correct": 572,
+            "graded": 572,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "quarter": {
+            "correct": 881,
+            "graded": 885,
+            "accuracy": 99.54802259887006,
+            "interval": [
+              99.08779931584948,
+              99.88864142538975
+            ]
+          },
+          "year_to_date": {
+            "correct": 774,
+            "graded": 777,
+            "accuracy": 99.61389961389962,
+            "interval": [
+              99.10941475826972,
+              100.0
+            ]
+          },
+          "full_year": {
+            "correct": 78,
+            "graded": 78,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "without_preferred": {
+            "correct": 1637,
+            "graded": 1642,
+            "accuracy": 99.69549330085262,
+            "interval": [
+              99.2814371257485,
+              100.0
+            ]
+          }
+        },
+        "claude-haiku-5-5": {
+          "all": {
+            "correct": 1730,
+            "graded": 1740,
+            "accuracy": 99.42528735632185,
+            "interval": [
+              98.90616004605641,
+              99.82944855031268
+            ]
+          },
+          "revenue": {
+            "correct": 584,
+            "graded": 591,
+            "accuracy": 98.81556683587141,
+            "interval": [
+              97.48743718592965,
+              99.83136593591905
+            ]
+          },
+          "net_income": {
+            "correct": 574,
+            "graded": 577,
+            "accuracy": 99.48006932409012,
+            "interval": [
+              98.59894921190893,
+              100.0
+            ]
+          },
+          "eps_diluted": {
+            "correct": 572,
+            "graded": 572,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "quarter": {
+            "correct": 879,
+            "graded": 885,
+            "accuracy": 99.32203389830508,
+            "interval": [
+              98.75424688561722,
+              99.77603583426652
+            ]
+          },
+          "year_to_date": {
+            "correct": 773,
+            "graded": 777,
+            "accuracy": 99.48519948519949,
+            "interval": [
+              98.9459815546772,
+              99.87515605493134
+            ]
+          },
+          "full_year": {
+            "correct": 78,
+            "graded": 78,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "without_preferred": {
+            "correct": 1637,
+            "graded": 1642,
+            "accuracy": 99.69549330085262,
+            "interval": [
+              99.2814371257485,
+              100.0
+            ]
+          }
+        },
+        "gpt-6-luna": {
+          "all": {
+            "correct": 1731,
+            "graded": 1740,
+            "accuracy": 99.48275862068965,
+            "interval": [
+              99.01563404748119,
+              99.88472622478386
+            ]
+          },
+          "revenue": {
+            "correct": 584,
+            "graded": 591,
+            "accuracy": 98.81556683587141,
+            "interval": [
+              97.48743718592965,
+              99.83136593591905
+            ]
+          },
+          "net_income": {
+            "correct": 575,
+            "graded": 577,
+            "accuracy": 99.65337954939342,
+            "interval": [
+              99.12280701754386,
+              100.0
+            ]
+          },
+          "eps_diluted": {
+            "correct": 572,
+            "graded": 572,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "quarter": {
+            "correct": 880,
+            "graded": 885,
+            "accuracy": 99.43502824858757,
+            "interval": [
+              98.87514060742407,
+              99.8868778280543
+            ]
+          },
+          "year_to_date": {
+            "correct": 773,
+            "graded": 777,
+            "accuracy": 99.48519948519949,
+            "interval": [
+              98.9459815546772,
+              99.87531172069825
+            ]
+          },
+          "full_year": {
+            "correct": 78,
+            "graded": 78,
+            "accuracy": 100.0,
+            "interval": [
+              100.0,
+              100.0
+            ]
+          },
+          "without_preferred": {
+            "correct": 1636,
+            "graded": 1642,
+            "accuracy": 99.63459196102315,
+            "interval": [
+              99.21116504854369,
+              99.94004885965404
+            ]
+          }
+        }
+      },
+      "differences": {
+        "base": {
+          "all": {
+            "difference": 10.517241379310345,
+            "interval": [
+              8.15063749524804,
+              12.934607138352881
+            ],
+            "discordant": 211,
+            "first_right": 197,
+            "second_right": 14,
+            "companies": 94
+          },
+          "without_preferred": {
+            "difference": 11.084043848964678,
+            "interval": [
+              8.672240643162006,
+              13.536778326644018
+            ],
+            "discordant": 192,
+            "first_right": 187,
+            "second_right": 5,
+            "companies": 86
+          }
+        },
+        "gpt-6.1-sol": {
+          "all": {
+            "difference": -1.9540229885057472,
+            "interval": [
+              -2.9429144728372587,
+              -1.0428585997996531
+            ],
+            "discordant": 38,
+            "first_right": 2,
+            "second_right": 36,
+            "companies": 21
+          },
+          "without_preferred": {
+            "difference": -0.8526187576126675,
+            "interval": [
+              -1.603948180135717,
+              -0.18270123945161143
+            ],
+            "discordant": 18,
+            "first_right": 2,
+            "second_right": 16,
+            "companies": 10
+          }
+        },
+        "claude-haiku-5-5": {
+          "all": {
+            "difference": -1.7816091954022988,
+            "interval": [
+              -2.7326202544225837,
+              -0.913737500826673
+            ],
+            "discordant": 35,
+            "first_right": 2,
+            "second_right": 33,
+            "companies": 19
+          },
+          "without_preferred": {
+            "difference": -0.8526187576126675,
+            "interval": [
+              -1.603948180135717,
+              -0.18270123945161143
+            ],
+            "discordant": 18,
+            "first_right": 2,
+            "second_right": 16,
+            "companies": 10
+          }
+        },
+        "gpt-6-luna": {
+          "all": {
+            "difference": -1.839080459770115,
+            "interval": [
+              -2.8177307773844076,
+              -0.9636779159881217
+            ],
+            "discordant": 36,
+            "first_right": 2,
+            "second_right": 34,
+            "companies": 19
+          },
+          "without_preferred": {
+            "difference": -0.7917174177831913,
+            "interval": [
+              -1.540378363630986,
+              -0.1226993865030579
+            ],
+            "discordant": 17,
+            "first_right": 2,
+            "second_right": 15,
+            "companies": 9
+          }
+        }
+      },
+      "preferred": {
+        "releases": 20,
+        "figures": 98,
+        "companies": [
+          "AEE",
+          "ALB",
+          "CMS",
+          "COHR",
+          "ES",
+          "GM",
+          "GOOGL",
+          "KIM",
+          "LEN",
+          "MCHP",
+          "NRG",
+          "OXY",
+          "PCG",
+          "PG",
+          "PSA",
+          "SMCI",
+          "T",
+          "VMRK",
+          "WEC",
+          "WMB"
+        ],
+        "draws_without_them": 0.0,
+        "net_income": {
+          "step-00025": {
+            "correct": 8,
+            "graded": 28
+          },
+          "base": {
+            "correct": 12,
+            "graded": 28
+          },
+          "gpt-6.1-sol": {
+            "correct": 28,
+            "graded": 28
+          },
+          "claude-haiku-5-5": {
+            "correct": 25,
+            "graded": 28
+          },
+          "gpt-6-luna": {
+            "correct": 27,
+            "graded": 28
+          }
+        }
+      },
+      "robustness": {
+        "ticker": [
+          8.15063749524804,
+          12.934607138352881
+        ],
+        "links_order": [
+          8.164388353916966,
+          13.00813008130082
+        ],
+        "cik": [
+          8.164388353916966,
+          13.00813008130082
+        ]
+      },
+      "verdicts": {
+        "step-00025": {
+          "correct": 1699,
+          "missing": 0,
+          "sign": 0,
+          "scale": 0,
+          "zeros": 0,
+          "wrong_period": 4,
+          "noncontrolling_interest": 1,
+          "rounded": 0,
+          "adjusted": 6,
+          "wrong_line": 30,
+          "other": 0,
+          "not_in_input": 52,
+          "no_answer": 284
+        },
+        "base": {
+          "correct": 1516,
+          "missing": 0,
+          "sign": 0,
+          "scale": 21,
+          "zeros": 48,
+          "wrong_period": 11,
+          "noncontrolling_interest": 52,
+          "rounded": 29,
+          "adjusted": 23,
+          "wrong_line": 36,
+          "other": 4,
+          "not_in_input": 52,
+          "no_answer": 284
+        },
+        "gpt-6.1-sol": {
+          "correct": 1733,
+          "missing": 0,
+          "sign": 0,
+          "scale": 0,
+          "zeros": 0,
+          "wrong_period": 0,
+          "noncontrolling_interest": 0,
+          "rounded": 0,
+          "adjusted": 1,
+          "wrong_line": 6,
+          "other": 0,
+          "not_in_input": 52,
+          "no_answer": 271
+        },
+        "claude-haiku-5-5": {
+          "correct": 1730,
+          "missing": 0,
+          "sign": 0,
+          "scale": 0,
+          "zeros": 0,
+          "wrong_period": 0,
+          "noncontrolling_interest": 0,
+          "rounded": 0,
+          "adjusted": 2,
+          "wrong_line": 8,
+          "other": 0,
+          "not_in_input": 52,
+          "no_answer": 275
+        },
+        "gpt-6-luna": {
+          "correct": 1731,
+          "missing": 1,
+          "sign": 0,
+          "scale": 0,
+          "zeros": 0,
+          "wrong_period": 0,
+          "noncontrolling_interest": 0,
+          "rounded": 0,
+          "adjusted": 2,
+          "wrong_line": 6,
+          "other": 0,
+          "not_in_input": 52,
+          "no_answer": 271
+        }
+      },
+      "unit_slips": {
+        "step-00025": 0,
+        "base": 77,
+        "gpt-6.1-sol": 0,
+        "claude-haiku-5-5": 0,
+        "gpt-6-luna": 0
+      },
+      "cost": {
+        "step-00025": {
+          "basis": "gpu",
+          "wall_time_s": 281.8,
+          "recorded_usd_per_hour": 2.589,
+          "billed_usd_per_hour": 2.589,
+          "cost": 0.20266116666666667,
+          "per_1000": 0.58572591522158,
+          "cost_at_1": 0.07827777777777778,
+          "per_1000_at_1": 0.22623635195889533,
+          "cost_at_recorded": 0.20266116666666667,
+          "per_1000_at_recorded": 0.58572591522158,
+          "releases": 346
+        },
+        "base": {
+          "basis": "gpu",
+          "wall_time_s": 265.8,
+          "recorded_usd_per_hour": 2.589,
+          "billed_usd_per_hour": 2.589,
+          "cost": 0.1911545,
+          "per_1000": 0.5524696531791907,
+          "cost_at_1": 0.07383333333333333,
+          "per_1000_at_1": 0.21339113680154143,
+          "cost_at_recorded": 0.1911545,
+          "per_1000_at_recorded": 0.5524696531791907,
+          "releases": 346
+        },
+        "gpt-6.1-sol": {
+          "basis": "tokens",
+          "wall_time_s": 323.3,
+          "prices": {
+            "input": 2.0,
+            "output": 10.0
+          },
+          "cost": 8.34174,
+          "per_1000": 24.10907514450867,
+          "releases": 346
+        },
+        "claude-haiku-5-5": {
+          "basis": "tokens",
+          "wall_time_s": 156.9,
+          "prices": {
+            "input": 0.1,
+            "output": 0.5
+          },
+          "cost": 0.643255,
+          "per_1000": 1.8591184971098267,
+          "releases": 346
+        },
+        "gpt-6-luna": {
+          "basis": "tokens",
+          "wall_time_s": 206.6,
+          "prices": {
+            "input": 0.1,
+            "output": 0.5
+          },
+          "cost": 0.427341,
+          "per_1000": 1.2350895953757226,
+          "releases": 346
+        }
+      },
+      "latency": {
+        "step-00025": {
+          "p50": 12.762,
+          "p95": 16.593,
+          "max": 22.893
+        },
+        "base": {
+          "p50": 12.001,
+          "p95": 15.521,
+          "max": 20.848
+        },
+        "gpt-6.1-sol": {
+          "p50": 1.714,
+          "p95": 2.728,
+          "max": 4.793
+        },
+        "claude-haiku-5-5": {
+          "p50": 1.66,
+          "p95": 3.075,
+          "max": 4.38
+        },
+        "gpt-6-luna": {
+          "p50": 2.14,
+          "p95": 3.589,
+          "max": 7.928
+        }
+      },
+      "misses": [
+        {
+          "ticker": "ALB",
+          "release_accession": "0000915913-26-000101",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "479959000",
+          "predicted": "438272000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income (loss) attributable to Albemarle Corporation common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "ALB",
+          "release_accession": "0000915913-26-000101",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "799050000",
+          "predicted": "715675000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income (loss) attributable to Albemarle Corporation common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "CMS",
+          "release_accession": "0001104659-26-087288",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "120000000",
+          "predicted": "117000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net Income Available to Common Stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "CMS",
+          "release_accession": "0001104659-26-087288",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "460000000",
+          "predicted": "455000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net Income Available to Common Stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "DOC",
+          "release_accession": "0001628280-26-052608",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "52818000",
+          "predicted": "52668000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "Net income (loss) applicable to common shares",
+          "release_rows": [
+            "participating"
+          ]
+        },
+        {
+          "ticker": "DOC",
+          "release_accession": "0001628280-26-052608",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "246451000",
+          "predicted": "246152000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "Net income (loss) applicable to common shares",
+          "release_rows": [
+            "participating"
+          ]
+        },
+        {
+          "ticker": "GOOGL",
+          "release_accession": "0001652044-26-000066",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "112193000000",
+          "predicted": "112107000000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income available to common stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "GOOGL",
+          "release_accession": "0001652044-26-000066",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "174771000000",
+          "predicted": "174685000000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income available to common stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "HPE",
+          "release_accession": "0001645590-26-000078",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "1540000000",
+          "predicted": "1511000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "Net earnings attributable to common stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "HPE",
+          "release_accession": "0001645590-26-000078",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "2616000000",
+          "predicted": "2529000000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "Net earnings (loss) attributable to common stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "KDP",
+          "release_accession": "0001418135-26-000048",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "142000000",
+          "predicted": "60000000",
+          "verdict": "adjusted",
+          "base_verdict": "adjusted",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "GAAP net income attributable to common shareholders decreased 89.0% to $60 million, or $0.04 per diluted share, primarily driven by an unfavorable year-over-year impact of items affecting comparability, including acquisition and integration-related costs. Adjusted net income attributable to common shareholders increased 15.2% to $783 million and Adjusted diluted EPS increased 16.3% to $0.57, driven by the Adjusted operating income increase, partly offset by higher Adjusted interest expense, non-controlling interest, and earnings allocated to preferred investors.",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "KDP",
+          "release_accession": "0001418135-26-000048",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "412000000",
+          "predicted": "330000000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "Net income attributable to common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "KIM",
+          "release_accession": "0001193125-26-331498",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "153294000",
+          "predicted": "145758000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income available to the company's common shareholders",
+          "release_rows": [
+            "preferred",
+            "participating"
+          ]
+        },
+        {
+          "ticker": "KIM",
+          "release_accession": "0001193125-26-331498",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "318192000",
+          "predicted": "303120000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income available to the company's common shareholders",
+          "release_rows": [
+            "preferred",
+            "participating"
+          ]
+        },
+        {
+          "ticker": "LHX",
+          "release_accession": "0000202058-26-000054",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "600000000",
+          "predicted": "586000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "Net income available to common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "LHX",
+          "release_accession": "0000202058-26-000054",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "1112000000",
+          "predicted": "1098000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "Net income available to common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "MCHP",
+          "release_accession": "0000827054-26-000037",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "229800000",
+          "predicted": "202000000.0",
+          "verdict": "adjusted",
+          "base_verdict": "adjusted",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "\u2022On a GAAP basis: gross profit of 63.2%; operating income of $336.8 million and 22.7% of net sales; net income attributable to common stockholders of $202.0 million; and EPS of $0.37 per diluted share. Our guidance provided on May 7, 2026 was GAAP EPS per diluted share of $0.28 to $0.29.",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "NRG",
+          "release_accession": "0001013871-26-000018",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "506000000",
+          "predicted": "489000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net Income/(Loss) Available for Common Stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "NRG",
+          "release_accession": "0001013871-26-000018",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "631000000",
+          "predicted": "597000000",
+          "verdict": "adjusted",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net Income/(Loss) Available for Common Stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "PSA",
+          "release_accession": "0001628280-26-050608",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "499960000",
+          "predicted": "450258000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income allocable to common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "PSA",
+          "release_accession": "0001628280-26-050608",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "1026233000",
+          "predicted": "927046000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income allocable to common shareholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "SMCI",
+          "release_accession": "0001375365-26-000021",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "1178217000",
+          "predicted": "1165129000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income attributable to common stockholders",
+          "release_rows": [
+            "preferred",
+            "participating"
+          ]
+        },
+        {
+          "ticker": "SMCI",
+          "release_accession": "0001375365-26-000021",
+          "field": "net_income",
+          "period_type": "full_year",
+          "answer": "2230453000",
+          "predicted": "2217365000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income attributable to common stockholders",
+          "release_rows": [
+            "preferred",
+            "participating"
+          ]
+        },
+        {
+          "ticker": "T",
+          "release_accession": "0000732717-26-000294",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "4627000000",
+          "predicted": "4591000000",
+          "verdict": "wrong_line",
+          "base_verdict": "noncontrolling_interest",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net Income Attributable to Common Stock",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "T",
+          "release_accession": "0000732717-26-000294",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "8456000000",
+          "predicted": "8384000000",
+          "verdict": "wrong_line",
+          "base_verdict": "noncontrolling_interest",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net Income Attributable to Common Stock",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "TDG",
+          "release_accession": "0001260221-26-000052",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "1519000000",
+          "predicted": "1460000000",
+          "verdict": "wrong_line",
+          "base_verdict": "noncontrolling_interest",
+          "preferred": false,
+          "group": "common shareholders' line",
+          "row": "NET INCOME APPLICABLE TO TD GROUP COMMON STOCKHOLDERS",
+          "release_rows": [
+            "participating"
+          ]
+        },
+        {
+          "ticker": "VMRK",
+          "release_accession": "0001193125-26-312445",
+          "field": "net_income",
+          "period_type": "quarter",
+          "answer": "114135000",
+          "predicted": "113780000",
+          "verdict": "wrong_line",
+          "base_verdict": "noncontrolling_interest",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income available to Common Shares",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "VMRK",
+          "release_accession": "0001193125-26-312445",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "204214000",
+          "predicted": "203503000",
+          "verdict": "wrong_line",
+          "base_verdict": "noncontrolling_interest",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income available to Common Shares",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "WMB",
+          "release_accession": "0000107263-26-000024",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "1692000000",
+          "predicted": "1691000000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": true,
+          "group": "common shareholders' line",
+          "row": "Net income (loss) available to common stockholders",
+          "release_rows": [
+            "preferred"
+          ]
+        },
+        {
+          "ticker": "TWLO",
+          "release_accession": "0001447669-26-000088",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "1157348000",
+          "predicted": "1067209000",
+          "verdict": "wrong_period",
+          "base_verdict": "wrong_period",
+          "preferred": false,
+          "group": "quarter copied into year to date",
+          "row": "(Unaudited) \u203a CASH FLOWS FROM OPERATING ACTIVITIES: \u203a Net income"
+        },
+        {
+          "ticker": "ELV",
+          "release_accession": "0001156039-26-000058",
+          "field": "revenue",
+          "period_type": "quarter",
+          "answer": "50474000000",
+          "predicted": "49826000000",
+          "verdict": "adjusted",
+          "base_verdict": "adjusted",
+          "preferred": false,
+          "group": "adjusted",
+          "row": "'Total operating revenue' (heading '\u2022Reconciliation of Non-GAAP Financial Measures'): 49,826 (x1,000,000)"
+        },
+        {
+          "ticker": "ELV",
+          "release_accession": "0001156039-26-000058",
+          "field": "revenue",
+          "period_type": "year_to_date",
+          "answer": "100655000000",
+          "predicted": "99320000000",
+          "verdict": "adjusted",
+          "base_verdict": "adjusted",
+          "preferred": false,
+          "group": "adjusted",
+          "row": "'Total operating revenue' (heading '\u2022Reconciliation of Non-GAAP Financial Measures'): 99,320 (x1,000,000)"
+        },
+        {
+          "ticker": "NTAP",
+          "release_accession": "0001002047-26-000003",
+          "field": "revenue",
+          "period_type": "quarter",
+          "answer": "1819000000",
+          "predicted": "2025000000",
+          "verdict": "adjusted",
+          "base_verdict": "adjusted",
+          "preferred": false,
+          "group": "adjusted",
+          "row": "'Net revenues' (section 'Non-GAAP Results'): $2,025 (x1,000,000)"
+        },
+        {
+          "ticker": "HLT",
+          "release_accession": "0001585689-26-000042",
+          "field": "net_income",
+          "period_type": "year_to_date",
+          "answer": "867000000",
+          "predicted": "865000000",
+          "verdict": "noncontrolling_interest",
+          "base_verdict": "noncontrolling_interest",
+          "preferred": false,
+          "group": "noncontrolling_interest",
+          "row": "ProfitLoss 2026-01-01..2026-06-30: 865000000"
+        },
+        {
+          "ticker": "MPC",
+          "release_accession": "0001510295-26-000060",
+          "field": "revenue",
+          "period_type": "quarter",
+          "answer": "51994000000",
+          "predicted": "52337000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": false,
+          "group": "wrong_line",
+          "row": "'Total revenues and other income': 52,337 (x1,000,000)"
+        },
+        {
+          "ticker": "MPC",
+          "release_accession": "0001510295-26-000060",
+          "field": "revenue",
+          "period_type": "year_to_date",
+          "answer": "86194000000",
+          "predicted": "86905000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": false,
+          "group": "wrong_line",
+          "row": "'Total revenues and other income': 86,905 (x1,000,000)"
+        },
+        {
+          "ticker": "OXY",
+          "release_accession": "0001628280-26-053377",
+          "field": "revenue",
+          "period_type": "quarter",
+          "answer": "8065000000",
+          "predicted": "5738000000",
+          "verdict": "wrong_line",
+          "base_verdict": "correct",
+          "preferred": true,
+          "group": "wrong_line",
+          "row": "'Total': 5,738 (x1,000,000)"
+        },
+        {
+          "ticker": "OXY",
+          "release_accession": "0001628280-26-053377",
+          "field": "revenue",
+          "period_type": "year_to_date",
+          "answer": "13295000000",
+          "predicted": "13436000000",
+          "verdict": "wrong_line",
+          "base_verdict": "wrong_line",
+          "preferred": true,
+          "group": "wrong_line",
+          "row": "'Total': 13,436 (x1,000,000)"
+        },
+        {
+          "ticker": "LRCX",
+          "release_accession": "0000707549-26-000033",
+          "field": "revenue",
+          "period_type": "full_year",
+          "answer": "23232690000",
+          "predicted": "6722238000",
+          "verdict": "wrong_period",
+          "base_verdict": "wrong_period",
+          "preferred": false,
+          "group": "wrong_period",
+          "row": "'Three Months Ended June 28, 2026' column of 'Revenue': $6,722,238 (x1,000)"
+        },
+        {
+          "ticker": "LRCX",
+          "release_accession": "0000707549-26-000033",
+          "field": "net_income",
+          "period_type": "full_year",
+          "answer": "7265396000",
+          "predicted": "2277282000",
+          "verdict": "wrong_period",
+          "base_verdict": "wrong_period",
+          "preferred": false,
+          "group": "wrong_period",
+          "row": "'Three Months Ended June 28, 2026' column of 'Net income': $2,277,282 (x1,000)"
+        },
+        {
+          "ticker": "LRCX",
+          "release_accession": "0000707549-26-000033",
+          "field": "eps_diluted",
+          "period_type": "full_year",
+          "answer": "5.76",
+          "predicted": "1.81",
+          "verdict": "wrong_period",
+          "base_verdict": "wrong_period",
+          "preferred": false,
+          "group": "wrong_period",
+          "row": "'Three Months Ended June 28, 2026' column of 'Diluted': $1.81"
+        }
+      ],
+      "miss_summary": {
+        "misses": 41,
+        "groups": {
+          "common shareholders' line": 29,
+          "quarter copied into year to date": 1,
+          "adjusted": 3,
+          "noncontrolling_interest": 1,
+          "wrong_line": 4,
+          "wrong_period": 3
+        },
+        "common_companies": [
+          "ALB",
+          "CMS",
+          "DOC",
+          "GOOGL",
+          "HPE",
+          "KDP",
+          "KIM",
+          "LHX",
+          "MCHP",
+          "NRG",
+          "PSA",
+          "SMCI",
+          "T",
+          "TDG",
+          "VMRK",
+          "WMB"
+        ],
+        "common_verdicts": {
+          "wrong_line": 26,
+          "adjusted": 3
+        },
+        "common_in_preferred": 20,
+        "common_outside_preferred": 9,
+        "outside_rows": {
+          "DOC": [
+            "participating"
+          ],
+          "HPE": [
+            "preferred"
+          ],
+          "KDP": [
+            "preferred"
+          ],
+          "LHX": [
+            "preferred"
+          ],
+          "TDG": [
+            "participating"
+          ]
+        },
+        "broken": 14,
+        "broken_common": 11,
+        "quarter_as_ytd_companies": [
+          "TWLO"
+        ]
+      },
+      "abstention": {
+        "step-00025": {
+          "not_in_input": 52,
+          "answered": 52,
+          "figures": 2076,
+          "null": 0
+        },
+        "base": {
+          "not_in_input": 52,
+          "answered": 52,
+          "figures": 2076,
+          "null": 0
+        },
+        "gpt-6.1-sol": {
+          "not_in_input": 52,
+          "answered": 30,
+          "figures": 2076,
+          "null": 35
+        },
+        "claude-haiku-5-5": {
+          "not_in_input": 52,
+          "answered": 34,
+          "figures": 2076,
+          "null": 27
+        },
+        "gpt-6-luna": {
+          "not_in_input": 52,
+          "answered": 36,
+          "figures": 2076,
+          "null": 30
+        }
+      },
+      "billed_usd_per_hour": 2.589,
+      "recorded_price_note": "",
+      "logs": {
+        "server": "training/qwen3-8b-2k/test/server.log",
+        "setup": "training/qwen3-8b-2k/test/setup-time_test.log"
+      },
+      "notes": []
+    }
+  },
+  "validation": {
+    "counts": {
+      "step-00025": {
+        "run": "qwen3-8b-2k--step-00025",
+        "all": [
+          287,
+          293
+        ],
+        "without_preferred": [
+          278,
+          279
+        ],
+        "recorded_usd_per_hour": 1.0
+      },
+      "base": {
+        "run": "qwen3-8b-2k--base",
+        "all": [
+          262,
+          293
+        ],
+        "without_preferred": [
+          248,
+          279
+        ],
+        "recorded_usd_per_hour": 1.0
+      },
+      "gpt-6.1-sol": {
+        "run": "2026-11-07T105947_gpt-6.1-sol_extract_v2",
+        "all": [
+          293,
+          293
+        ],
+        "without_preferred": [
+          279,
+          279
+        ],
+        "recorded_usd_per_hour": null
+      },
+      "claude-haiku-5-5": {
+        "run": "2026-10-17T222907_claude-haiku-5-5_extract_v2",
+        "all": [
+          290,
+          293
+        ],
+        "without_preferred": [
+          277,
+          279
+        ],
+        "recorded_usd_per_hour": null
+      },
+      "gpt-6-luna": {
+        "run": "2026-10-27T001339_gpt-6-luna_extract_v2",
+        "all": [
+          290,
+          293
+        ],
+        "without_preferred": [
+          279,
+          279
+        ],
+        "recorded_usd_per_hour": null
+      }
+    },
+    "preferred_releases": 3,
+    "preferred_tickers": [
+      "ORCL"
+    ],
+    "billed_usd_per_hour": 2.776,
+    "gpu": "H100 NVL",
+    "attempts": [
+      {
+        "run": "runs/2026-11-07T104935_gpt-6.1-sol_extract_v2",
+        "folder": "2026-11-07T104935_gpt-6.1-sol_extract_v2",
+        "run_name": "2026-11-07T104935_gpt-6.1-sol_extract_v2",
+        "status": "aborted",
+        "started": "2026-11-07T10:49:35+00:00",
+        "finished": "2026-11-07T10:49:35+00:00",
+        "cause": "a revoked key",
+        "http_statuses": [
+          401
+        ],
+        "http_attempts": [
+          1
+        ],
+        "api_errors": [],
+        "max_parallel": 4,
+        "replies": 0,
+        "cost": 0.0
+      }
+    ]
+  }
+}
