@@ -554,3 +554,72 @@ def test_a_bad_gpu_price_is_refused(capsys, value, message) -> None:
 )
 def test_input_tokens_per_release(info, shown) -> None:
     assert compare.input_tokens_per_release(info) == shown
+
+
+REPORT_CONFIG = """\
+under_test = "step-00025"
+gpu_host = "Vast"
+
+[gpu.validation]
+gpu = "H100 NVL"
+billed_usd_per_hour = 2.776
+"""
+
+
+def stage2_runs(runs: Path) -> None:
+    """Stage 2's base model and two checkpoints on validation, at $1/h."""
+    for name, verdicts in (
+        ("qwen3-8b-2k--base", [grade.CORRECT, grade.MISSING] * 3),
+        ("qwen3-8b-2k--step-00025", [grade.CORRECT] * 5 + [grade.WRONG_LINE]),
+        ("qwen3-8b-2k--step-00050", [grade.CORRECT] * 4 + [grade.MISSING] * 2),
+    ):
+        info = run_info(
+            started=f"2026-11-02T00:00:0{len(name) % 10}+00:00",
+            model=name,
+            provider="openai",
+            parameters={"temperature": 0.0},
+            releases=ALL,
+            max_parallel=16,
+            cost_basis="gpu_hours",
+            gpu_hourly_usd=1.0,
+            wall_time_s=36.0,
+            estimated_cost_usd=0.01,
+        )
+        write_run(runs, name, info, graded_rows(*verdicts))
+
+
+def test_a_note_on_stage_2s_checkpoints(tmp_path) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    stage2_runs(runs)
+    links = write_links(tmp_path / "links.csv")
+    answers = tmp_path / "answers.csv"
+    answers.write_text(answers_csv(key_answers()))
+    config = tmp_path / "stage2.toml"
+    config.write_text(REPORT_CONFIG)
+    argv = ["--runs-dir", str(runs), "--links", str(links), "--answers", str(answers)]
+    out = tmp_path / "comparison.md"
+    assert compare.main([*argv, "--out", str(out), "--report-config", str(config)]) == 0
+    assert out.read_text().splitlines()[-1] == (
+        "- qwen3-8b-2k--*: stage 2's base model and fine-tuned checkpoints, scored on "
+        "these releases to choose a checkpoint. qwen3-8b-2k--step-00025's 83.3% (5/6) "
+        "is chosen on validation (the checkpoint was picked for that score, so it "
+        "overstates; the test sets give the estimate: results/test_results.md). These "
+        "runs record $1/h but ran on a Vast H100 NVL billed $2.776/h."
+    )
+    # Without the report's config, no note.
+    missing = tmp_path / "none.toml"
+    assert (
+        compare.main([*argv, "--out", str(out), "--report-config", str(missing)]) == 0
+    )
+    assert "qwen3-8b-2k--*" not in out.read_text()
+
+
+def test_no_stage_2_note_without_a_checkpoint_run(fake_runs, tmp_path) -> None:
+    runs, links, answers = fake_runs
+    config = tmp_path / "stage2.toml"
+    config.write_text(REPORT_CONFIG)
+    out = tmp_path / "comparison.md"
+    argv = ["--runs-dir", str(runs), "--links", str(links), "--answers", str(answers)]
+    assert compare.main([*argv, "--out", str(out), "--report-config", str(config)]) == 0
+    assert "qwen3-8b-2k" not in out.read_text()

@@ -18,11 +18,14 @@ records the sha256 of its links file (secbench.extract records it from 2026-11-0
 is left out, and named under the tables, when that isn't --links's: runs on a test
 split (data/splits/<split>/links.csv) never enter the validation comparison. Runs
 that record none are compared as before. Nothing from .env is shown: settings come
-from run.json's request_parameters.
+from run.json's request_parameters. When stage 2's checkpoint runs on validation
+(qwen3-8b-2k--step-*) are listed, a note says which one was chosen on that score and
+the GPU they ran on at the price billed, from the stage 2 report's config
+(--report-config, configs/report/stage2.toml; no note without it).
 
 Usage: uv run python -m secbench.compare [--runs-dir runs]
        [--out results/comparison.md] [--links data/links.csv] [--answers data/answers.csv]
-       [--gpu-hourly 1.00]
+       [--gpu-hourly 1.00] [--report-config configs/report/stage2.toml]
 """
 
 from __future__ import annotations
@@ -33,7 +36,9 @@ import hashlib
 import json
 import math
 import sys
+import tomllib
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -66,6 +71,10 @@ from secbench.releases import write_text
 
 DEFAULT_OUT = Path("results/comparison.md")
 FIELD_NAMES = [field.name for field in FIELDS]
+REPORT_CONFIG = Path("configs/report/stage2.toml")
+# Stage 2's training run: secbench.score names its validation runs <run>--base and
+# <run>--step-NNNNN.
+STAGE2_RUN = "qwen3-8b-2k"
 
 GRADED_STATUS = "graded"
 STALE = "stale: re-grade"
@@ -372,6 +381,32 @@ def other_table(runs: list[Run], gpu_hourly: float | None = None) -> list[str]:
     return markdown_table(header, rows)
 
 
+def stage2_note(runs: list[Run], report: Mapping[str, Any]) -> str | None:
+    """A note on stage 2's runs on validation, if a checkpoint's is listed: the
+    checkpoint chosen on that score (report's under_test), and the GPU they ran on at
+    the price billed, beside the $/h they record. report is the stage 2 report's
+    config (configs/report/stage2.toml)."""
+    prefix = f"{STAGE2_RUN}--"
+    if not any(r.name.startswith(f"{prefix}step-") for r in runs):
+        return None
+    chosen = next(r for r in runs if r.name == prefix + report["under_test"])
+    verdicts = [v for v in chosen.verdicts() if v not in UNGRADED]
+    correct = verdicts.count(CORRECT)
+    recorded = sorted(
+        {r.info["gpu_hourly_usd"] for r in runs if r.name.startswith(prefix)}
+    )
+    gpu = report["gpu"]["validation"]
+    return (
+        f"- {prefix}*: stage 2's base model and fine-tuned checkpoints, scored on "
+        f"these releases to choose a checkpoint. {chosen.name}'s "
+        f"{100 * correct / len(verdicts):.1f}% ({correct}/{len(verdicts)}) is "
+        "chosen on validation (the checkpoint was picked for that score, so it "
+        "overstates; the test sets give the estimate: results/test_results.md). "
+        f"These runs record {', '.join(f'${p:g}/h' for p in recorded)} but ran on a "
+        f"{report['gpu_host']} {gpu['gpu']} billed ${gpu['billed_usd_per_hour']:g}/h."
+    )
+
+
 def format_comparison(
     runs: list[Run],
     skipped: list[str],
@@ -381,6 +416,7 @@ def format_comparison(
     links_path: Path,
     answers_path: Path,
     gpu_hourly: float | None = None,
+    report: Mapping[str, Any] | None = None,
 ) -> str:
     full = [
         r
@@ -471,6 +507,8 @@ def format_comparison(
             ),
         ]
     )
+    if report is not None and (note := stage2_note(runs, report)):
+        lines.append(note)
     if skipped:
         lines.append(f"- Not listed: {', '.join(skipped)}.")
     return "\n".join(lines) + "\n"
@@ -502,6 +540,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="DOLLARS",
         help="reprice runs priced by GPU-hour at this many dollars per GPU-hour",
     )
+    parser.add_argument(
+        "--report-config",
+        type=Path,
+        default=REPORT_CONFIG,
+        help="the stage 2 report's config, for the note on stage 2's runs",
+    )
     args = parser.parse_args(argv)
     for path in (args.runs_dir, args.links, args.answers):
         if not path.exists():
@@ -512,6 +556,9 @@ def main(argv: list[str] | None = None) -> int:
     except GradeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    report = None
+    if args.report_config.is_file():
+        report = tomllib.loads(args.report_config.read_text(encoding="utf-8"))
     linked = {r.release_accession for r in load_links(args.links)[0]}
     links_sha256 = hashlib.sha256(args.links.read_bytes()).hexdigest()
     runs, skipped = load_runs(args.runs_dir, key, links_sha256=links_sha256)
@@ -523,6 +570,7 @@ def main(argv: list[str] | None = None) -> int:
         links_path=args.links,
         answers_path=args.answers,
         gpu_hourly=args.gpu_hourly,
+        report=report,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     write_text(args.out, text)
