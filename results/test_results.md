@@ -6,7 +6,7 @@ From `uv run python -m secbench.testreport` with configs/report/stage2.toml; the
 
 On the company test, step-00025 minus Qwen3-8B base: **+10.12 points [+5.08, +15.58]**, from 89.12% to 99.24% of 662 figures; 73 discordant figures (70 fixed by training, 3 broken) from 16 companies. Everything else is descriptive under the protocol.
 
-step-00025's validation score, 98.0% (287/293), is chosen on validation (the checkpoint was picked for that score, so it overstates; the test sets give the estimate).
+step-00025's validation score, 98.0% (287/293), is chosen on validation (the checkpoint was picked for that score, so it may overstate; the test sets give the estimate).
 
 ## Checks
 
@@ -59,7 +59,7 @@ Settings differing from the validation reference, besides those checked equal (n
 - step-00025: gpu_hourly_usd 2.776 (reference 1.0)
 - Qwen3-8B base: env_file training/qwen3-8b-2k/test/company_test--base.env (reference training/qwen3-8b-2k/validation/base.env)
 - Qwen3-8B base: gpu_hourly_usd 2.776 (reference 1.0)
-- Claude Haiku 5.5: env_file .env.claude-haiku (reference None)
+- Claude Haiku 5.5: env_file .env.claude-haiku (reference none)
 
 ### Coverage
 
@@ -129,7 +129,7 @@ Without the 11 kept releases in preferred.csv (whole releases dropped: 50 graded
 | minus Claude Haiku 5.5 | −0.33 | [−1.05, 0.00] | 2 | 0 step-00025 right, 2 Claude Haiku 5.5 right | 1 |
 | minus GPT-6 Luna | +0.98 | [−0.66, +3.19] | 10 | 8 step-00025 right, 2 GPT-6 Luna right | 3 |
 
-Net income on the preferred-dividend releases alone, counts only, no interval: they come from 3 companies (4.7% of draws contain none of them). step-00025 12/15; Qwen3-8B base 5/15; GPT-6.1 Sol 15/15; Claude Haiku 5.5 15/15; GPT-6 Luna 15/15.
+Net income on the preferred-dividend releases alone, counts only, no interval: the 15 figures come from 3 companies (4.7% of draws contain none of them). step-00025 12/15; Qwen3-8B base 5/15; GPT-6.1 Sol 15/15; Claude Haiku 5.5 15/15; GPT-6 Luna 15/15.
 
 ### Verdicts and unit slips
 
@@ -173,7 +173,7 @@ The rule: (1) net income whose predicted value is printed on an input row whose 
 
 5 misses: (1) 3, (2) 2, (3) none.
 
-Group (1): 3 of the 5 misses, from 1 company (BA); verdicts wrong_line 3. 3 are in preferred.csv releases and 0 outside it. Group (1) includes 1 of the 3 figures broken by training (the base model's correct). The sensitivity analysis drops only preferred.csv's releases, so it understates this failure.
+Group (1): 3 of the 5 misses, from 1 company (BA); verdicts wrong_line 3. 3 are in preferred.csv releases and 0 outside it, so the sensitivity analysis drops all of them. Group (1) includes 1 of the 3 figures broken by training (the base model's correct).
 
 Group (2): 2 from WY: the quarter copied into year to date in second- or third-quarter releases whose income statement has quarter columns only, with the year to date printed elsewhere (the row where the input prints the year-to-date answer is listed).
 
@@ -182,12 +182,12 @@ Group (2): 2 from WY: the quarter copied into year to date in second- or third-q
 | common shareholders' line (preferred.csv) | BA | 0001628280-26-003518 | net_income | quarter | 8220000000 | 1890000000 | wrong_line | correct | Net earnings/(loss) attributable to Boeing common shareholders |
 | common shareholders' line (preferred.csv) | BA | 0001628280-26-026391 | net_income | quarter | -4000000 | -90000000 | wrong_line | noncontrolling_interest | Net loss attributable to Boeing common shareholders |
 | common shareholders' line (preferred.csv) | BA | 0001628280-26-049929 | net_income | quarter | -444000000 | -620000000 | wrong_line | noncontrolling_interest | Net loss attributable to Boeing common shareholders |
-| quarter copied into year to date | WY | 0001193125-25-258510 | net_income | year_to_date | 250000000 | 80000000 | wrong_period | correct | The table below reconciles Adjusted EBITDA for the year-to-date period ended September 30… |
-| quarter copied into year to date | WY | 0001193125-26-326124 | net_income | year_to_date | 318000000 | 162000000 | wrong_period | correct | The table below reconciles Adjusted EBITDA for the year-to-date period ended June 30, 202… |
+| quarter copied into year to date | WY | 0001193125-25-258510 | net_income | year_to_date | 250000000 | 80000000 | wrong_period | correct | The table below reconciles Adjusted EBITDA for the year-to-date period ended September 30, 2025: › Adjusted EBITDA by Segment: › Net earnings |
+| quarter copied into year to date | WY | 0001193125-26-326124 | net_income | year_to_date | 318000000 | 162000000 | wrong_period | correct | The table below reconciles Adjusted EBITDA for the year-to-date period ended June 30, 2026: › Adjusted EBITDA by Segment: › Net earnings |
 
 ### Abstention (descriptive, not pre-registered)
 
-| model | not_in_input figures answered anyway | null figures of all predicted |
+| model | not_in_input figures answered | null figures of all predicted |
 | --- | --- | --- |
 | step-00025 | 38 of 38 | 0 of 888 |
 | Qwen3-8B base | 38 of 38 | 0 of 888 |
@@ -195,7 +195,7 @@ Group (2): 2 from WY: the quarter copied into year to date in second- or third-q
 | Claude Haiku 5.5 | 26 of 38 | 13 of 888 |
 | GPT-6 Luna | 26 of 38 | 13 of 888 |
 
-A not_in_input figure has an XBRL answer the release doesn't print, so the prompt's "null when the release doesn't report a figure" applies. Accuracy leaves these figures out, so it doesn't reward abstaining. Training had no null labels (PLAN.md, Limitation: no nulls in training).
+A not_in_input figure has an XBRL answer that the grader doesn't find in the input in any of its printed forms. Where the release doesn't report the figure (a year to date in a release whose tables have quarter columns only), the prompt's "null when the release doesn't report a figure" applies. But many such releases do print it, in a form the grader doesn't search (an EPS of $.13 for 0.13) or as another value on the line the prompt asks for (rounded, revised, or a total that differs from XBRL's), and then answering is right. So the answered count is an upper bound on missed abstentions, not a count of them. Accuracy leaves these figures out, so it doesn't reward abstaining. Training had no null labels (PLAN.md, Limitation: no nulls in training).
 
 ## Time test
 
@@ -219,7 +219,7 @@ Settings differing from the validation reference, besides those checked equal (n
 - Qwen3-8B base: gpu_hourly_usd 2.589 (reference 1.0)
 - GPT-6.1 Sol: max_parallel 2 (reference 4)
 - GPT-6.1 Sol: env_file .env.gpt-sol-c2 (reference .env.gpt-sol)
-- Claude Haiku 5.5: env_file .env.claude-haiku (reference None)
+- Claude Haiku 5.5: env_file .env.claude-haiku (reference none)
 
 ### Coverage
 
@@ -289,7 +289,7 @@ Without the 20 kept releases in preferred.csv (whole releases dropped: 98 graded
 | minus Claude Haiku 5.5 | −0.85 | [−1.60, −0.18] | 18 | 2 step-00025 right, 16 Claude Haiku 5.5 right | 10 |
 | minus GPT-6 Luna | −0.79 | [−1.54, −0.12] | 17 | 2 step-00025 right, 15 GPT-6 Luna right | 9 |
 
-Net income on the preferred-dividend releases alone, counts only, no interval: they come from 20 companies (0.0% of draws contain none of them). step-00025 8/28; Qwen3-8B base 12/28; GPT-6.1 Sol 28/28; Claude Haiku 5.5 25/28; GPT-6 Luna 27/28.
+Net income on the preferred-dividend releases alone, counts only, no interval: the 28 figures come from 15 companies (0.0% of draws contain none of them). step-00025 8/28; Qwen3-8B base 12/28; GPT-6.1 Sol 28/28; Claude Haiku 5.5 25/28; GPT-6 Luna 27/28.
 
 ### Verdicts and unit slips
 
@@ -345,13 +345,13 @@ Group (2): 1 from TWLO: the quarter copied into year to date in second- or third
 | common shareholders' line (preferred.csv) | GOOGL | 0001652044-26-000066 | net_income | year_to_date | 174771000000 | 174685000000 | wrong_line | wrong_line | Net income available to common stockholders |
 | common shareholders' line | HPE | 0001645590-26-000078 | net_income | quarter | 1540000000 | 1511000000 | wrong_line | correct | Net earnings attributable to common stockholders |
 | common shareholders' line | HPE | 0001645590-26-000078 | net_income | year_to_date | 2616000000 | 2529000000 | wrong_line | wrong_line | Net earnings (loss) attributable to common stockholders |
-| common shareholders' line | KDP | 0001418135-26-000048 | net_income | quarter | 142000000 | 60000000 | adjusted | adjusted | GAAP net income attributable to common shareholders decreased 89.0% to $60 million, or $0… |
+| common shareholders' line | KDP | 0001418135-26-000048 | net_income | quarter | 142000000 | 60000000 | adjusted | adjusted | GAAP net income attributable to common shareholders decreased 89.0% to $60 million, or $0.04 per diluted share, primarily driven by an unfavorable year-over-year impact of items a… |
 | common shareholders' line | KDP | 0001418135-26-000048 | net_income | year_to_date | 412000000 | 330000000 | wrong_line | wrong_line | Net income attributable to common shareholders |
 | common shareholders' line (preferred.csv) | KIM | 0001193125-26-331498 | net_income | quarter | 153294000 | 145758000 | wrong_line | wrong_line | Net income available to the company's common shareholders |
 | common shareholders' line (preferred.csv) | KIM | 0001193125-26-331498 | net_income | year_to_date | 318192000 | 303120000 | wrong_line | wrong_line | Net income available to the company's common shareholders |
 | common shareholders' line | LHX | 0000202058-26-000054 | net_income | quarter | 600000000 | 586000000 | wrong_line | correct | Net income available to common shareholders |
 | common shareholders' line | LHX | 0000202058-26-000054 | net_income | year_to_date | 1112000000 | 1098000000 | wrong_line | correct | Net income available to common shareholders |
-| common shareholders' line (preferred.csv) | MCHP | 0000827054-26-000037 | net_income | quarter | 229800000 | 202000000.0 | adjusted | adjusted | •On a GAAP basis: gross profit of 63.2%; operating income of $336.8 million and 22.7% of… |
+| common shareholders' line (preferred.csv) | MCHP | 0000827054-26-000037 | net_income | quarter | 229800000 | 202000000.0 | adjusted | adjusted | •On a GAAP basis: gross profit of 63.2%; operating income of $336.8 million and 22.7% of net sales; net income attributable to common stockholders of $202.0 million; and EPS of $0… |
 | common shareholders' line (preferred.csv) | NRG | 0001013871-26-000018 | net_income | quarter | 506000000 | 489000000 | wrong_line | correct | Net Income/(Loss) Available for Common Stockholders |
 | common shareholders' line (preferred.csv) | NRG | 0001013871-26-000018 | net_income | year_to_date | 631000000 | 597000000 | adjusted | correct | Net Income/(Loss) Available for Common Stockholders |
 | common shareholders' line (preferred.csv) | PSA | 0001628280-26-050608 | net_income | quarter | 499960000 | 450258000 | wrong_line | correct | Net income allocable to common shareholders |
@@ -365,8 +365,8 @@ Group (2): 1 from TWLO: the quarter copied into year to date in second- or third
 | common shareholders' line (preferred.csv) | VMRK | 0001193125-26-312445 | net_income | year_to_date | 204214000 | 203503000 | wrong_line | noncontrolling_interest | Net income available to Common Shares |
 | common shareholders' line (preferred.csv) | WMB | 0000107263-26-000024 | net_income | year_to_date | 1692000000 | 1691000000 | wrong_line | wrong_line | Net income (loss) available to common stockholders |
 | quarter copied into year to date | TWLO | 0001447669-26-000088 | net_income | year_to_date | 1157348000 | 1067209000 | wrong_period | wrong_period | (Unaudited) › CASH FLOWS FROM OPERATING ACTIVITIES: › Net income |
-| adjusted | ELV | 0001156039-26-000058 | revenue | quarter | 50474000000 | 49826000000 | adjusted | adjusted | 'Total operating revenue' (heading '•Reconciliation of Non-GAAP Financial Measures'): 49,… |
-| adjusted | ELV | 0001156039-26-000058 | revenue | year_to_date | 100655000000 | 99320000000 | adjusted | adjusted | 'Total operating revenue' (heading '•Reconciliation of Non-GAAP Financial Measures'): 99,… |
+| adjusted | ELV | 0001156039-26-000058 | revenue | quarter | 50474000000 | 49826000000 | adjusted | adjusted | 'Total operating revenue' (heading '•Reconciliation of Non-GAAP Financial Measures'): 49,826 (x1,000,000) |
+| adjusted | ELV | 0001156039-26-000058 | revenue | year_to_date | 100655000000 | 99320000000 | adjusted | adjusted | 'Total operating revenue' (heading '•Reconciliation of Non-GAAP Financial Measures'): 99,320 (x1,000,000) |
 | adjusted | NTAP | 0001002047-26-000003 | revenue | quarter | 1819000000 | 2025000000 | adjusted | adjusted | 'Net revenues' (section 'Non-GAAP Results'): $2,025 (x1,000,000) |
 | noncontrolling_interest | HLT | 0001585689-26-000042 | net_income | year_to_date | 867000000 | 865000000 | noncontrolling_interest | noncontrolling_interest | ProfitLoss 2026-01-01..2026-06-30: 865000000 |
 | wrong_line | MPC | 0001510295-26-000060 | revenue | quarter | 51994000000 | 52337000000 | wrong_line | correct | 'Total revenues and other income': 52,337 (x1,000,000) |
@@ -379,7 +379,7 @@ Group (2): 1 from TWLO: the quarter copied into year to date in second- or third
 
 ### Abstention (descriptive, not pre-registered)
 
-| model | not_in_input figures answered anyway | null figures of all predicted |
+| model | not_in_input figures answered | null figures of all predicted |
 | --- | --- | --- |
 | step-00025 | 52 of 52 | 0 of 2,076 |
 | Qwen3-8B base | 52 of 52 | 0 of 2,076 |
@@ -387,7 +387,7 @@ Group (2): 1 from TWLO: the quarter copied into year to date in second- or third
 | Claude Haiku 5.5 | 34 of 52 | 27 of 2,076 |
 | GPT-6 Luna | 36 of 52 | 30 of 2,076 |
 
-A not_in_input figure has an XBRL answer the release doesn't print, so the prompt's "null when the release doesn't report a figure" applies. Accuracy leaves these figures out, so it doesn't reward abstaining. Training had no null labels (PLAN.md, Limitation: no nulls in training).
+A not_in_input figure has an XBRL answer that the grader doesn't find in the input in any of its printed forms. Where the release doesn't report the figure (a year to date in a release whose tables have quarter columns only), the prompt's "null when the release doesn't report a figure" applies. But many such releases do print it, in a form the grader doesn't search (an EPS of $.13 for 0.13) or as another value on the line the prompt asks for (rounded, revised, or a total that differs from XBRL's), and then answering is right. So the answered count is an upper bound on missed abstentions, not a count of them. Accuracy leaves these figures out, so it doesn't reward abstaining. Training had no null labels (PLAN.md, Limitation: no nulls in training).
 
 ## Validation, for reference
 
@@ -395,7 +395,7 @@ Counts only, no intervals: the 60 validation releases' graded figures, then with
 
 | model | run | all | without preferred |
 | --- | --- | --- | --- |
-| step-00025 | qwen3-8b-2k--step-00025 | 287/293, chosen on validation (the checkpoint was picked for that score, so it overstates; the test sets give the estimate) | 278/279 |
+| step-00025 | qwen3-8b-2k--step-00025 | 287/293, chosen on validation (the checkpoint was picked for that score, so it may overstate; the test sets give the estimate) | 278/279 |
 | Qwen3-8B base | qwen3-8b-2k--base | 262/293 | 248/279 |
 | GPT-6.1 Sol | 2026-11-07T105947_gpt-6.1-sol_extract_v2 | 293/293 | 279/279 |
 | Claude Haiku 5.5 | 2026-10-17T222907_claude-haiku-5-5_extract_v2 | 290/293 | 277/279 |
@@ -416,7 +416,7 @@ Robustness (descriptive): the primary difference's interval with the companies i
 No amendment was made (none are allowed after the first test call); these are recorded here instead.
 
 1. The time test. The protocol set its cutoff for when the Q3 2026 releases are added, and said the provisional 346-release time test would not be scored. Decision 2026-11-07 (commit e352c14) froze that same set (releases filed 2026-07-01 to 2026-09-30) at 12:20 UTC on 2026-11-07: after the company-test runs (11:16-11:31 UTC) and before any time-test call (12:32 UTC). No amendment records it, and none were allowed. Every time-test result was descriptive under the protocol anyway.
-2. The company test's GPU price. The protocol prices GPU runs at the $/h given to vast_setup.sh (run.json's gpu_hourly_usd). Both company-test GPU runs record 2.776, an example price passed to vast_setup.sh by mistake, which is the price by the protocol's letter; the instance was billed $2.538/h, which the costs here use (step-00025's cost at the recorded price is also given). The time test's price, $2.589/h, was recorded correctly.
+2. The company test's GPU price. The protocol prices GPU runs at the $/h given to vast_setup.sh (run.json's gpu_hourly_usd). Both company-test GPU runs record 2.776, an example price passed to vast_setup.sh by mistake, which is the price by the protocol's letter; the instance was billed $2.538/h, which the costs here use (both GPU runs' costs at the recorded price are also given, under Cost and latency). The time test's price, $2.589/h, was recorded correctly.
 3. GPT-6.1 Sol's time-test rerun ran 2 calls at a time, not the protocol's 4 (Cost and latency): its first attempt hit the 1,000,000 tokens-per-minute limit at 4 (Time test, Coverage).
 4. The bootstrap's details were fixed on 2026-11-07, after the test runs were graded (Bootstrap, with its robustness line).
 

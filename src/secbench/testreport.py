@@ -209,9 +209,12 @@ SETTINGS = (
 )
 SETTING_NOTES = ("max_parallel", "env_file", "gpu_hourly_usd")
 CHOSEN_ON_VALIDATION = (
-    "chosen on validation (the checkpoint was picked for that score, so it "
-    "overstates; the test sets give the estimate)"
+    "chosen on validation (the checkpoint was picked for that score, so it may "
+    "overstate; the test sets give the estimate)"
 )
+# The misses table's row column: long enough for a row's label after its headings
+# (WY's "› Net earnings") and for the phrase or figure a prose line was matched on.
+ROW_CHARS = 180
 
 # step-00025's misses (descriptive; see group_misses): (1) net income printed on a
 # row naming common shareholders, stockholders, shares or stock; (2) the quarter
@@ -759,10 +762,16 @@ def check_settings(run: Run, reference: Run) -> list[str]:
             f"{reference.name}"
         )
     return [
-        f"{name} {run.info.get(name)} (reference {reference.info.get(name)})"
+        f"{name} {setting_text(run.info.get(name))} "
+        f"(reference {setting_text(reference.info.get(name))})"
         for name in SETTING_NOTES
         if run.info.get(name) != reference.info.get(name)
     ]
+
+
+def setting_text(value: Any) -> str:
+    """A run.json setting as shown in a note; a missing one is "none"."""
+    return "none" if value is None else str(value)
 
 
 def check_same_keys(runs: Sequence[Run]) -> tuple[int, int]:
@@ -943,9 +952,8 @@ def analyse_accuracy(
     on_preferred = [
         k for k in table.keys if k[0] in split.preferred and k[1] == NET_INCOME
     ]
-    preferred_companies = {
-        table.ticker[k] for k in table.keys if k[0] in split.preferred
-    }
+    # The companies of the net income figures counted on those releases.
+    preferred_companies = {table.ticker[k] for k in on_preferred}
     return {
         "accuracy": accuracy,
         "differences": differences,
@@ -1943,11 +1951,13 @@ def render_split(report: Mapping[str, Any], name: str) -> list[str]:
         ]
     )
     pref = s["preferred"]
+    figures = next(iter(pref["net_income"].values()))["graded"]
     lines.extend(
         [
             (
                 "Net income on the preferred-dividend releases alone, counts only, no "
-                f"interval: they come from {company_count(len(pref['companies']))} "
+                f"interval: the {figures} figures come from "
+                f"{company_count(len(pref['companies']))} "
                 f"({num(100 * pref['draws_without_them'], 1)}% of draws contain none of "
                 "them). "
                 + "; ".join(
@@ -2237,8 +2247,13 @@ def freeze_lines(f: Mapping[str, Any], s: Mapping[str, Any]) -> list[str]:
             f"otherwise logs its throughput every {f['throughput_spacing_s']:.0f} s; "
             f"the {f['frozen_calls']} requests in flight each took "
             f"{f['frozen_latency_s'][0]:.0f}-{f['frozen_latency_s'][1]:.0f} s (the next "
-            f"longest {f['next_longest_s']:.1f} s), and the run's p95 and max latency "
-            "are among them. As in training's 6 slow steps (PLAN.md Progress "
+            f"longest {f['next_longest_s']:.1f} s)"
+            + (
+                ", and the run's p95 and max latency are among them"
+                if f["p95_and_max_frozen"]
+                else ""
+            )
+            + ". As in training's 6 slow steps (PLAN.md Progress "
             "2026-11-02), the wall clock ran ahead of the process's monotonic clock: "
             f"the run took about {f['monotonic_s']:.1f} s by its own clock (the sum of "
             f"call latencies / {f['concurrency']}), so the wall clock gained about "
@@ -2329,12 +2344,17 @@ def render_misses(
             if neither:
                 why.append(f"{', '.join(neither)} print neither")
             parts.append(": " + "; ".join(why))
+        else:
+            parts.append(", so the sensitivity analysis drops all of them")
         parts.append(
             f". Group (1) includes {summary['broken_common']} of the "
-            f"{summary['broken']} figures broken by training (the base model's correct). "
-            "The sensitivity analysis drops only preferred.csv's releases, so it "
-            "understates this failure."
+            f"{summary['broken']} figures broken by training (the base model's correct)."
         )
+        if summary["common_outside_preferred"]:
+            parts.append(
+                " The sensitivity analysis drops only preferred.csv's releases, so it "
+                "understates this failure."
+            )
         lines.extend(["".join(parts), ""])
     if copied:
         lines.extend(
@@ -2375,7 +2395,7 @@ def render_misses(
                         m["predicted"] or "null",
                         m["verdict"],
                         m["base_verdict"],
-                        shorten(m["row"], 90) if m["row"] else "",
+                        shorten(m["row"], ROW_CHARS) if m["row"] else "",
                     ]
                     for m in s["misses"]
                 ],
@@ -2401,17 +2421,24 @@ def render_abstention(s: Mapping[str, Any], labels: Mapping[str, str]) -> list[s
         *table_md(
             [
                 "model",
-                "not_in_input figures answered anyway",
+                "not_in_input figures answered",
                 "null figures of all predicted",
             ],
             rows,
         ),
         "",
         (
-            "A not_in_input figure has an XBRL answer the release doesn't print, so "
-            "the prompt's \"null when the release doesn't report a figure\" applies. "
-            "Accuracy leaves these figures out, so it doesn't reward abstaining. "
-            "Training had no null labels (PLAN.md, Limitation: no nulls in training)."
+            "A not_in_input figure has an XBRL answer that the grader doesn't find in "
+            "the input in any of its printed forms. Where the release doesn't report "
+            "the figure (a year to date in a release whose tables have quarter "
+            "columns only), the prompt's \"null when the release doesn't report a "
+            'figure" applies. But many such releases do print it, in a form the '
+            "grader doesn't search (an EPS of $.13 for 0.13) or as another value on "
+            "the line the prompt asks for (rounded, revised, or a total that differs "
+            "from XBRL's), and then answering is right. So the answered count is an "
+            "upper bound on missed abstentions, not a count of them. Accuracy leaves "
+            "these figures out, so it doesn't reward abstaining. Training had no null "
+            "labels (PLAN.md, Limitation: no nulls in training)."
         ),
         "",
     ]
@@ -2562,8 +2589,8 @@ def render_deviations(report: Mapping[str, Any]) -> list[str]:
             f"runs record {', '.join(f'{r:g}' for r in recorded)}, "
             f"{company['recorded_price_note']}, which is the price by the protocol's "
             f"letter; the instance was billed ${company['billed_usd_per_hour']:g}/h, "
-            "which the costs here use (step-00025's cost at the recorded price is also "
-            "given). The time test's price, "
+            "which the costs here use (both GPU runs' costs at the recorded price are "
+            "also given, under Cost and latency). The time test's price, "
             f"${time_test['billed_usd_per_hour']:g}/h, was recorded correctly."
         ),
     ]

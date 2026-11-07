@@ -411,27 +411,28 @@ def test_bootstrap_draws_as_the_protocol_states():
 
 
 def test_a_difference_is_computed_within_each_draw():
+    r1, r2, r3 = (
+        ("r1", "revenue", "quarter"),
+        ("r2", "revenue", "quarter"),
+        ("r3", "revenue", "quarter"),
+    )
+    # Both models vary across draws, so subtracting their intervals, or pairing
+    # other draws, gives another interval ([-45.83, +96.67]).
     table = Table(
-        [("r1", "revenue", "quarter"), ("r2", "revenue", "quarter")],
-        {("r1", "revenue", "quarter"): "AAA", ("r2", "revenue", "quarter"): "BBB"},
+        [r1, r2, r3],
+        {r1: "AAA", r2: "BBB", r3: "AAA"},
         {
-            "a": {
-                ("r1", "revenue", "quarter"): True,
-                ("r2", "revenue", "quarter"): True,
-            },
-            "b": {
-                ("r1", "revenue", "quarter"): False,
-                ("r2", "revenue", "quarter"): True,
-            },
+            "a": {r1: True, r2: False, r3: True},
+            "b": {r1: True, r2: False, r3: False},
         },
     )
     boot = Bootstrap(["AAA", "BBB"], draws=3)
     boot.counts = np.array([[2, 0], [1, 1], [0, 2]])
     entry = testreport.difference_entry(table, "a", "b", table.keys, boot, "minus b")
-    # Within each draw, a minus b: 100 - 0, 100 - 50, 100 - 100.
-    assert entry["difference"] == 50
+    # Within each draw, a minus b: 100 - 50, 66.67 - 33.33, 0 - 0.
+    assert entry["difference"] == pytest.approx(100 / 3)
     assert entry["interval"] == pytest.approx(
-        list(np.percentile([100, 50, 0], [2.5, 97.5]))
+        list(np.percentile([50, 100 / 3, 0], [2.5, 97.5]))
     )
     assert (entry["discordant"], entry["first_right"], entry["second_right"]) == (
         1,
@@ -757,6 +758,11 @@ def test_settings_must_equal_the_validation_reference(world: World):
         ),
         "gpu_hourly_usd 2.0 (reference 1.0)",
     ]
+    # A reference run made without --env-file records none.
+    reference.info["env_file"] = None
+    assert testreport.check_settings(run, reference)[0] == (
+        f"env_file training/test/qwen3-8b-2k--{SPLIT}--step-00025.env (reference none)"
+    )
     run.info["request_parameters"] = {"temperature": 0.7}
     with pytest.raises(ReportError, match="request_parameters differ"):
         testreport.check_settings(run, reference)
@@ -835,6 +841,25 @@ def test_a_split_analysed_end_to_end(world: World):
     text = "\n".join(testreport.render_split(report, SPLIT))
     assert "| minus Qwen3-8B base | 0.00 |" in text
     assert "Group (1): 1 of the 2 misses, from 1 company (AAA)" in text
+    # A1 is in preferred.csv: the sensitivity analysis drops the whole group.
+    assert "outside it, so the sensitivity analysis drops all of them." in text
+    assert "understates" not in text
+    # Net income on the preferred-dividend releases: A1's two figures.
+    assert "interval: the 2 figures come from 1 company (" in text
+    assert "upper bound on missed abstentions" in text
+    assert "doesn't print" not in text
+    # With a group (1) miss outside preferred.csv, the sentence says why and that
+    # the sensitivity analysis understates the failure.
+    summary = result["miss_summary"]
+    summary |= {
+        "common_in_preferred": 0,
+        "common_outside_preferred": 1,
+        "outside_rows": {"AAA": ["participating"]},
+    }
+    text = "\n".join(testreport.render_split(report, SPLIT))
+    assert "1 outside it: AAA report income after participating securities" in text
+    assert "drops all of them" not in text
+    assert "so it understates this failure." in text
 
 
 def test_companies_in_other_orders(world: World):
@@ -845,6 +870,62 @@ def test_companies_in_other_orders(world: World):
         "ticker": ["AAA", "BBB"],
         "links_order": ["AAA", "BBB"],
         "cik": ["BBB", "AAA"],
+    }
+
+
+def test_robustness_draws_each_order_as_given(monkeypatch):
+    tickers = ["AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG", "HHH"]
+    keys = [(f"r{i}", "revenue", "quarter") for i in range(len(tickers))]
+    table = Table(
+        keys,
+        dict(zip(keys, tickers, strict=True)),
+        {
+            "a": {k: i < 6 for i, k in enumerate(keys)},
+            "b": {k: i < 3 for i, k in enumerate(keys)},
+        },
+    )
+    seen = []
+    real = testreport.Bootstrap
+
+    def recording(companies, *args, **kwargs):
+        seen.append(list(companies))
+        return real(companies, *args, **kwargs)
+
+    monkeypatch.setattr(testreport, "Bootstrap", recording)
+    orders = {"ticker": tickers, "reversed": tickers[::-1]}
+    result = testreport.robustness(table, "a", "b", orders)
+    # Each order is drawn as given (not sorted), and the interval is within draws.
+    assert seen == [tickers, tickers[::-1]]
+    for name, order in orders.items():
+        boot = real(order)
+        within = boot.accuracies(table.figures("a", keys), name) - boot.accuracies(
+            table.figures("b", keys), name
+        )
+        assert result[name] == pytest.approx(testreport.interval(within))
+
+
+def test_the_offline_regrade_grades_against_the_split_files(world: World, monkeypatch):
+    seen = {}
+
+    def grade_run(run_dir, links, answers, releases, client):
+        seen.update(
+            run_dir=run_dir,
+            links=links,
+            answers=answers,
+            releases=releases,
+            offline=client.offline,
+        )
+        return [], None
+
+    monkeypatch.setattr(grade, "grade_run", grade_run)
+    run, split = world.run("step-00025"), world.split()
+    assert testreport.regrade_offline(run, split) == grade.graded_csv([])
+    assert seen == {
+        "run_dir": run.path,
+        "links": split.folder / "links.csv",
+        "answers": split.folder / "answers.csv",
+        "releases": Path(run.info["releases_dir"]),
+        "offline": True,
     }
 
 
@@ -1051,7 +1132,8 @@ def freeze_log(
 
 def test_the_freeze_excluded_estimate(world: World, tmp_path: Path):
     run, base = world.run("step-00025"), world.run("base")
-    latencies = [10.0] * 32 + [135.0] * 16
+    # The other 32 calls: median 7.5 s, mean 8.125 s.
+    latencies = [5.0] * 16 + [10.0] * 15 + [30.0] + [135.0] * 16
     run.info |= {
         "started": "2026-11-07T11:20:00+00:00",
         "finished": "2026-11-07T11:30:00+00:00",
@@ -1078,9 +1160,12 @@ def test_the_freeze_excluded_estimate(world: World, tmp_path: Path):
     assert entry["excluded_per_1000"] == pytest.approx(3.6 * 180 / 3600 / 48 * 1000)
     assert entry["monotonic_s"] == sum(latencies) / 16
     assert entry["base_overhead_s"] == 21.0 - 320 / 16
-    assert entry["cross_check_s"] == (320 + 16 * 10) / 16 + 1.0
+    assert entry["cross_check_s"] == (260 + 16 * 7.5) / 16 + 1.0
     assert entry["throughput_spacing_s"] == 10
     assert entry["p95_and_max_frozen"]
+    run.info["latency_s"] = {"p50": 10.0, "p95": 30.0, "max": 135.0}
+    entry = testreport.freeze_entry(run, base, freeze, log, billed=3.6)
+    assert not entry["p95_and_max_frozen"]
     late = Freeze(
         SPLIT, "step-00025", start.replace(minute=22), start.replace(minute=30)
     )
@@ -1121,6 +1206,13 @@ def test_the_freeze_sentence_gives_the_window_to_the_second(
     text = "\n".join(testreport.freeze_lines(entry, {"billed_usd_per_hour": 3.6}))
     assert "froze from about 11:22:37 to 11:29:58 UTC (441 s)" in text
     assert "no timestamped line between 11:22:30 and 11:30:00," in text
+    assert "(the next longest 10.0 s), and the run's p95 and max latency are" in text
+    # A p95 outside the frozen calls: the sentence doesn't claim it.
+    run.info["latency_s"] = {"p50": 10.0, "p95": 30.0, "max": 135.0}
+    entry = testreport.freeze_entry(run, base, freeze, log, billed=3.6)
+    text = "\n".join(testreport.freeze_lines(entry, {"billed_usd_per_hour": 3.6}))
+    assert "(the next longest 10.0 s). As in training's" in text
+    assert "p95" not in text
 
 
 # Config and formatting

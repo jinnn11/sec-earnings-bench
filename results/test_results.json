@@ -199,7 +199,7 @@
           "refusals": 0,
           "reference": "2026-10-17T222907_claude-haiku-5-5_extract_v2",
           "setting_notes": [
-            "env_file .env.claude-haiku (reference None)"
+            "env_file .env.claude-haiku (reference none)"
           ],
           "period_end_warnings": [
             "0001051470-26-000052"
@@ -1283,7 +1283,7 @@
           "refusals": 0,
           "reference": "2026-10-17T222907_claude-haiku-5-5_extract_v2",
           "setting_notes": [
-            "env_file .env.claude-haiku (reference None)"
+            "env_file .env.claude-haiku (reference none)"
           ],
           "period_end_warnings": [
             "0000200406-26-000146"
@@ -2115,10 +2115,8 @@
         "releases": 20,
         "figures": 98,
         "companies": [
-          "AEE",
           "ALB",
           "CMS",
-          "COHR",
           "ES",
           "GM",
           "GOOGL",
@@ -2126,14 +2124,11 @@
           "LEN",
           "MCHP",
           "NRG",
-          "OXY",
-          "PCG",
           "PG",
           "PSA",
           "SMCI",
           "T",
           "VMRK",
-          "WEC",
           "WMB"
         ],
         "draws_without_them": 0.0,
