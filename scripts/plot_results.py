@@ -1,9 +1,13 @@
 """Plot accuracy against cost per 1,000 releases from results/comparison.md.
 
 Reads the table of runs on all linked releases that secbench.compare writes (run it
-with --gpu-hourly so GPU runs share one price) and draws one point per run: x is cost
-per 1,000 releases (log scale), y is accuracy. Arrows join each open model's prompt
-v1 run to its v2 run. Needs matplotlib (a dev dependency).
+with --gpu-hourly so GPU runs share one price) and draws one point per stage 1 run: x
+is cost per 1,000 releases (log scale), y is accuracy. Arrows join each open model's
+prompt v1 run to its v2 run. Stage 2's runs on the same releases are left out
+(STAGE2_RUNS): its base model and checkpoints, which validation was used to choose
+among, and GPT-6.1 Sol's extract_v2 run, made on 2026-11-07 as its test reference and
+not one of the stage 1 runs README's table shows. scripts/plot_test_results.py plots
+stage 2's test sets. Needs matplotlib (a dev dependency).
 
 Usage: uv run python scripts/plot_results.py [--comparison results/comparison.md]
            [--out results/accuracy_vs_cost.png]
@@ -21,6 +25,8 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
 
 FULL_RUNS = "## Runs on all"
+# Runs made for stage 2 (run names, or a prefix ending in "--"), not plotted here.
+STAGE2_RUNS = ("qwen3-8b-2k--", "2026-11-07T105947_gpt-6.1-sol_extract_v2")
 SURFACE = "#fcfcfb"
 TEXT = "#0b0b0b"
 TEXT_SECONDARY = "#52514e"
@@ -95,6 +101,13 @@ def point(row: dict[str, str]) -> Point:
         group = "Anthropic API" if row["provider"] == "anthropic" else "OpenAI API"
     cost = float(row["cost / 1,000 releases"].lstrip("$").replace(",", ""))
     return Point(name, group, row["prompt"], 100 * correct / graded, cost)
+
+
+def is_stage2(run: str) -> bool:
+    return any(
+        run.startswith(name) if name.endswith("--") else run == name
+        for name in STAGE2_RUNS
+    )
 
 
 def plot(points: list[Point], out: Path) -> None:
@@ -237,7 +250,11 @@ def main(argv: list[str] | None = None) -> int:
         "--out", type=Path, default=Path("results/accuracy_vs_cost.png")
     )
     args = parser.parse_args(argv)
-    points = [point(row) for row in table_rows(args.comparison.read_text())]
+    points = [
+        point(row)
+        for row in table_rows(args.comparison.read_text())
+        if not is_stage2(row["run"])
+    ]
     plot(points, args.out)
     print(f"wrote {args.out} ({len(points)} runs)")
     return 0
