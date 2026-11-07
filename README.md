@@ -11,18 +11,18 @@ auto-graded against XBRL from the matching 10-Q/10-K.
   $63.38 for the three perfect models.
 - **Open models mostly failed on units, and a format change fixed most of it.** On one
   A100, 80% of their errors were unit slips: the right figure, off by a power of ten.
-  Prompt v2 asks for each figure as printed plus its unit and converts in code. Their
-  errors fell 65%; Llama-3.1-8B went from 44.4% to 85.0%.
-- **Best open model: gpt-oss-20b, 94.2% at $0.35 per 1,000 releases** (one A100 80GB
-  at $1 per GPU-hour). That is about a third of GPT-6 Luna's cost, with 17 misses to
-  Luna's 3 on the same prompt.
+  Prompt v2 asks for revenue and net income as printed, with their unit, and converts
+  in code. Their errors fell 65%; Llama-3.1-8B went from 44.4% to 85.0%.
+- **Best off-the-shelf open model: gpt-oss-20b, 94.2% at $0.35 per 1,000 releases**
+  (one A100 80GB at $1 per GPU-hour). That is about a third of GPT-6 Luna's cost, with
+  17 misses to Luna's 3 on the same prompt.
 
 **Stage 2, on held-out test sets:**
 
 - **Fine-tuning Qwen3-8B with LoRA added 10.1 points on 37 companies it never saw**
   (89.1% to 99.2% of 662 figures; 95% interval +5.1 to +15.6). On later releases from
   the training companies it costs $0.59 per 1,000 releases but trails the three API
-  models by 1.8 to 1.9 points. See [Stage 2](#stage-2-fine-tuning-qwen3-8b).
+  models by 1.8 to 2.0 points. See [Stage 2](#stage-2-fine-tuning-qwen3-8b).
 
 ## Results
 
@@ -97,16 +97,18 @@ auto-graded against XBRL from the matching 10-Q/10-K.
 ## Stage 2: fine-tuning Qwen3-8B
 
 Can a small open model, fine-tuned on releases labelled automatically from XBRL,
-match the API models on releases it never saw? Qwen3-8B without thinking was the best
-8B model on prompt v2 in stage 1 (260/293, 88.7%). Every number here is from
+match the API models on releases it never saw? Qwen3-8B was the best 8B model on prompt
+v2 in stage 1: 260/293 (88.7%) without thinking, as used here (264/293 with thinking,
+for 3.7x the GPU time). Every test result here is from
 [results/test_results.md](results/test_results.md), which also holds the checks, the
-per-field tables, every miss and the deviations from the protocol.
+per-field tables, every miss by the fine-tuned model and the deviations from the
+protocol.
 
 ### Method
 
 - **Companies and splits.** The S&P 500's non-financial companies, split by company
-  with a fixed seed before any download: stage 1's 10 for validation, 40 drawn for the
-  company test, and the rest for training.
+  with a fixed seed before any of the new companies' filings were downloaded: stage
+  1's 10 for validation, 40 drawn for the company test, and the rest for training.
 - **Training labels.** Each training example's target reply is written by code from
   the XBRL answer key, as the release prints it (the figure and its table's unit),
   never from a model's output. A release with any figure that can't be labelled that
@@ -118,15 +120,17 @@ per-field tables, every miss and the deviations from the protocol.
 - **Checkpoint choice.** Each checkpoint was scored on stage 1's 60 releases
   (validation). The best was step 25 of 125, the first one saved, after 400 examples.
   Its validation score, 98.0% (287/293), is chosen on validation (the checkpoint was
-  picked for that score, so it overstates; the test sets give the estimate). The base
-  model scored 262/293 there.
+  picked for that score, so it may overstate; the test sets give the estimate). The
+  base model scored 262/293 there.
 - **Test sets.** The company test is 148 releases (each company's latest 4) from 37
   companies never trained on. The time test is 346 releases from the training
   companies, filed from 2026-07-01 to 2026-09-30, after the releases trained on; 9 more
   are left out for every model because their prompts exceed 39,936 tokens (the GPU
   model's context minus the reply's allowance).
-- **Answer key.** As in stage 1, with additions for the many more companies: revenue
-  also from `RegulatedAndUnregulatedOperatingRevenue` (utilities) or
+- **Answer key.** As in stage 1, with additions for the many more companies: net
+  income's `NetIncomeLossAvailableToCommonStockholdersBasic` fallback is never used
+  when the filing reports nonzero preferred dividends for the period; revenue also
+  from `RegulatedAndUnregulatedOperatingRevenue` (utilities) or
   `RevenueFromContractWithCustomerIncludingAssessedTax` when a filing has neither
   earlier revenue tag; diluted EPS from
   `IncomeLossFromContinuingOperationsPerDilutedShare` when the filing reports no
@@ -142,8 +146,9 @@ per-field tables, every miss and the deviations from the protocol.
 ### Protocol
 
 The analysis was fixed before any test call, in
-[results/test_protocol.md](results/test_protocol.md) (a timestamped copy is kept
-outside the repo), together with the company test's releases, by sha256. The primary
+[results/test_protocol.md](results/test_protocol.md) (commit cf77acb; a private copy,
+uploaded before the first test call, is kept outside the repository), together with
+the company test's releases, by sha256. The primary
 result is step-00025's accuracy minus the base model's on the company test, with a 95%
 bootstrap interval over companies; everything else is descriptive. The time test's
 cutoff was set on 2026-11-07, after the company test was scored and before any
@@ -180,10 +185,10 @@ were added: a deviation, recorded with three others in the results.
   (+0.45, interval −1.41 to +2.67).
 - **Its case is cost, not accuracy.** It is about 10 points better than its base model
   and costs $0.59 per 1,000 releases on the time test, against $1.24 for GPT-6 Luna,
-  $1.86 for Claude Haiku 5.5 and $24.11 for GPT-6.1 Sol. On the company test, the
-  protocol's wall-time cost is $2.66, because the GPU instance froze for 441 s during
-  the run; without the freeze it is about $0.56. It doesn't beat the API models on
-  accuracy.
+  $1.86 for Claude Haiku 5.5 and $24.11 for GPT-6.1 Sol. On the company test its
+  wall-time cost at the price billed is $2.66 ($2.91 at the price the run recorded, the
+  protocol's letter), because the GPU instance froze for 441 s during the run; without
+  the freeze it is about $0.56. It doesn't beat the API models on accuracy.
 
 ### Failure modes (descriptive, not pre-registered)
 
@@ -339,7 +344,7 @@ Stage 2 (each module's docstring gives its options):
 ```sh
 # 1. Data: the companies and splits, every company's releases, links and answers,
 #    the frozen split files, and the training labels
-uv run python -m secbench.companies
+uv run python -m secbench.companies --revision 1382097112
 uv run python -m secbench.stage2
 uv run python -m secbench.splits
 uv run python -m secbench.labels
@@ -367,6 +372,14 @@ uv run python -m secbench.testreport
 uv run python scripts/plot_test_results.py
 ```
 
+From a fresh clone these commands won't regenerate the reported results exactly.
+`secbench.splits` stops if a fresh download changes any frozen release's links,
+answers or input (company facts lacked some filings at the 2026-10-28 download). The
+test config accepts only the original step-00025 adapter (sha256 b93376d9…), which
+isn't in the repository. And `secbench.testreport` reads the original runs, their test
+records and the logs that `configs/report/stage2.toml` names (`runs/` and `training/`
+aren't tracked).
+
 ## Limitations
 
 Stage 1's benchmark:
@@ -374,13 +387,13 @@ Stage 1's benchmark:
 - **Small sample:** 293 graded figures from 10 companies.
 - **No held-out set:** prompt v2 was designed on these same releases (stage 2's test
   sets are held out).
-- **Fourth-quarter EPS isn't graded:** XBRL has no fourth-quarter value, and EPS can't
-  be derived by subtraction.
 
 Stage 2:
 
-- **No Q3 2026 releases in the time test:** its cutoff was set before their 10-Qs, which
-  give the answer key, were filed (a deviation from the protocol).
+- **No Q3 2026 releases in the time test:** its cutoff was set on 2026-11-07, before all
+  of their 10-Qs, which give the answer key, were filed (the last are due in
+  mid-November). The protocol had said the cutoff would be set when they were added:
+  a deviation.
 - **Answer-key gaps:** 124 of the 1,916 figures the time test's releases should report
   (6.5%) have no XBRL answer, including every figure of 11 of its 23 utilities; the
   company test is missing 28 of 728 (3.8%).
@@ -390,13 +403,17 @@ Stage 2:
 - **One untuned training run,** whose chosen checkpoint is the first one saved.
 - **Survivorship:** the universe is the index's current members only.
 - **Abstention isn't scored:** neither Qwen3-8B model ever answered null, while the API
-  models left 31-50% of the figures their release doesn't print empty. Accuracy leaves
+  models left 31-50% of the not_in_input figures empty: XBRL answers the grader can't
+  find printed, which a release sometimes reports in another form. Accuracy leaves
   those figures out, and no training label was null.
 
 Both:
 
-- **Sampling:** runs without temperature 0 vary from run to run; there is one run per
-  model and split (the API models' sampling isn't fixed), and repeat runs are pending.
+- **Fourth-quarter EPS isn't graded:** XBRL has no fourth-quarter value, and EPS can't
+  be derived by subtraction.
+- **Sampling:** runs without temperature 0 vary from run to run, and there is one run
+  per model and split (the API models' sampling isn't fixed). Repeat runs are planned
+  only for stage 1's Qwen3-8B with thinking and gpt-oss-20b.
 - **GPU cost:** counts only each run's wall-clock time, not model loading, setup or idle
   time.
 
@@ -405,7 +422,7 @@ Both:
 - **Stage 3:** serving the fine-tuned model with vLLM (throughput, p50 and p95
   latency, cost per 1,000 filings, 4-bit), CI, and a Hugging Face dataset and demo.
 - **Optional:** the Q3 2026 releases as a second time test, frozen and planned before
-  any call on it; repeat runs of the models that don't run at temperature 0; the
-  rule-based table reader baseline; and a fix for the common shareholders' line (the
-  training-label rule, or the prompt naming the line), judged on validation only. A
-  new model would need new test data.
+  any call on it; repeat runs of Qwen3-8B with thinking and gpt-oss-20b (three each on
+  prompt v2); the rule-based table reader baseline; and a fix for the common
+  shareholders' line (the training-label rule, or the prompt naming the line), judged
+  on validation only. A new model would need new test data.
