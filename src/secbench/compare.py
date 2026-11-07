@@ -207,9 +207,14 @@ def format_nulls(info: dict[str, Any]) -> str:
 
 def input_tokens_per_release(info: dict[str, Any]) -> str:
     """run.json's input tokens over its releases, every call included (a retry sends
-    the conversation again); none unless every call has token counts."""
+    the conversation again); none unless every call has token counts. A call that
+    failed (an HTTP error) records null input tokens and isn't counted in
+    calls_without_usage."""
     tokens = info.get("tokens")
     if not tokens or tokens.get("calls_without_usage") or not info.get("releases"):
+        return "none"
+    calls = info.get("calls", [])
+    if any("input_tokens" in c and c["input_tokens"] is None for c in calls):
         return "none"
     return f"{tokens['input'] / info['releases']:,.0f}"
 
@@ -396,12 +401,16 @@ def stage2_note(runs: list[Run], report: Mapping[str, Any]) -> str | None:
         {r.info["gpu_hourly_usd"] for r in runs if r.name.startswith(prefix)}
     )
     gpu = report["gpu"]["validation"]
+    # Name the listed runs, not a pattern that also matches the test-split runs.
+    names = f"{prefix}step-*"
+    if any(r.name == f"{prefix}base" for r in runs):
+        names = f"{prefix}base and {names}"
     return (
-        f"- {prefix}*: stage 2's base model and fine-tuned checkpoints, scored on "
+        f"- {names}: stage 2's base model and fine-tuned checkpoints, scored on "
         f"these releases to choose a checkpoint. {chosen.name}'s "
         f"{100 * correct / len(verdicts):.1f}% ({correct}/{len(verdicts)}) is "
-        "chosen on validation (the checkpoint was picked for that score, so it "
-        "overstates; the test sets give the estimate: results/test_results.md). "
+        "chosen on validation (the checkpoint was picked for that score, so it may "
+        "overstate; the test sets give the estimate: results/test_results.md). "
         f"These runs record {', '.join(f'${p:g}/h' for p in recorded)} but ran on a "
         f"{report['gpu_host']} {gpu['gpu']} billed ${gpu['billed_usd_per_hour']:g}/h."
     )
@@ -429,13 +438,18 @@ def format_comparison(
     command = "uv run python -m secbench.compare"
     if gpu_hourly is not None:
         command += f" --gpu-hourly {gpu_hourly:g}"
+    where = f"{plural(len(runs), 'run')} in {runs_dir}/"
+    if skipped:
+        where = (
+            f"{len(runs)} of the {len(runs) + len(skipped)} run folders in "
+            f"{runs_dir}/ ({len(skipped)} not listed, named at the end)"
+        )
     lines = [
         "# Model comparison",
         "",
         (
-            f"From `{command}`: {plural(len(runs), 'run')} in "
-            f"{runs_dir}/, graded against {answers_path}; {links_path} has "
-            f"{plural(len(linked), 'linked release')}."
+            f"From `{command}`: {where}, graded against {answers_path}; "
+            f"{links_path} has {plural(len(linked), 'linked release')}."
         ),
         "",
         f"## Runs on all {len(linked)} linked releases",

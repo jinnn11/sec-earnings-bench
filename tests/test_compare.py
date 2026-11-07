@@ -311,8 +311,9 @@ def test_compare(fake_runs, tmp_path, capsys) -> None:
         "# Model comparison",
         "",
         (
-            f"From `uv run python -m secbench.compare`: 5 runs in {runs}/, graded "
-            f"against {answers}; {links} has 3 linked releases."
+            f"From `uv run python -m secbench.compare`: 5 of the 7 run folders in "
+            f"{runs}/ (2 not listed, named at the end), graded against {answers}; "
+            f"{links} has 3 linked releases."
         ),
         "",
         "## Runs on all 3 linked releases",
@@ -420,7 +421,8 @@ def test_runs_on_another_links_file_are_left_out(fake_runs, tmp_path) -> None:
     text = out.read_text()
     assert "| h-test |" not in text
     assert "| i-validation | claude-test | anthropic |" in text
-    assert f"6 runs in {runs}/" in text  # a-opus to e-stale, and i-validation
+    # a-opus to e-stale, and i-validation; f-empty, g-bad and h-test not listed.
+    assert f"6 of the 9 run folders in {runs}/ (3 not listed, named at the end)" in text
     assert text.splitlines()[-1] == (
         f"- Not listed: f-empty (no run.json), g-bad (run.json is not valid JSON), "
         f"h-test (on another links file, {split_links})."
@@ -503,7 +505,8 @@ def test_compare_at_a_reference_gpu_price(fake_runs, tmp_path, capsys) -> None:
     paid_lines = paid.read_text().splitlines()
     lines = reference.read_text().splitlines()
     assert lines[2].startswith(
-        "From `uv run python -m secbench.compare --gpu-hourly 1`: 5 runs in "
+        "From `uv run python -m secbench.compare --gpu-hourly 1`: 5 of the 7 run "
+        "folders in "
     )
     # b-vllm paid $2.50 per hour; at $1, its 72 s cost $0.02, / 3 releases x 1,000 =
     # $6.67.
@@ -550,6 +553,15 @@ def test_a_bad_gpu_price_is_refused(capsys, value, message) -> None:
         ({"releases": 3, "tokens": {"input": 45000, "calls_without_usage": 1}}, "none"),
         ({"releases": 3}, "none"),  # no token counts recorded
         ({"releases": 0, "tokens": {"input": 0, "calls_without_usage": 0}}, "none"),
+        # A stopped run: its calls failed (HTTP 401), so none counted any tokens.
+        (
+            {
+                "releases": 2,
+                "tokens": {"input": 0, "calls_without_usage": 0},
+                "calls": [{"input_tokens": None}, {"input_tokens": None}],
+            },
+            "none",
+        ),
     ],
 )
 def test_input_tokens_per_release(info, shown) -> None:
@@ -601,18 +613,19 @@ def test_a_note_on_stage_2s_checkpoints(tmp_path) -> None:
     out = tmp_path / "comparison.md"
     assert compare.main([*argv, "--out", str(out), "--report-config", str(config)]) == 0
     assert out.read_text().splitlines()[-1] == (
-        "- qwen3-8b-2k--*: stage 2's base model and fine-tuned checkpoints, scored on "
-        "these releases to choose a checkpoint. qwen3-8b-2k--step-00025's 83.3% (5/6) "
-        "is chosen on validation (the checkpoint was picked for that score, so it "
-        "overstates; the test sets give the estimate: results/test_results.md). These "
-        "runs record $1/h but ran on a Vast H100 NVL billed $2.776/h."
+        "- qwen3-8b-2k--base and qwen3-8b-2k--step-*: stage 2's base model and "
+        "fine-tuned checkpoints, scored on these releases to choose a checkpoint. "
+        "qwen3-8b-2k--step-00025's 83.3% (5/6) is chosen on validation (the "
+        "checkpoint was picked for that score, so it may overstate; the test sets "
+        "give the estimate: results/test_results.md). These runs record $1/h but ran "
+        "on a Vast H100 NVL billed $2.776/h."
     )
     # Without the report's config, no note.
     missing = tmp_path / "none.toml"
     assert (
         compare.main([*argv, "--out", str(out), "--report-config", str(missing)]) == 0
     )
-    assert "qwen3-8b-2k--*" not in out.read_text()
+    assert "qwen3-8b-2k--step-*" not in out.read_text()
 
 
 def test_no_stage_2_note_without_a_checkpoint_run(fake_runs, tmp_path) -> None:

@@ -1,6 +1,6 @@
 # Model comparison
 
-From `uv run python -m secbench.compare --gpu-hourly 1`: 29 runs in runs/, graded against data/answers.csv; data/links.csv has 60 linked releases.
+From `uv run python -m secbench.compare --gpu-hourly 1`: 29 of the 40 run folders in runs/ (11 not listed, named at the end), graded against data/answers.csv; data/links.csv has 60 linked releases.
 
 ## Runs on all 60 linked releases
 
@@ -37,7 +37,7 @@ From `uv run python -m secbench.compare --gpu-hourly 1`: 29 runs in runs/, grade
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-10-14T022812_claude-opus-5-5_extract_v1 | claude-opus-5-5 | anthropic | extract_v1 | max_tokens 16000, effort medium, no temperature | 1 | graded | 6/6 (100.0%) | 0 | 0 | – | 5,581 | $0.0244 | tokens ($4 in, $20 out per M) | 2.06 s | 2.06 s |
 | smoke-gpt-luna | gpt-6-luna | openai | extract_v1 | reasoning_effort medium, no temperature | 1 | graded | 6/6 (100.0%) | 0 | 0 | – | 3,782 | $0.0005 | tokens ($0.1 in, $0.5 out per M) | 4.41 s | 4.41 s |
-| 2026-11-07T104935_gpt-6.1-sol_extract_v2 | gpt-6.1-sol | openai | extract_v2 | reasoning_effort medium, no temperature | 4 | stopped, not graded | none | none | 0 | 0 | 0 | $0.0000 | tokens ($2 in, $10 out per M) | none | none |
+| 2026-11-07T104935_gpt-6.1-sol_extract_v2 | gpt-6.1-sol | openai | extract_v2 | reasoning_effort medium, no temperature | 4 | stopped, not graded | none | none | 0 | 0 | none | $0.0000 | tokens ($2 in, $10 out per M) | none | none |
 | smoke-gpt-luna-v2 | gpt-6-luna | openai | extract_v2 | reasoning_effort medium, no temperature | 1 | graded | 6/6 (100.0%) | 0 | 0 | 0 | 3,879 | $0.0005 | tokens ($0.1 in, $0.5 out per M) | 4.25 s | 4.25 s |
 | smoke-claude-haiku | claude-haiku-5-5 | anthropic | extract_v2 | max_tokens 16000, effort medium, no temperature | 1 | graded | 6/6 (100.0%) | 0 | 0 | 0 | 5,710 | $0.0006 | tokens ($0.1 in, $0.5 out per M) | 1.29 s | 1.29 s |
 
@@ -50,5 +50,5 @@ Notes:
 - Input tokens / release: run.json's input tokens over its releases, retries included. The same release counts as more or fewer tokens depending on the model's tokenizer; none if a call reported no token counts.
 - Cost is run.json's estimate at the run's token prices per million; runs priced by GPU-hour are repriced at $1 per GPU-hour times the run's wall-clock time (--gpu-hourly), so they compare with each other (paid: the price each run recorded). Latency is per call.
 - stale: re-grade: graded.csv doesn't match data/answers.csv, or has other columns than the grader writes now; run `uv run python -m secbench.grade runs/<run>/`.
-- qwen3-8b-2k--*: stage 2's base model and fine-tuned checkpoints, scored on these releases to choose a checkpoint. qwen3-8b-2k--step-00025's 98.0% (287/293) is chosen on validation (the checkpoint was picked for that score, so it overstates; the test sets give the estimate: results/test_results.md). These runs record $1/h but ran on a Vast H100 NVL billed $2.776/h.
+- qwen3-8b-2k--base and qwen3-8b-2k--step-*: stage 2's base model and fine-tuned checkpoints, scored on these releases to choose a checkpoint. qwen3-8b-2k--step-00025's 98.0% (287/293) is chosen on validation (the checkpoint was picked for that score, so it may overstate; the test sets give the estimate: results/test_results.md). These runs record $1/h but ran on a Vast H100 NVL billed $2.776/h.
 - Not listed: claude-haiku-5-5--company_test (on another links file, data/splits/company_test/links.csv), claude-haiku-5-5--time_test (on another links file, data/splits/time_test/links.csv), gpt-6-luna--company_test (on another links file, data/splits/company_test/links.csv), gpt-6-luna--time_test (on another links file, data/splits/time_test/links.csv), gpt-6.1-sol--company_test (on another links file, data/splits/company_test/links.csv), gpt-6.1-sol--time_test (on another links file, data/splits/time_test/links.csv), gpt-6.1-sol--time_test--attempt-1 (on another links file, data/splits/time_test/links.csv), qwen3-8b-2k--company_test--base (on another links file, data/splits/company_test/links.csv), qwen3-8b-2k--company_test--step-00025 (on another links file, data/splits/company_test/links.csv), qwen3-8b-2k--time_test--base (on another links file, data/splits/time_test/links.csv), qwen3-8b-2k--time_test--step-00025 (on another links file, data/splits/time_test/links.csv).
