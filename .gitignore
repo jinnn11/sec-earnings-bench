@@ -32,3 +32,6 @@ training/
 gpu-bundle-*.tar
 gpu-bundle-*.tar.part
 results-*.tar
+
+# macOS
+.DS_Store
