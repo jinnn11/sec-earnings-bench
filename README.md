@@ -414,17 +414,22 @@ Both:
 - **Fourth-quarter EPS isn't graded:** XBRL has no fourth-quarter value, and EPS can't
   be derived by subtraction.
 - **Sampling:** runs without temperature 0 vary from run to run, and there is one run
-  per model and split (the API models' sampling isn't fixed). Repeat runs are planned
-  only for stage 1's Qwen3-8B with thinking and gpt-oss-20b.
+  per model and split (the API models' sampling isn't fixed); no repeat runs measure
+  that variation.
 - **GPU cost:** counts only each run's wall-clock time, not model loading, setup or idle
   time.
 
-## Next
+## Possible extensions
 
-- **Stage 3:** serving the fine-tuned model with vLLM (throughput, p50 and p95
-  latency, cost per 1,000 filings, 4-bit), CI, and a Hugging Face dataset and demo.
-- **Optional:** the Q3 2026 releases as a second time test, frozen and planned before
-  any call on it; repeat runs of Qwen3-8B with thinking and gpt-oss-20b (three each on
-  prompt v2); the rule-based table reader baseline; and a fix for the common
-  shareholders' line (the training-label rule, or the prompt naming the line), judged
-  on validation only. A new model would need new test data.
+Not started; the project ends with stage 2.
+
+- **Serving:** load-test the fine-tuned model with vLLM (throughput, p50 and p95
+  latency at several concurrency levels, cost per 1,000 filings, 4-bit) and publish it
+  with a Hugging Face model card.
+- **A second time test** on the Q3 2026 releases, frozen and planned before any call
+  on it.
+- **Repeat runs** of Qwen3-8B with thinking and gpt-oss-20b, to measure how much
+  scores vary between runs.
+- **A rule-based table reader** as a baseline without an LLM.
+- **A fix for the common shareholders' line** (the training-label rule, or the prompt
+  naming the line), judged on validation only. A new model would need new test data.
