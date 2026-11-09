@@ -1,5 +1,7 @@
 # sec-earnings-bench
 
+[![tests](https://github.com/jinnn11/sec-earnings-bench/actions/workflows/tests.yml/badge.svg)](https://github.com/jinnn11/sec-earnings-bench/actions/workflows/tests.yml)
+
 Extract revenue, net income and diluted EPS from SEC earnings press releases with LLMs,
 auto-graded against XBRL from the matching 10-Q/10-K.
 
