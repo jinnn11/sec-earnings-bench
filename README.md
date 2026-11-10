@@ -26,6 +26,15 @@ auto-graded against XBRL from the matching 10-Q/10-K.
   the training companies it costs $0.59 per 1,000 releases but trails the three API
   models by 1.8 to 2.0 points. See [Stage 2](#stage-2-fine-tuning-qwen3-8b).
 
+**Stage 3, serving the fine-tuned model:**
+
+- **In FP8 on one H100 it reads 6,143 releases per hour, 1.37 times stage 2's way of
+  serving it** (the base model with the LoRA adapter), with 2 fewer correct validation
+  figures (285 of 293) and time-test accuracy within 2 of 1,740 figures. At the $3.429
+  per GPU-hour paid, that is $0.56 per 1,000 releases. 4-bit AWQ cuts the weights from
+  15.3 to 5.8 GiB but is no faster under load. See
+  [Stage 3](#stage-3-serving-the-fine-tuned-model).
+
 ## Results
 
 | Model | Runs on | Prompt | Accuracy | Unit slips | Cost / 1,000 releases | Typical time per call |
@@ -209,6 +218,86 @@ were added: a deviation, recorded with three others in the results.
   to date is in an Adjusted EBITDA reconciliation) and Twilio once on the time test
   (its cash flow statement).
 
+## Stage 3: serving the fine-tuned model
+
+How fast and how cheaply can step-00025 be served, and what do merging and quantizing
+it cost in accuracy? Every number here is from
+[results/serving_results.md](results/serving_results.md), which also has every load
+level, the memory figures and the session's overhead.
+
+### Method
+
+- **Four variants of step-00025,** served one at a time by vLLM 0.32.0 on one H100 NVL
+  (a Vast.ai virtual machine at $3.429 per hour):
+  - **adapter:** the bf16 base model with the LoRA adapter applied at run time, as
+    stage 2 served it;
+  - **merged:** the adapter merged into the weights (in fp32, saved in bf16);
+  - **fp8:** the merged model, its weights quantized to FP8 by vLLM as it loads them
+    (the KV cache stays bf16);
+  - **int4-awq:** the merged model quantized offline with AWQ (llm-compressor 0.15.0):
+    4-bit weights in groups of 128, calibrated on 128 training examples (1.38 million
+    tokens).
+- **Server.** The same flags for every variant: a 40,960-token context and prefix
+  caching off, because the same prompts are sent at every level; vLLM's defaults
+  otherwise.
+- **Load test.** 128 time-test prompts drawn with a fixed seed (12,967 tokens on
+  average; the replies average 133), sent at 1, 2, 4, 8, 16, 32 and 64 requests in
+  flight, each level after 8 warm-up requests. Each worker sends its next request when
+  its last one finishes. Requests are as stage 2 sent them (prompt v2, temperature 0,
+  thinking off, at most 1,024 output tokens), streamed to time the first token.
+- **Accuracy.** Each variant extracted validation's 60 releases and the time test's
+  346, 16 calls at a time, graded as in stage 2. Validation compares the variants. The
+  time test was already scored in stage 2, so here it only shows how far each variant
+  moves from that run.
+
+### Results
+
+| Variant | Weights | Validation (293 figures) | Time test (1,740 figures) | Latency, 1 request | Best throughput (32 in flight) | p95 latency there | Cost / 1,000 releases |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| adapter (bf16 + LoRA) | 15.4 GiB | 287 (98.0%) | 1,700 (97.7%) | 1.73 s | 4,491 / h | 41.1 s | $0.76 ($0.22) |
+| merged (bf16) | 15.3 GiB | 287 (98.0%) | 1,698 (97.6%) | 1.43 s | 4,945 / h | 37.1 s | $0.69 ($0.20) |
+| fp8 | 9.1 GiB | 285 (97.3%) | 1,698 (97.6%) | 1.04 s | 6,143 / h | 28.4 s | $0.56 ($0.16) |
+| int4-awq | 5.8 GiB | 280 (95.6%) | 1,699 (97.6%) | 1.27 s | 4,938 / h | 36.4 s | $0.69 ($0.20) |
+
+- **Weights:** the GPU memory they take, from vLLM's start-up log.
+- **Latency, 1 request:** median end-to-end latency with one request in flight.
+- **Best throughput:** releases per hour at the level with the most, which is 32 in
+  flight for every variant; 64 is no faster and nearly doubles the latency.
+- **Cost:** the GPU's price for the makespan at that level, per 1,000 releases, at the
+  $3.429 per hour paid ($1 per hour in brackets). It leaves out setup, model building
+  and idle time.
+
+![Releases per hour against p95 latency for the four variants, from 1 to 64 requests in flight](results/serving_throughput_latency.png)
+
+- **FP8 serves fastest at every load.** At 32 in flight it reads 6,143 releases per
+  hour, 1.37 times the adapter's and 1.24 times the merged model's, and one request
+  takes 1.04 s against the adapter's 1.73 s. It got 2 fewer validation figures right
+  than the adapter, both ExxonMobil's revenue line, and is within 2 figures of it on
+  the time test.
+- **Merging costs no accuracy and adds 10% throughput.** The merged model's validation
+  predictions equal the adapter's in all 360 figures. On the time test 99.5% of its
+  figures are the adapter's, about as close as the adapter is to stage 2's run of the
+  same checkpoint (99.7%). It serves 10% more releases per hour at 32 in flight and 21%
+  more with one request.
+- **4-bit weights help a single request, not throughput.** int4-awq's weights take 5.8
+  GiB of GPU memory against the merged model's 15.3, which leaves 14% more KV cache,
+  and one request is 11% faster. Under load it is no faster (4,938 against 4,945
+  releases per hour): with prompts of about 13,000 tokens, most of the GPU's work is
+  reading the prompt, which runs in 16-bit arithmetic whatever the weights' size. It
+  got 7 fewer validation figures right than the adapter, 6 of them ExxonMobil's revenue
+  line (which also changed between stage 2's checkpoints), and it is level on the time
+  test (10 figures broken, 9 fixed).
+- **Cheaper than the API models when the GPU is kept busy.** FP8 at 32 in flight costs
+  $0.56 per 1,000 releases at the price paid, against $1.24 for GPT-6 Luna, $1.86 for
+  Claude Haiku 5.5 and $24.11 for GPT-6.1 Sol on the time test. Stage 2's accuracy gap
+  remains: 97.6% against their 99.4% to 99.6%.
+- **Every request succeeded:** all 3,808 load-test requests and every accuracy call.
+  fp8 and int4-awq each returned one reply that failed the format check twice (a unit
+  of "dollars", on FirstEnergy's second-quarter 2026 release); that release has no
+  answer key, so accuracy is unaffected.
+- **The session** ran 2 h 8 min ($7.30): 9 minutes to install and download, 34 minutes
+  to build the int4-awq model, 34 s to merge, and 64 to 172 s per server start.
+
 ## Method
 
 **Data.** 8-K filings that report Item 2.02 (results of operations) from 10 large US
@@ -382,6 +471,25 @@ isn't in the repository. And `secbench.testreport` reads the original runs, thei
 records and the logs that `configs/report/stage2.toml` names (`runs/` and `training/`
 aren't tracked).
 
+Stage 3:
+
+```sh
+# 1. The AWQ calibration examples and the bundle, on the laptop
+uv run python -m secbench.quantize calibration --config configs/serving/qwen3-8b-2k.toml
+uv run python -m secbench.bundle --serving-config configs/serving/qwen3-8b-2k.toml
+
+# 2. Every variant on a GPU instance (an H100 with 100 GB free disk)
+bash scripts/vast_setup.sh gpu-bundle-<commit>-serving.tar --serving \
+    --gpu-hourly <price per hour>
+
+# 3. The report and its chart, on the laptop
+uv run python -m secbench.servereport
+uv run python scripts/plot_serving.py
+```
+
+Like the test config, the serving config accepts only the original step-00025 adapter,
+and the report reads the session's files under `training/` and `runs/`.
+
 ## Limitations
 
 Stage 1's benchmark:
@@ -409,7 +517,19 @@ Stage 2:
   find printed, which a release sometimes reports in another form. Accuracy leaves
   those figures out, and no training label was null.
 
-Both:
+Stage 3:
+
+- **One session on one GPU:** one run per variant and level, on one rented virtual
+  machine; no repeat runs measure how much throughput varies.
+- **One workload:** the same 128 time-test prompts at every level, in a closed loop.
+  Other prompt lengths or arrival patterns would give other numbers.
+- **A small comparison set:** the variants are compared on validation's 293 figures,
+  which also chose the checkpoint. 6 of int4-awq's 7 extra misses there are one
+  company's revenue line, and the larger time test shows no difference.
+- **Defaults only:** vLLM's defaults apart from the context and prefix caching, with
+  no tuning (batch limits, chunked prefill, an FP8 KV cache), and one AWQ calibration.
+
+Every stage:
 
 - **Fourth-quarter EPS isn't graded:** XBRL has no fourth-quarter value, and EPS can't
   be derived by subtraction.
@@ -421,11 +541,8 @@ Both:
 
 ## Possible extensions
 
-Not started; the project ends with stage 2.
+Not started.
 
-- **Serving:** load-test the fine-tuned model with vLLM (throughput, p50 and p95
-  latency at several concurrency levels, cost per 1,000 filings, 4-bit) and publish it
-  with a Hugging Face model card.
 - **A second time test** on the Q3 2026 releases, frozen and planned before any call
   on it.
 - **Repeat runs** of Qwen3-8B with thinking and gpt-oss-20b, to measure how much
