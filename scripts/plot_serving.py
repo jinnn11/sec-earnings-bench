@@ -59,6 +59,57 @@ def lines(results: dict[str, Any]) -> dict[str, list[tuple[int, float, float]]]:
     return found
 
 
+LABEL_GAP = 11  # points between the centres of two names at the lines' ends
+
+
+def spread(ys: list[float], gap: float) -> list[float]:
+    """Positions for labels wanted at ys (ascending), at least gap apart: labels that
+    would overlap form a group, stacked gap apart and centred on their wanted mean."""
+    groups = [[i] for i in range(len(ys))]
+
+    def place(group: list[int]) -> list[float]:
+        centre = sum(ys[i] for i in group) / len(group)
+        start = centre - gap * (len(group) - 1) / 2
+        return [start + gap * k for k in range(len(group))]
+
+    merged = True
+    while merged:
+        merged = False
+        for g in range(len(groups) - 1):
+            if place(groups[g + 1])[0] - place(groups[g])[-1] < gap:
+                groups[g] += groups.pop(g + 1)
+                merged = True
+                break
+    out = [0.0] * len(ys)
+    for group in groups:
+        for i, y in zip(group, place(group), strict=True):
+            out[i] = y
+    return out
+
+
+def end_labels(ax: Any, fig: Figure, ends: dict[str, tuple[float, float]]) -> None:
+    """Each variant's short name beside its line's last point (the legend gives the
+    long one), moved apart vertically where two lines end close together (merged and
+    int4-awq end within a release per hour of each other on the H100 run)."""
+    to_points = 72 / fig.dpi
+    wanted = sorted(
+        (ax.transData.transform(xy)[1] * to_points, variant)
+        for variant, xy in ends.items()
+    )
+    placed = spread([y for y, _ in wanted], LABEL_GAP)
+    for (y, variant), at in zip(wanted, placed, strict=True):
+        ax.annotate(
+            variant,
+            ends[variant],
+            xytext=(8, at - y),
+            textcoords="offset points",
+            ha="left",
+            va="center",
+            fontsize=9,
+            color=TEXT,
+        )
+
+
 def plot(results: dict[str, Any], out: Path) -> None:
     found = lines(results)
     if not found:
@@ -84,16 +135,6 @@ def plot(results: dict[str, Any], out: Path) -> None:
             markeredgecolor=SURFACE,
             markeredgewidth=1.5,
             zorder=3,
-        )
-        ax.annotate(
-            variant,  # the short name; the legend gives the long one
-            (xs[-1], ys[-1]),
-            xytext=(8, 0),
-            textcoords="offset points",
-            ha="left",
-            va="center",
-            fontsize=9,
-            color=TEXT,
         )
     top = max(found, key=lambda v: max(p[2] for p in found[v]))
     for level, x, y in found[top]:
@@ -164,6 +205,7 @@ def plot(results: dict[str, Any], out: Path) -> None:
     x_low, x_high = ax.get_xlim()
     ax.set_xlim(x_low, x_high * 1.6)  # room for the names at the lines' ends
     fig.subplots_adjust(left=0.1, right=0.97, top=0.87, bottom=0.11)
+    end_labels(ax, fig, {v: points[-1][1:] for v, points in found.items()})
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, facecolor=SURFACE)
 
