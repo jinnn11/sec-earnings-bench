@@ -6,8 +6,9 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
+# Virtual environments (.venv-quantize: llm-compressor's, secbench.quantize awq)
 .venv/
+.venv-*/
 
 # Tool caches
 .pytest_cache/

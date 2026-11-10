@@ -51,3 +51,20 @@ train = [
 serve = [
     "vllm==0.32.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
+# llm-compressor, to quantize the merged model to 4-bit weights with AWQ for the stage 3
+# serving benchmark (secbench.quantize awq). No release resolves with vLLM 0.32.0:
+# vLLM pins compressed-tensors 0.17.0, and every llm-compressor that takes torch 2.13.0
+# and transformers 5.19.0 pins 0.19.0 or later (0.15.0: 0.20.1). So quantize conflicts
+# with serve and gets its own environment on the GPU (.venv-quantize); torch and
+# transformers are pinned to train's, so the model is quantized with the library
+# versions that merged it. vLLM reads the model's quantization config with its own
+# compressed-tensors: QuantizationArgs and QuantizationScheme have the same fields in
+# 0.17.0 and 0.20.1 (both refuse unknown fields).
+quantize = [
+    "llmcompressor==0.15.0",
+    "torch==2.13.0",
+    "transformers==5.19.0",
+]
+
+[tool.uv]
+conflicts = [[{ group = "quantize" }, { group = "serve" }]]
