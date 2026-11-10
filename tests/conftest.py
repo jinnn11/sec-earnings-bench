@@ -81,3 +81,32 @@ def save_tiny_snapshot(path: Path, chat_template: str | None = None) -> Path:
 @pytest.fixture(scope="session")
 def tiny_snapshot(tmp_path_factory) -> Path:
     return save_tiny_snapshot(tmp_path_factory.mktemp("snapshot"))
+
+
+# The Hugging Face export's tests (secbench.hfexport and its modules): a small
+# repository with synthetic releases, runs and training files (tests/hf_fixture.py),
+# built once per session. Tests that change it work on a copy (hf_repo_copy).
+
+
+@pytest.fixture(scope="session")
+def hf_repo(tmp_path_factory):
+    import hf_fixture
+
+    return hf_fixture.build(tmp_path_factory.mktemp("hf") / "repo")
+
+
+@pytest.fixture
+def hf_repo_copy(hf_repo, tmp_path):
+    import dataclasses
+    import shutil
+
+    root = tmp_path / "repo"
+    shutil.copytree(hf_repo.root, root)
+    return dataclasses.replace(hf_repo, root=root)
+
+
+@pytest.fixture(scope="session")
+def hf_context(hf_repo):
+    from secbench import hfcommon
+
+    return hfcommon.load_context(hfcommon.Sources(hf_repo.root), "test-user")
