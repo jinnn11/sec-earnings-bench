@@ -1,0 +1,55 @@
+# Stage 3, the serving benchmark (PLAN.md Decisions 2026-11-09): the training run
+# qwen3-8b-2k's checkpoint step-00025 (chosen on validation, scored on the test sets in
+# stage 2) served on one H100 in four variants. secbench.servebench serves each with
+# vLLM, sweeps the concurrency on the frozen time test's prompts, and makes each
+# variant's predictions on validation and the time test with secbench.extract (graded
+# on the laptop by secbench.servereport). The request settings are stage 2's; the
+# config refuses any other.
+
+[model]
+run = "qwen3-8b-2k"  # training/<run>/config.json
+base = "Qwen/Qwen3-8B"
+revision = "b968826d9c46dd6066d109eabc6255188de91218"
+checkpoint = "step-00025"
+# Its adapter_model.safetensors, as in configs/test/qwen3-8b-2k.toml.
+adapter_sha256 = "b93376d91af812159f4bd3a0fb80be090808e6d3539b251dc53ed26b9d27041b"
+
+[server]  # vllm serve, the same for every variant; vLLM's defaults otherwise
+# In this order: adapter (base + LoRA, as stage 2 served it), merged (bf16), fp8
+# (merged, --quantization fp8), int4-awq (merged, AWQ 4-bit weights).
+variants = ["adapter", "merged", "fp8", "int4-awq"]
+max_model_len = 40960
+# --no-enable-prefix-caching: the sweep sends the same prompts at every level, and
+# cached prefixes would make the later levels look faster.
+prefix_caching = false
+
+[request]  # secbench.extract, as stage 2 sent it (streamed in the load test)
+prompt = "extract_v2"
+temperature = 0.0
+enable_thinking = false
+max_tokens = 1024
+
+[load]  # the concurrency sweep
+split = "time_test"  # its 346 kept releases
+levels = [1, 2, 4, 8, 16, 32, 64]  # requests in flight
+prompts = 128  # the same prompts at every level, drawn once with the seed
+warmup = 8  # before each level, on other prompts; not counted
+seed = 20261109
+
+[accuracy]  # secbench.extract --no-grade, stage 2's concurrency
+splits = ["validation", "time_test"]
+concurrency = 16
+
+[calibration]  # AWQ (secbench.quantize awq), drawn on the laptop
+examples = 128
+max_tokens = 16384  # prompt and reply, as training lays them out
+seed = 20261109
+# llm-compressor's AWQ recipe: 4-bit integer weights in groups of 128 with zero
+# points, 16-bit activations; every Linear layer but lm_head.
+scheme = "W4A16_ASYM"
+duo_scaling = "both"
+ignore = ["lm_head"]
+
+[report]  # stage 2's runs of step-00025, for the agreement of every figure
+validation_reference = "runs/qwen3-8b-2k--step-00025"
+time_test_reference = "runs/qwen3-8b-2k--time_test--step-00025"
