@@ -41,7 +41,10 @@ W4A16_ASYM: 4-bit integer weights in groups of 128 with zero points, 16-bit
 activations; Linear layers but lm_head), then saved compressed (compressed-tensors'
 format, which vLLM loads), with the merged model's tokenizer files and generation
 config copied unchanged. The sequential pipeline loads one decoder layer at a time
-onto the GPU.
+onto the GPU. AWQ keeps each layer's inputs for every example on the GPU while it
+searches that layer's scales (tens of GB at these lengths); if the GPU runs out of
+memory, the model is loaded again and AWQ runs once more with those caches on the
+CPU (slower; the same result), and the manifest records it.
 
 Each model folder is written to <out>.part and renamed when complete, with
 manifest.json: the inputs' sha256, library versions, settings, timings and the
@@ -462,6 +465,20 @@ def calibration_ids(
     return found
 
 
+def out_of_memory(exc: BaseException) -> bool:
+    """Whether exc is the GPU running out of memory (torch's error, or a
+    RuntimeError saying so, as a wrapped one may)."""
+    return type(exc).__name__ == "OutOfMemoryError" or "out of memory" in str(exc)
+
+
+def free_memory(torch: Any) -> None:
+    import gc
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def awq(
     model_dir: Path,
     calibration: Path,
@@ -512,31 +529,50 @@ def awq(
             "longest": longest,
         },
     }
-    timings = {"prepare": time.perf_counter() - clock}
-    out_fn(f"loading {model_dir} in bfloat16")
-    mark = time.perf_counter()
-    model = AutoModelForCausalLM.from_pretrained(model_dir, dtype=torch.bfloat16)
-    timings["load"] = time.perf_counter() - mark
-    awq_modifier = AWQModifier(duo_scaling=duo_scaling)
-    recipe = [
-        awq_modifier,
-        QuantizationModifier(ignore=list(ignore), scheme=scheme, targets=TARGETS),
-    ]
-    out_fn(
-        f"AWQ ({scheme}) on {len(ids)} calibration examples, "
-        f"{inputs['calibration']['tokens']:,} tokens"
-    )
-    mark = time.perf_counter()
-    oneshot(
-        model=model,
-        tokenizer=tokenizer,
-        dataset=dataset,
-        recipe=recipe,
-        max_seq_length=max_tokens,
-        num_calibration_samples=len(ids),
-        shuffle_calibration_samples=False,
-    )
-    timings["calibrate"] = time.perf_counter() - mark
+    timings = {"prepare": time.perf_counter() - clock, "load": 0.0, "calibrate": 0.0}
+    retries = []
+    for offload in (None, "cpu"):
+        out_fn(f"loading {model_dir} in bfloat16")
+        mark = time.perf_counter()
+        model = AutoModelForCausalLM.from_pretrained(model_dir, dtype=torch.bfloat16)
+        timings["load"] += time.perf_counter() - mark
+        awq_modifier = AWQModifier(
+            duo_scaling=duo_scaling,
+            **({"offload_device": torch.device(offload)} if offload else {}),
+        )
+        recipe = [
+            awq_modifier,
+            QuantizationModifier(ignore=list(ignore), scheme=scheme, targets=TARGETS),
+        ]
+        out_fn(
+            f"AWQ ({scheme}) on {len(ids)} calibration examples, "
+            f"{inputs['calibration']['tokens']:,} tokens; its caches on "
+            f"{offload or 'the GPU'}"
+        )
+        mark = time.perf_counter()
+        try:
+            oneshot(
+                model=model,
+                tokenizer=tokenizer,
+                dataset=dataset,
+                recipe=recipe,
+                max_seq_length=max_tokens,
+                num_calibration_samples=len(ids),
+                shuffle_calibration_samples=False,
+            )
+        except (torch.OutOfMemoryError, RuntimeError) as exc:
+            timings["calibrate"] += time.perf_counter() - mark
+            if offload or not out_of_memory(exc):
+                raise
+            # The model is partly smoothed: reload it. Where the caches live
+            # doesn't change the result, only the time.
+            retries.append(f"out of GPU memory with AWQ's caches on the GPU: {exc}")
+            out_fn(f"{retries[-1]}; again with them on the CPU")
+            del model, awq_modifier, recipe
+            free_memory(torch)
+            continue
+        timings["calibrate"] += time.perf_counter() - mark
+        break
     out_fn(f"saving compressed to {out}")
     mark = time.perf_counter()
     model.save_pretrained(partial, save_compressed=True, max_shard_size=MAX_SHARD)
@@ -563,6 +599,8 @@ def awq(
             "max_seq_length": max_tokens,
             "num_calibration_samples": len(ids),
             "load_dtype": "bfloat16",
+            "cache_offload": None if not retries else "cpu",
+            "retries": retries,
             "copied_unchanged": copied,
         },
         "timings_s": {k: round(v, 1) for k, v in timings.items()},

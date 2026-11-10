@@ -44,7 +44,10 @@ def test_draw_is_seeded_capped_and_outside_the_test_splits() -> None:
     assert {e.accession for e in other} == {"a", "d", "e"}
     with pytest.raises(QuantizeError, match="4 calibration examples asked for; 3"):
         quantize.draw_calibration(pool, {"c"}, 4, 1000, seed=7)
-    # The cap counts prompt and reply: 300 tokens in all is over a cap of 299.
+    # The cap counts prompt and reply, and is inclusive: d's 300 tokens in all are
+    # within a cap of 300, over one of 299.
+    _, counts = quantize.draw_calibration(pool, set(), 1, 300, seed=7)
+    assert counts["eligible"] == 3  # a, c and d
     chosen, counts = quantize.draw_calibration(pool, set(), 1, 299, seed=7)
     assert counts["eligible"] == 2 and chosen[0].accession in ("a", "c")
 
@@ -287,14 +290,15 @@ def awq_snapshot(tmp_path_factory) -> Path:
     return path
 
 
-def test_awq_on_a_tiny_qwen3(awq_snapshot, tmp_path) -> None:
-    pytest.importorskip("llmcompressor")
+def write_awq_calibration(snapshot: Path, folder: Path) -> Path:
+    """Four short calibration examples for the tiny model, with their token counts
+    by its tokenizer (calibration.jsonl and calibration.csv); calibration.jsonl."""
     from transformers import AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(awq_snapshot)
-    calibration = tmp_path / "calibration"
-    calibration.mkdir()
+    tokenizer = AutoTokenizer.from_pretrained(snapshot)
+    folder.mkdir()
     lines, rows = [], []
+
     for position, (accession, ticker, kind, user) in enumerate(RELEASES[:4]):
         messages = [
             {"role": "system", "content": "Reply with JSON."},
@@ -317,10 +321,18 @@ def test_awq_on_a_tiny_qwen3(awq_snapshot, tmp_path) -> None:
                 "tokens": len(prompt) + len(target),
             }
         )
-    (calibration / "calibration.jsonl").write_text("\n".join(lines) + "\n")
-    (calibration / "calibration.csv").write_text(
+    (folder / "calibration.jsonl").write_text("\n".join(lines) + "\n")
+    (folder / "calibration.csv").write_text(
         train.rows_csv(rows, quantize.CALIBRATION_COLUMNS)
     )
+    return folder / "calibration.jsonl"
+
+
+def test_awq_on_a_tiny_qwen3(awq_snapshot, tmp_path) -> None:
+    pytest.importorskip("llmcompressor")
+    calibration = tmp_path / "calibration"
+    write_awq_calibration(awq_snapshot, calibration)
+    rows = train.read_csv(calibration / "calibration.csv")
     out = tmp_path / "int4-awq"
     manifest = quantize.awq(
         awq_snapshot,
@@ -363,7 +375,7 @@ def test_awq_on_a_tiny_qwen3(awq_snapshot, tmp_path) -> None:
         )
     assert generated.shape[1] > 20
     # A calibration count that isn't the tokenizer's stops before any work.
-    rows[0]["tokens"] += 1
+    rows[0]["tokens"] = str(int(rows[0]["tokens"]) + 1)
     (calibration / "calibration.csv").write_text(
         train.rows_csv(rows, quantize.CALIBRATION_COLUMNS)
     )
@@ -371,6 +383,62 @@ def test_awq_on_a_tiny_qwen3(awq_snapshot, tmp_path) -> None:
         quantize.awq(
             awq_snapshot,
             calibration / "calibration.jsonl",
+            tmp_path / "again",
+            scheme="W4A16_ASYM",
+            duo_scaling="both",
+            ignore=["lm_head"],
+            max_tokens=4096,
+        )
+
+
+def test_awq_retries_out_of_gpu_memory_with_its_caches_on_the_cpu(
+    awq_snapshot, tmp_path, monkeypatch
+) -> None:
+    llmcompressor = pytest.importorskip("llmcompressor")
+    import torch
+
+    real, calls = llmcompressor.oneshot, []
+
+    def oneshot(**kwargs):
+        awq_modifier = kwargs["recipe"][0]
+        calls.append(awq_modifier.offload_device)
+        if len(calls) == 1:
+            raise torch.OutOfMemoryError("CUDA out of memory. Tried to allocate 30 GiB")
+        if not torch.cuda.is_available():
+            # llm-compressor offloads its caches to the CPU only from CUDA (on
+            # Apple's GPU it refuses): the retry's real calibration runs without.
+            awq_modifier.offload_device = None
+        return real(**kwargs)
+
+    monkeypatch.setattr(llmcompressor, "oneshot", oneshot)
+    calibration = write_awq_calibration(awq_snapshot, tmp_path / "calibration")
+    lines = []
+    manifest = quantize.awq(
+        awq_snapshot,
+        calibration,
+        tmp_path / "int4-awq",
+        scheme="W4A16_ASYM",
+        duo_scaling="both",
+        ignore=["lm_head"],
+        max_tokens=4096,
+        out_fn=lines.append,
+    )
+    # The first attempt leaves the caches where AWQ puts them (not set), the retry
+    # offloads them to the CPU.
+    assert calls[0] != torch.device("cpu") and calls[1] == torch.device("cpu")
+    assert manifest["settings"]["cache_offload"] == "cpu"
+    [retry] = manifest["settings"]["retries"]
+    assert retry.startswith("out of GPU memory with AWQ's caches on the GPU")
+    assert any("again with them on the CPU" in line for line in lines)
+
+    def broken(**kwargs):
+        raise RuntimeError("a shape mismatch")
+
+    monkeypatch.setattr(llmcompressor, "oneshot", broken)
+    with pytest.raises(RuntimeError, match="shape mismatch"):  # not retried
+        quantize.awq(
+            awq_snapshot,
+            calibration,
             tmp_path / "again",
             scheme="W4A16_ASYM",
             duo_scaling="both",

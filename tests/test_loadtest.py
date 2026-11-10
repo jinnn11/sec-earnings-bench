@@ -269,24 +269,26 @@ def test_summary_arithmetic() -> None:
     results = [
         result(0.0, 1.0, 2.0),  # decode 10 / 1.0 = 10 tokens/s
         result(0.5, 1.0, 3.0),  # 10 / 2.0 = 5
-        result(1.0, 2.0, 4.5),  # 10 / 2.5 = 4; finishes at 5.5, the last
-        result(2.0, 0.5, 1.0, output=21),  # 20 / 0.5 = 40
-        result(3.0, None, 0.2, output=None, prompt=None, error="HTTP 500"),
+        result(1.0, 2.0, 4.5),  # 10 / 2.5 = 4; the last to finish without an error
+        result(2.0, 0.5, 1.0, output=1),  # one token: no decode speed
+        result(5.0, None, 1.0, output=None, prompt=None, error="HTTP 500"),
         result(4.0, 0.2, 0.3, output=1),  # one token: no decode speed
     ]
     summary = loadtest.summarize(results)
     assert summary["requests"] == 6 and summary["ok"] == 5 and summary["errors"] == 1
-    assert summary["makespan_s"] == 5.5  # 0.0 to 5.5
-    assert summary["releases_per_hour"] == pytest.approx(5 * 3600 / 5.5)
+    # From the first sent (0.0) to the last finished, the error's (6.0): its time
+    # was spent too.
+    assert summary["makespan_s"] == 6.0
+    assert summary["releases_per_hour"] == pytest.approx(5 * 3600 / 6.0)
     assert summary["prompt_tokens"] == 5000
-    assert summary["output_tokens"] == 11 + 11 + 11 + 21 + 1
-    assert summary["prompt_tokens_per_s"] == pytest.approx(5000 / 5.5)
-    assert summary["output_tokens_per_s"] == pytest.approx(55 / 5.5)
+    assert summary["output_tokens"] == 11 + 11 + 11 + 1 + 1
+    assert summary["prompt_tokens_per_s"] == pytest.approx(5000 / 6.0)
+    assert summary["output_tokens_per_s"] == pytest.approx(35 / 6.0)
     # Latencies of the 5 without an error: 0.3, 1.0, 2.0, 3.0, 4.5 (nearest rank).
     assert summary["latency_s"] == {"p50": 2.0, "p95": 4.5, "p99": 4.5, "max": 4.5}
     # Times to first token: 0.2, 0.5, 1.0, 1.0, 2.0.
     assert summary["ttft_s"] == {"p50": 1.0, "p95": 2.0}
-    # Decode speeds 4, 5, 10, 40: the nearest-rank median is the 2nd, 5.
+    # Decode speeds 4, 5, 10 (one-token replies have none): the median is 5.
     assert summary["decode_tokens_per_s_p50"] == pytest.approx(5.0)
     assert summary["error_messages"] == ["HTTP 500"]
 

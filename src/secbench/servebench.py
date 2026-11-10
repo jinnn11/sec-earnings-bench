@@ -338,11 +338,14 @@ def estimate_minutes(
         + ESTIMATE_MINUTES["layout"]
         + (sweep + accuracy) / 60
     )
-    builds = []
-    if any(serving.MODEL_OF[v] for v in variants):
-        builds.append(MERGED)
-    if INT4_AWQ in variants:
-        builds.append(INT4_AWQ)
+    needed = {serving.MODEL_OF[v] for v in variants} - {None}
+    if INT4_AWQ in needed:
+        needed.add(MERGED)  # made from the merged model
+    builds = [
+        m
+        for m in (MERGED, INT4_AWQ)
+        if m in needed and read_manifest(config.models_dir / m) is None
+    ]
     minutes = {
         "per_variant": round(per_variant, 1),
         "sweep": round(sweep / 60, 1),
