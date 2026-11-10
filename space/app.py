@@ -11,15 +11,16 @@ Errors, Serving (only when data/serving.json exists) and About. A URL query open
 tab (?tab=errors) or a release in Explore (?tab=explore&release=<accession>, with
 &split=<split> if wanted).
 
-Run it with python app.py, as Hugging Face Spaces does. It needs gradio (and the
-pandas gradio brings) and the standard library only. There is no
-`from __future__ import annotations` here: gradio finds the request parameter of the
-page-load handler by its annotation at run time.
+Run it with python app.py, as Hugging Face Spaces does. It needs gradio and the
+standard library only; its tables are HTML (html_table), so they fit the page. There
+is no `from __future__ import annotations` here: gradio finds the request parameter
+of the page-load handler by its annotation at run time.
 """
 
 import html
 import itertools
 import json
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -67,6 +68,10 @@ BORDER = "rgba(128, 128, 128, 0.35)"
 EVIDENCE_CHARS = 160  # evidence shown in a cell; the whole of it on hover
 EXCERPT_CHARS = 220  # an answer's line, shortened around the figure if longer
 TEXT_HEIGHT = "640px"
+EXAMPLES_HEIGHT = 700  # pixels: the error examples scroll in a box this tall
+SHORT_CELL = 24  # characters: a table cell this short stays on one line
+# A cell shown as a number (right-aligned): counts, dollars, seconds, percentages.
+NUMBER = re.compile(r"[\u2212+-]?\$?(?:\d[\d,]*)?\.?\d+(?: s|%)?")
 
 
 class Data(NamedTuple):
@@ -379,9 +384,9 @@ def release_header(data: Data, split: str, accession: str) -> str:
     r = data.index[split][accession]
     period = "year" if r["linked_form"] == "10-K" else "period"
     status = (
-        f"kept: {r['prompt_tokens']:,} prompt tokens"
+        f"Sent to every model: its prompt is {r['prompt_tokens']:,} tokens"
         if r["kept"]
-        else f"left out for every model: {r['left_out_reason']}"
+        else f"Left out for every model: {r['left_out_reason']}"
     )
     lines = [
         (
@@ -395,7 +400,7 @@ def release_header(data: Data, split: str, accession: str) -> str:
             f"linked to the {e(r['linked_form'])} for the {period} ended "
             f"{e(r['period_end'])} ({e(r['linked_accession'])}).</div>"
         ),
-        f"<div>Status: {e(status)}.</div>",
+        f"<div>{e(status)}.</div>",
     ]
     if r["preferred_dividends"]:
         lines.append(
@@ -601,9 +606,20 @@ def excerpt(line: str, start: int, end: int, limit: int = EXCERPT_CHARS) -> str:
     )
 
 
+def shown_span(text: str, spans: Sequence[Sequence[int]]) -> tuple[int, int]:
+    """Which of an answer's places the list above the text shows: the first on a
+    table row (a line starting with "|"), else the first. Every place is highlighted
+    in the text either way."""
+    for start, end in spans:
+        if line_of(text, start, end)[1].lstrip().startswith("|"):
+            return start, end
+    start, end = spans[0]
+    return start, end
+
+
 def answer_lines(data: Data, split: str, accession: str, text: str) -> str:
-    """Above the text: each answer, how the release prints it and the line it is
-    first found on, so a reader needn't scroll."""
+    """Above the text: each answer, how the release prints it and a line it is
+    found on (a table row's when there is one), so a reader needn't scroll."""
     if not data.index[split][accession]["kept"]:
         return ""
     fields, periods = field_titles(data), period_titles(data)
@@ -623,7 +639,7 @@ def answer_lines(data: Data, split: str, accession: str, text: str) -> str:
         if not a["in_input"]:
             found = "not printed in any form the grader searches (not graded)"
         else:
-            number, line, start, end = line_of(text, *a["spans"][0])
+            number, line, start, end = line_of(text, *shown_span(text, a["spans"]))
             others = len(a["spans"]) - 1
             more = f" (and {others} more)" if others else ""
             found = (
@@ -778,6 +794,73 @@ def examples_table(
     return header, rows
 
 
+# Tables
+
+
+def is_number(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, int | float) or bool(NUMBER.fullmatch(str(value)))
+
+
+def keep_together(text: str) -> str:
+    """text with no-break spaces inside "n/m (p%)" and "[a, b]", so a long cell
+    such as "657/662 (99.24%) [98.05, 100.00]" wraps only between the two."""
+    text = re.sub(r"(\d) \(", "\\1\u00a0(", text)
+    return re.sub(r"\[[^\]]*\]", lambda m: m[0].replace(" ", "\u00a0"), text)
+
+
+def html_table(
+    columns: Sequence[str],
+    rows: Sequence[Sequence[Any]],
+    *,
+    max_height: int | None = None,
+) -> str:
+    """A table as HTML that fits the page: headers break only at spaces and
+    underscores; numbers, cells without a space (accession numbers, verdicts) and
+    cells up to SHORT_CELL characters stay on one line, while longer ones may wrap,
+    never inside "n/m (p%)" or an interval "[a, b]" (keep_together); columns of
+    numbers are right-aligned; with max_height the table scrolls in a box that tall,
+    its header kept in view."""
+    if not rows:
+        return "<p>Nothing to show.</p>"
+    numeric = [
+        all(is_number(row[i]) for row in rows if row[i] not in ("", None))
+        for i in range(len(columns))
+    ]
+    edge = f"padding:4px 8px;border:1px solid {BORDER}"
+    head = "".join(
+        f'<th style="{edge};text-align:{"right" if right else "left"};'
+        "vertical-align:bottom;position:sticky;top:0;z-index:1;"
+        f'background:var(--background-fill-primary,#fff)">'
+        f"{e(name).replace('_', '_<wbr>')}</th>"
+        for name, right in zip(columns, numeric, strict=True)
+    )
+    body = []
+    for row in rows:
+        cells = []
+        for value, right in zip(row, numeric, strict=True):
+            text = "" if value is None else str(value)
+            style = f"{edge};vertical-align:top"
+            if right:
+                style += ";text-align:right"
+            if right or len(text) <= SHORT_CELL or not any(c.isspace() for c in text):
+                style += ";white-space:nowrap"
+            else:
+                style += ";white-space:normal"
+                text = keep_together(text)
+            cells.append(f'<td style="{style}">{e(text)}</td>')
+        body.append(f"<tr>{''.join(cells)}</tr>")
+    box = "overflow-x:auto"
+    if max_height:
+        box += f";max-height:{max_height}px;overflow-y:auto"
+    return (
+        f'<div style="{box}"><table style="border-collapse:collapse;width:100%;'
+        f'font-size:13px"><thead><tr>{head}</tr></thead>'
+        f"<tbody>{''.join(body)}</tbody></table></div>"
+    )
+
+
 # Leaderboard and serving
 
 
@@ -810,19 +893,13 @@ def verdict_glossary(data: Data) -> str:
 def build_demo(data: Data):
     """The Gradio app over data (gradio is imported here only)."""
     import gradio as gr
-    import pandas as pd
 
     tabs = available_tabs(data)
     meta, board = data.meta, data.leaderboard
     links = meta["links"]
 
-    def frame(columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> Any:
-        return pd.DataFrame(list(rows), columns=list(columns))
-
     def table(columns, rows, **kwargs):
-        return gr.Dataframe(
-            value=frame(columns, rows), interactive=False, wrap=True, **kwargs
-        )
+        return gr.HTML(html_table(columns, rows, **kwargs))
 
     def chart(path: str, caption: str) -> None:
         gr.Image(
@@ -865,7 +942,7 @@ def build_demo(data: Data):
                 gr.Markdown(board["intro"])
                 validation = board["validation"]
                 gr.Markdown(f"## {validation['title']}")
-                table(*validation_board(data), max_height=900)
+                table(*validation_board(data))
                 gr.Markdown(validation["notes"])
                 chart(validation["chart"], validation["chart_caption"])
                 test = board["test"]
@@ -957,7 +1034,8 @@ def build_demo(data: Data):
                         label="Verdict",
                     )
                 examples = table(
-                    *examples_table(data, meta["default_split"]), max_height=700
+                    *examples_table(data, meta["default_split"]),
+                    max_height=EXAMPLES_HEIGHT,
                 )
             if SERVING_TAB in tabs:
                 serving = data.serving
@@ -1045,15 +1123,16 @@ def build_demo(data: Data):
 
         def on_error_split(chosen):
             return [
-                frame(*verdict_table(data, chosen)),
+                html_table(*verdict_table(data, chosen)),
                 gr.Dropdown(choices=model_filter_choices(data, chosen), value=ANY),
                 gr.Dropdown(choices=verdict_filter_choices(data, chosen), value=ANY),
-                frame(*examples_table(data, chosen)),
+                html_table(*examples_table(data, chosen), max_height=EXAMPLES_HEIGHT),
             ]
 
         def on_example_filter(chosen_split, chosen_model, chosen_verdict):
-            return frame(
-                *examples_table(data, chosen_split, chosen_model, chosen_verdict)
+            return html_table(
+                *examples_table(data, chosen_split, chosen_model, chosen_verdict),
+                max_height=EXAMPLES_HEIGHT,
             )
 
         error_split.input(

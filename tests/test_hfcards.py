@@ -588,7 +588,12 @@ def test_the_vllm_command_is_stage_2s(card, hf_repo):
             continue
         expected.append(word)
     expected[0], expected[2] = "vllm", test.base
-    expected[3:3] = ["--revision", test.revision]
+    expected[3:3] = [
+        "--revision",
+        test.revision,
+        "--tokenizer-revision",
+        test.revision,
+    ]
     expected[-1] = "qwen3-8b-2k--step-00025=test-user/qwen3-8b-sec-earnings-lora"
     assert command == expected
     for flag, value in (

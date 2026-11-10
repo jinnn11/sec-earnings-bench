@@ -2,8 +2,8 @@
 writes the Space's folder (dist/hf/space/) from the export's Context.
 
 - app.py and requirements.txt: space/'s, copied byte for byte. The app imports gradio
-  (with the pandas it brings) and the standard library only, never secbench, so the
-  Space runs without this repository.
+  and the standard library only, never secbench, so the Space runs without this
+  repository.
 - README.md: the Space's metadata (sdk_version is the gradio version that
   space/requirements.txt pins) and a short description with links.
 - data/: everything the app reads, precomputed here so that the app only looks things

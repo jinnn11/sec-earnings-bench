@@ -284,7 +284,7 @@ def test_the_app_imports_neither_secbench_nor_gradio_at_import():
         if isinstance(node, ast.Import) and node not in tree.body
         for a in node.names
     }
-    assert inner == {"gradio", "pandas"}
+    assert inner == {"gradio"}
     imported = {
         name.split(".")[0]
         for node in ast.walk(tree)
@@ -505,7 +505,7 @@ def test_left_out_releases_say_why_without_citing_the_plan(
         "(the GPU model's context of 40,960 tokens minus 1,024 for the reply)"
     )
     header = app.release_header(data, "time_test", ggg.release_accession)
-    assert f"left out for every model: {html.escape(reason)}." in header
+    assert f"Left out for every model: {html.escape(reason)}." in header
     assert html.escape(reason) in app.figures_table(
         data, "time_test", ggg.release_accession, []
     )
@@ -994,6 +994,65 @@ def test_serving_without_its_chart(hf_repo_copy, tmp_path):
     assert serving["chart"] is None
 
 
+def test_html_table(app):
+    columns = ["model", "wrong_period", "cost / 1,000", "latency", "accuracy", "note"]
+    rows = [
+        [
+            "GPT <6>",
+            2,
+            "$1.23",
+            "3.29 s",
+            "293/293 (100.0%)",
+            "657/662 (99.24%) [98.05, 100.00]",
+        ],
+        ["Qwen3-8B base", 10, "$0.54", "1.10 s", "262/293 (89.4%)", "x" * 50],
+        [
+            "step-00025",
+            None,
+            "\u22120.76",
+            "",
+            "287/293 (98.0%)",
+            "$2.66 (about $0.56 a)",
+        ],
+    ]
+    out = app.html_table(columns, rows)
+    assert out.startswith('<div style="overflow-x:auto"><table')
+    assert "wrong_<wbr>period" in out  # a header breaks at its underscores only
+    assert "GPT &lt;6&gt;" in out
+    # Columns of numbers (counts, dollars, seconds) are right-aligned.
+    aligned = re.findall(r'<th style="[^"]*text-align:(\w+)', out)
+    assert aligned == ["left", "right", "right", "right", "left", "left"]
+    # Only the 32-character cell with spaces may wrap, and only between its parts.
+    assert out.count("white-space:nowrap") == 17
+    assert out.count("white-space:normal") == 1
+    assert "657/662\u00a0(99.24%) [98.05,\u00a0100.00]" in out
+    boxed = app.html_table(columns, rows, max_height=700)
+    assert boxed.startswith(
+        '<div style="overflow-x:auto;max-height:700px;overflow-y:auto">'
+    )
+    assert app.html_table(columns, []) == "<p>Nothing to show.</p>"
+
+
+def test_the_answer_list_shows_a_table_row_when_there_is_one(app):
+    text = "Capital spending of about $600 million.\n| Net income | $600 | $458 |\n"
+    first = text.index("600")
+    prose = (first, first + 3)
+    row = (text.index("600", first + 3), text.index("600", first + 3) + 3)
+    assert app.shown_span(text, [prose, row]) == row
+    assert app.shown_span(text, [prose]) == prose
+
+
+def test_the_release_header_says_whether_models_saw_it(app, data, hf_context):
+    aaa = accession(hf_context, "AAA")
+    tokens = data.index["validation"][aaa]["prompt_tokens"]
+    header = app.release_header(data, "validation", aaa)
+    assert f"Sent to every model: its prompt is {tokens:,} tokens." in header
+    ggg = accession(hf_context, "GGG")
+    assert "Left out for every model: its prompt is 45,000 tokens" in (
+        app.release_header(data, "time_test", ggg)
+    )
+
+
 # The Gradio app (the hf group; CI has no gradio)
 
 
@@ -1024,6 +1083,15 @@ def test_the_blocks_and_their_tabs(app, data, hf_context):
         ggg,
     )
     assert "Left out for every model" in updates[9]
+    # The Errors tab's tables are HTML; the examples scroll in their box.
+    counts, _, _, examples = handler(demo, "on_error_split")("time_test")
+    assert counts.startswith('<div style="overflow-x:auto"><table')
+    assert examples.startswith(
+        f'<div style="overflow-x:auto;max-height:{app.EXAMPLES_HEIGHT}px;'
+    )
+    assert handler(demo, "on_example_filter")("time_test", app.ANY, app.ANY) == (
+        examples
+    )
 
 
 @pytest.mark.filterwarnings("ignore::ResourceWarning")
@@ -1036,11 +1104,9 @@ def test_the_blocks_with_serving_data(serving_build):
     assert tab_ids(demo, gr) == ["leaderboard", "explore", "errors", "serving", "about"]
     tabs, *_ = handler(demo, "on_load")(gr.Request(query_params={"tab": "serving"}))
     assert tabs.selected == "serving"
-    headers = [
-        b.value["headers"] for b in demo.blocks.values() if isinstance(b, gr.Dataframe)
-    ]
+    shown = [b.value for b in demo.blocks.values() if isinstance(b, gr.HTML)]
     for name in ("summary", "accuracy", "memory", "level"):
-        assert app.serving_table(data, name)[0] in headers, name
+        assert app.html_table(*app.serving_table(data, name)) in shown, name
 
 
 # The real data (skipped without runs/, training/ and data/splits/)

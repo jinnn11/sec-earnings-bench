@@ -146,8 +146,6 @@ def build(
         if written.files:
             built.append(kind)
             say(f"built {kind}/: {len(written.files)} files")
-        for note in written.skipped:
-            say(f"skipped {note}")
     record = manifest(context.hf_user, part, built, skipped)
     hfcommon.write_json(part / MANIFEST, record)
     findings = scan(part)

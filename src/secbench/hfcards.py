@@ -466,8 +466,10 @@ def front_matter(metadata: Mapping[str, Any]) -> list[str]:
 
 def serve_command(test: score.TestConfig, r: int, adapter_repo: str) -> list[str]:
     """score.vllm_command for the test config (stage 2's flags), for the Hub: the base
-    model by its Hub name at the pinned revision, the adapter from its repository,
-    and no host, port or --served-model-name (the model's name is its default)."""
+    model by its Hub name with its weights and tokenizer at the pinned revision
+    (stage 2 served a downloaded snapshot of that revision, and its token-for-token
+    check relied on that tokenizer), the adapter from its repository, and no host,
+    port or --served-model-name (the model's name is its default)."""
     served = served_name(test)
     adapter = score.Model(test.checkpoint, served, served, 0, 0, Path(adapter_repo))
     try:
@@ -478,7 +480,14 @@ def serve_command(test: score.TestConfig, r: int, adapter_repo: str) -> list[str
         raise ExportError(str(exc)) from None
     if command[1:3] != ["serve", test.base]:
         raise ExportError(f"unexpected vllm command: {command[:3]}")
-    kept = ["vllm", *command[1:3], "--revision", test.revision]
+    kept = [
+        "vllm",
+        *command[1:3],
+        "--revision",
+        test.revision,
+        "--tokenizer-revision",
+        test.revision,
+    ]
     rest = iter(command[3:])
     for word in rest:
         if word in DROPPED_FLAGS:

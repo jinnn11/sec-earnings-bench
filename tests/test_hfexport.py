@@ -32,7 +32,8 @@ def test_build_writes_every_folder_and_the_manifest(hf_repo, tmp_path):
     assert record["repos"]["space"]["sdk"] == "gradio"
     assert record["repos"]["dataset"]["id"] == "test-user/sec-earnings-bench"
     assert "int4-awq card: results/serving_results.json not found" in record["skipped"]
-    assert any("serving" in note for note in said)
+    assert any("serving" in note for note in record["skipped"])
+    assert said[0] == "built model/: 5 files"
     assert not (out / "int4-awq").exists()
     assert not out.with_name("hf.part").exists()
     on_disk = hfexport.file_entries(out)
