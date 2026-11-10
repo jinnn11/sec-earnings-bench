@@ -12,7 +12,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          # Full history: a test packs the repository as a git bundle, as the GPU
+          # workflow does, and a bundle can't be made from a shallow clone.
+          fetch-depth: 0
       - name: Install uv
         run: pipx install uv==0.13.0
       - name: Install the locked dependencies (not the GPU-only train and serve groups)
