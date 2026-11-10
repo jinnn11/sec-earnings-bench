@@ -1,13 +1,14 @@
 """The results explorer, a Hugging Face Space (secbench.hfexport's part C): build_space
-writes the Space's folder (dist/hf/space/) from the export's Context.
+writes the Space's folder (dist/hf/space/) from the export's Context. It is a static
+site (sdk: static): Hugging Face serves its files as they are, with no server, since
+the Hub hosts Gradio Spaces on free hardware only with a paid plan.
 
-- app.py and requirements.txt: space/'s, copied byte for byte. The app imports gradio
-  and the standard library only, never secbench, so the Space runs without this
-  repository.
-- README.md: the Space's metadata (sdk_version is the gradio version that
-  space/requirements.txt pins) and a short description with links.
-- data/: everything the app reads, precomputed here so that the app only looks things
-  up: meta.json (links; the splits, fields, periods and verdicts described; the About
+- README.md: the Space's metadata and a short description with links.
+- The pages (index.html, explore.html, release/<accession>.html, errors.html,
+  serving.html, about.html): secbench.hfsite renders them from data/ once it is
+  written, and assets/ holds their style sheet and script, space/'s style.css and
+  explorer.js, copied byte for byte.
+- data/: everything the pages show, precomputed here: meta.json (links; the splits, fields, periods and verdicts described; the About
   text), leaderboard.json (results/comparison.md's main table from
   hfcommon.validation_table, and both test sets from results/test_results.json
   formatted with secbench.testreport's own functions, so every cell reads as in those
@@ -24,8 +25,9 @@ writes the Space's folder (dist/hf/space/) from the export's Context.
 
 Every number shown comes from a results file, through hfcommon's Context,
 training/qwen3-8b-2k/validation.json, data/companies.csv or
-results/serving_results.json, and every sentence holding one is written here, not in
-app.py (which only counts the releases its filters match). The one fact no results
+results/serving_results.json, and every sentence holding one is written here or in
+secbench.hfsite, never in the script (which only counts the releases its filters
+match). The one fact no results
 file holds is stage 1's GPU (STAGE1_GPU), named as README's results table names it.
 JSON is compact (hfcommon.write_json without an indent) and every order is fixed, so
 two builds give the same bytes.
@@ -46,6 +48,7 @@ from secbench import (
     chat,
     grade,
     hfcommon,
+    hfsite,
     link,
     servebench,
     servereport,
@@ -69,20 +72,20 @@ from secbench.hfcommon import (
 )
 from secbench.stage2 import COMPANY_TEST_RELEASES, REPO
 
-SPACE_SOURCE = REPO / "space"  # app.py and requirements.txt, tracked
-APP = "app.py"
-REQUIREMENTS = "requirements.txt"
+SPACE_SOURCE = REPO / "space"  # the pages' style sheet and script, tracked
+ASSET_FILES = (hfsite.STYLE, hfsite.SCRIPT)
 README = "README.md"
-DATA = "data"
-# data/'s files; app.py names them the same (a test checks).
-META = "meta.json"
-LEADERBOARD = "leaderboard.json"
-RUNS = "runs.json"
-RELEASES = "releases.json"
-ANSWERS = "answers.json"
-PREDICTIONS = "predictions"  # predictions/<split>.json
-ERRORS = "errors.json"
-SERVING = "serving.json"
+APP_FILE = hfsite.PAGES["leaderboard"]  # the page the Hub opens
+# data/'s files, as secbench.hfsite reads them.
+DATA = hfsite.DATA
+META = hfsite.META
+LEADERBOARD = hfsite.LEADERBOARD
+RUNS = hfsite.RUNS
+RELEASES = hfsite.RELEASES
+ANSWERS = hfsite.ANSWERS
+PREDICTIONS = hfsite.PREDICTIONS  # predictions/<split>.json
+ERRORS = hfsite.ERRORS
+SERVING = hfsite.SERVING
 TEXTS = "texts"  # texts/<split>/<accession>.md
 CHARTS = "charts"
 PREDICTION_COLUMNS = (
@@ -112,8 +115,6 @@ EMOJI = "📊"
 COLOR_FROM, COLOR_TO = "blue", "indigo"
 SHORT_DESCRIPTION = "LLMs extracting SEC earnings figures, graded by XBRL"
 SHORT_DESCRIPTION_MAX = 60  # the Hub's limit
-PYTHON_VERSION = "3.11"
-GRADIO_PIN = re.compile(r"^gradio==(\S+)$")
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
 SPLIT_TITLES = {
@@ -166,11 +167,10 @@ VARIANT_WORDS = {
 
 
 def build_space(ctx: Context, out: Path) -> Written:
-    """Writes the Space's folder at out: app.py, requirements.txt, README.md and
-    data/. Skips the serving tab's data (and says so) without
+    """Writes the Space's folder at out: README.md, assets/, data/ and the pages
+    rendered from it. Skips the serving page and its data (and says so) without
     results/serving_results.json."""
     written = Written()
-    gradio_version = gradio_pin(SPACE_SOURCE / REQUIREMENTS)
     serving_results = None
     if ctx.sources.serving_results.is_file():
         serving_results = hfcommon.read_json(ctx.sources.serving_results)
@@ -178,12 +178,12 @@ def build_space(ctx: Context, out: Path) -> Written:
         written.skipped.append(
             "Space's serving tab: results/serving_results.json not found"
         )
-    for name in (APP, REQUIREMENTS):
-        hfcommon.copy_file(SPACE_SOURCE / name, out / name)
-        written.files.append(out / name)
-    hfcommon.write_text(
-        out / README, space_readme(ctx, gradio_version, serving_results)
-    )
+    for name in ASSET_FILES:
+        if not (SPACE_SOURCE / name).is_file():
+            raise ExportError(f"{SPACE_SOURCE / name} not found")
+        hfcommon.copy_file(SPACE_SOURCE / name, out / hfsite.ASSETS / name)
+        written.files.append(out / hfsite.ASSETS / name)
+    hfcommon.write_text(out / README, space_readme(ctx, serving_results))
     written.files.append(out / README)
 
     data = out / DATA
@@ -217,21 +217,8 @@ def build_space(ctx: Context, out: Path) -> Written:
         }[key]
         hfcommon.copy_file(source, data / name)
         written.files.append(data / name)
+    written.files += hfsite.write_site(hfsite.load_data(data), out)
     return written
-
-
-def gradio_pin(path: Path) -> str:
-    """The gradio version requirements.txt pins (gradio==X.Y.Z)."""
-    if not path.is_file():
-        raise ExportError(f"{path} not found")
-    pins = [
-        m[1]
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if (m := GRADIO_PIN.match(line.strip()))
-    ]
-    if len(pins) != 1:
-        raise ExportError(f"{path} must pin gradio once (gradio==X.Y.Z)")
-    return pins[0]
 
 
 def text_path(split: str, accession: str) -> str:
@@ -261,7 +248,6 @@ def chart_files(ctx: Context, serving: bool, written: Written) -> dict[str, str]
 
 def space_readme(
     ctx: Context,
-    gradio_version: str,
     serving_results: Mapping[str, Any] | None = None,
 ) -> str:
     if len(SHORT_DESCRIPTION) > SHORT_DESCRIPTION_MAX:
@@ -274,10 +260,8 @@ def space_readme(
         f"emoji: {EMOJI}",
         f"colorFrom: {COLOR_FROM}",
         f"colorTo: {COLOR_TO}",
-        "sdk: gradio",
-        f"sdk_version: {gradio_version}",
-        f'python_version: "{PYTHON_VERSION}"',
-        f"app_file: {APP}",
+        "sdk: static",
+        f"app_file: {APP_FILE}",
         "pinned: false",
         "license: mit",
         f"short_description: {SHORT_DESCRIPTION}",
@@ -329,8 +313,8 @@ def space_readme(
             "The release texts are the companies' press releases as filed with the SEC "
             "on EDGAR. For the API models (OpenAI and Anthropic), only the predicted "
             "figures and the grader's verdicts are shown, never a model's reply. The "
-            "files in `data/` are built by `secbench.hfspace` in the GitHub repository "
-            "from its results."
+            "Space is a static site: its pages and the files in `data/` are built by "
+            "`secbench.hfspace` in the GitHub repository from its results."
         ),
     ]
     return "\n".join(front + body) + "\n"

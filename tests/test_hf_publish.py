@@ -95,8 +95,8 @@ FILES = {
     "int4-awq/README.md": b"int4 card\n",  # 10 bytes
     "dataset/README.md": b"# A dataset card\n",
     "dataset/data/answers/validation.jsonl": b'{"value": "1"}\n',
-    "space/README.md": b"---\nsdk: gradio\n---\n",
-    "space/app.py": b"print('app')\n",
+    "space/README.md": b"---\nsdk: static\n---\n",
+    "space/index.html": b"<p>Pages</p>\n",
     "space/data/texts/validation/0000001001-26-000010.md": b"# A release\n",
 }
 
@@ -122,7 +122,7 @@ def build_dist(root: Path, user: str = USER, files: dict | None = None) -> Path:
         if kind == hfcommon.INT4:
             repo["card_only"] = True
         if kind == hfcommon.SPACE:
-            repo["sdk"] = "gradio"
+            repo["sdk"] = "static"
         repos[kind] = repo
     manifest = {
         "hf_user": user,
@@ -264,11 +264,11 @@ dataset: {USER}/sec-earnings-bench (dataset, private)
         15 B  data/answers/validation.jsonl
   2 files, 32 B
 
-space: {USER}/sec-earnings-explorer (space, private, sdk gradio)
+space: {USER}/sec-earnings-explorer (space, private, sdk static)
   folder: {dist}/space
         20 B  README.md
-        13 B  app.py
         12 B  data/texts/validation/0000001001-26-000010.md
+        13 B  index.html
   3 files, 45 B
 
 Total: 4 repos, 9 files, 2.5 MiB
@@ -301,14 +301,14 @@ def test_the_dry_run_names_the_placeholder_and_whats_skipped(tmp_path):
 
 def test_the_dry_run_stops_when_a_folder_differs_from_its_manifest(tmp_path, dist):
     (dist / "dataset" / "README.md").unlink()
-    (dist / "space" / "app.py").write_text("print('changed')\n")
+    (dist / "space" / "index.html").write_text("<p>Changed</p>\n")
     (dist / "space" / ".DS_Store").write_bytes(b"\0")
     (dist / "int4-awq" / "model.safetensors").write_bytes(b"\0")  # not uploaded
     result = run(tmp_path, "--dry-run", "--dist", str(dist))
     assert result.returncode == 1
     assert result.stderr.splitlines() == [
         f"error: dataset/README.md: in the manifest, not in {dist}",
-        "error: space/app.py: 17 bytes, the manifest says 13",
+        "error: space/index.html: 15 bytes, the manifest says 13",
         "error: space/.DS_Store: not in the manifest, and hf upload would send it",
         (
             f"error: {dist} doesn't match its manifest: rebuild it "
@@ -419,11 +419,11 @@ def test_the_dry_run_lists_a_skipped_repo_without_its_files(tmp_path, dist):
     assert result.returncode == 0, result.stderr
     out = result.stdout
     assert (
-        f"\nspace: {USER}/sec-earnings-explorer (space, private, sdk gradio)\n"
+        f"\nspace: {USER}/sec-earnings-explorer (space, private, sdk static)\n"
         "  skipped (--skip): not created, read or uploaded (3 files, 45 B)\n"
         "\nTotal: 3 repos, 6 files, 2.5 MiB\n"
     ) in out
-    assert "app.py" not in out
+    assert "index.html" not in out
     assert "Not uploaded" not in out
     assert out.endswith("Nothing was sent (dry run).\n")
     assert hf_calls(tmp_path) == []
@@ -564,7 +564,7 @@ def test_an_upload_verifies_then_checks_every_repo_then_uploads(tmp_path, dist):
         create(dataset, "dataset"),
         info("dataset", dataset),
         script(dist, "repo", dataset, "0", hub_info(dataset)),
-        create(space, "space", "--space-sdk", "gradio"),
+        create(space, "space", "--space-sdk", "static"),
         info("space", space),
         script(dist, "repo", space, "0", hub_info(space)),
         upload(model, f"{dist}/model", ".", "model", message),

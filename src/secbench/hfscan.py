@@ -102,6 +102,9 @@ RELEASE_TEXTS = (
         "dataset/data/train/*.jsonl", ("messages", "*", "content"), ("role", "user")
     ),
     ReleaseText("space/data/texts/**/*.md"),
+    # The explorer's page for each release prints its text (and lines of it); the
+    # rest of the page comes from data/'s JSON, which hfspace checks holds none.
+    ReleaseText("space/release/*.html"),
 )
 
 KNOWN_EMAIL = "known e-mail"

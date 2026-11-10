@@ -1,31 +1,28 @@
-"""Tests for secbench.hfspace, the results explorer's Space, on the small repository of
-tests/hf_fixture.py: the built folder (files, README metadata, the gradio pin, sizes,
-determinism, privacy), the app's logic on the built data (space/app.py imported by
-path, without gradio: choices, filters, the figures table and its colours, the
-highlighted text, the Errors and Leaderboard tables), and, when gradio is installed
-(the hf group), the Blocks with and without serving data. The last tests build the
-Space from the real data and skip without it."""
+"""Tests for secbench.hfspace and secbench.hfsite, the results explorer's Space (a
+static site), on the small repository of tests/hf_fixture.py: the built folder (files,
+README metadata, sizes, determinism, privacy), the explorer's logic on the built data
+(choices, filters, the figures table and its colours, the highlighted text, the Errors
+and Leaderboard tables), and the pages (their tabs, links, markup, the filters' data
+and the hooks the script needs). The last tests build the Space from the real data and
+skip without it."""
 
 from __future__ import annotations
 
-import ast
 import dataclasses
 import html
-import importlib.util
 import json
 import re
 import shutil
-import subprocess
-import sys
-import tomllib
+import urllib.parse
 from collections import Counter
+from html.parser import HTMLParser
 from pathlib import Path
 
 import hf_fixture
 import pytest
 from test_hfcommon import comparison_main_table
 
-from secbench import grade, hfcommon, hfspace, servereport, splits, testreport
+from secbench import grade, hfcommon, hfsite, hfspace, servereport, splits, testreport
 from secbench.hfcommon import ExportError, Sources
 
 REPO = Path(__file__).resolve().parents[1]
@@ -72,14 +69,6 @@ COMPARISON_COLUMNS = {
 }
 
 
-def load_app(folder: Path):
-    """space/app.py as built into folder, imported by path (no gradio needed)."""
-    spec = importlib.util.spec_from_file_location("space_app", folder / "app.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def relative_files(root: Path) -> set[str]:
     return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
 
@@ -91,13 +80,8 @@ def built(hf_context, tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def app(built):
-    return load_app(built[0])
-
-
-@pytest.fixture(scope="module")
-def data(app, built):
-    return app.load_data(built[0] / "data")
+def data(built):
+    return hfsite.load_data(built[0] / "data")
 
 
 def run_name(context, split: str, key: str) -> str:
@@ -117,21 +101,37 @@ def accession(context, ticker: str) -> str:
 # The built folder
 
 
-def test_the_folder_holds_the_app_its_readme_and_its_data(hf_context, built):
+def site_pages(context) -> set[str]:
+    """The pages of a build without serving results: one per tab, one per release."""
+    return {
+        "index.html",
+        "explore.html",
+        "errors.html",
+        "about.html",
+        *(
+            f"release/{r.release_accession}.html"
+            for rows in context.releases.values()
+            for r in rows
+        ),
+    }
+
+
+def test_the_folder_holds_its_readme_pages_assets_and_data(hf_context, built):
     out, written = built
     texts = {
         f"data/texts/{split}/{r.release_accession}.md"
         for split, rows in hf_context.releases.items()
         for r in rows
     }
-    expected = {"app.py", "requirements.txt", "README.md", *DATA_FILES, *texts}
+    assets = {"assets/style.css", "assets/explorer.js"}
+    expected = {"README.md", *assets, *site_pages(hf_context), *DATA_FILES, *texts}
     assert relative_files(out) == expected
     assert {p.relative_to(out).as_posix() for p in written.files} == expected
     assert written.skipped == [
         "Space's serving tab: results/serving_results.json not found"
     ]
-    for name in ("app.py", "requirements.txt"):
-        assert (out / name).read_bytes() == (SPACE / name).read_bytes()
+    for name in ("style.css", "explorer.js"):
+        assert (out / "assets" / name).read_bytes() == (SPACE / name).read_bytes()
     for name in ("accuracy_vs_cost.png", "test_accuracy_vs_cost.png"):
         source = hf_context.sources.results / name
         assert (out / "data" / "charts" / name).read_bytes() == source.read_bytes()
@@ -168,19 +168,6 @@ def front_matter(text: str) -> dict:
     return found
 
 
-def pyproject_gradio_pin() -> str:
-    groups = tomllib.loads((REPO / "pyproject.toml").read_text())["dependency-groups"]
-    pins = [d.split("==", 1)[1] for d in groups["hf"] if d.startswith("gradio==")]
-    assert len(pins) == 1
-    return pins[0]
-
-
-def test_the_requirements_pin_gradio_as_pyproject_does():
-    lines = (SPACE / "requirements.txt").read_text().splitlines()
-    assert lines == [f"gradio=={pyproject_gradio_pin()}"]
-    assert hfspace.gradio_pin(SPACE / "requirements.txt") == pyproject_gradio_pin()
-
-
 def test_readme_metadata(built):
     out, _ = built
     readme = (out / "README.md").read_text(encoding="utf-8")
@@ -190,10 +177,8 @@ def test_readme_metadata(built):
         "emoji": "📊",
         "colorFrom": "blue",
         "colorTo": "indigo",
-        "sdk": "gradio",
-        "sdk_version": pyproject_gradio_pin(),
-        "python_version": "3.11",
-        "app_file": "app.py",
+        "sdk": "static",
+        "app_file": "index.html",
         "pinned": "false",
         "license": "mit",
         "short_description": hfspace.SHORT_DESCRIPTION,
@@ -201,7 +186,7 @@ def test_readme_metadata(built):
         "models": ["test-user/qwen3-8b-sec-earnings-lora"],
     }
     assert len(meta["short_description"]) <= 60
-    assert 'python_version: "3.11"' in readme  # a string, not the float 3.11
+    assert "The Space is a static site" in readme
     for link in (
         hfcommon.REPO_URL,
         "https://huggingface.co/datasets/test-user/sec-earnings-bench",
@@ -257,97 +242,16 @@ def test_a_missing_chart_stops_the_build(hf_repo_copy, tmp_path):
         hfspace.build_space(context, tmp_path / "space")
 
 
-@pytest.mark.parametrize("text", ["", "gradio\n", "gradio==1\ngradio==2\n"])
-def test_requirements_must_pin_gradio_once(tmp_path, text):
-    path = tmp_path / "requirements.txt"
-    path.write_text(text)
-    with pytest.raises(ExportError, match="pin gradio once"):
-        hfspace.gradio_pin(path)
-
-
-# The app's source
-
-
-def test_the_app_imports_neither_secbench_nor_gradio_at_import():
-    source = (SPACE / "app.py").read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    top = set()
-    for node in tree.body:
-        if isinstance(node, ast.Import):
-            top |= {a.name.split(".")[0] for a in node.names}
-        elif isinstance(node, ast.ImportFrom):
-            top.add(node.module.split(".")[0])
-    assert top <= sys.stdlib_module_names, top - sys.stdlib_module_names
-    inner = {
-        a.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import) and node not in tree.body
-        for a in node.names
-    }
-    assert inner == {"gradio"}
-    imported = {
-        name.split(".")[0]
-        for node in ast.walk(tree)
-        for name in (
-            [a.name for a in node.names]
-            if isinstance(node, ast.Import)
-            else [node.module or ""]
-            if isinstance(node, ast.ImportFrom)
-            else []
-        )
-    }
-    assert "secbench" not in imported
-    # No `from __future__ import annotations` (see the app's docstring).
-    assert "__future__" not in imported
-
-
-BLOCKED_IMPORTS = """
-import importlib.abc, importlib.util, sys
-
-class Blocked(importlib.abc.MetaPathFinder):
-    def find_spec(self, name, path, target=None):
-        if name.split(".")[0] in ("gradio", "pandas", "secbench"):
-            raise ImportError(name + " is blocked")
-
-sys.meta_path.insert(0, Blocked())
-spec = importlib.util.spec_from_file_location("app", sys.argv[1])
-app = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app)
-data = app.load_data()
-state = app.explore_state(data)
-view = app.release_view(data, state.split, state.accession, state.runs)
-print(state.split, state.ticker, "<mark" in view.text)
-"""
-
-
-def test_the_app_logic_runs_without_gradio_pandas_or_secbench(built):
-    out, _ = built
-    done = subprocess.run(
-        [sys.executable, "-c", BLOCKED_IMPORTS, str(out / "app.py")],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=out.parent,
-    )
-    assert done.stdout.split() == ["company_test", "CCC", "True"]
-
-
-def test_the_apps_file_names_are_the_builds(app):
-    for name in ("META", "LEADERBOARD", "RUNS", "RELEASES", "ANSWERS", "ERRORS"):
-        assert getattr(app, name) == getattr(hfspace, name)
-    assert (app.PREDICTIONS, app.SERVING) == (hfspace.PREDICTIONS, hfspace.SERVING)
-
-
 # Explore: choices and filters
 
 
-def test_split_and_model_choices(app, data, hf_context, hf_repo):
-    assert app.split_choices(data) == [
+def test_split_and_model_choices(data, hf_context, hf_repo):
+    assert hfsite.split_choices(data) == [
         ("Validation", "validation"),
         ("Company test", "company_test"),
         ("Time test", "time_test"),
     ]
-    assert app.run_choices(data, "company_test") == [
+    assert hfsite.run_choices(data, "company_test") == [
         (label, run)
         for label, run in zip(
             hf_repo.test_results["models"].values(),
@@ -355,7 +259,7 @@ def test_split_and_model_choices(app, data, hf_context, hf_repo):
             strict=True,
         )
     ]
-    assert [label for label, _ in app.run_choices(data, "validation")] == [
+    assert [label for label, _ in hfsite.run_choices(data, "validation")] == [
         "Claude Haiku 5.5 · v1",
         "Qwen3-8B base · v2",
         "step-00025 · v2",
@@ -363,15 +267,15 @@ def test_split_and_model_choices(app, data, hf_context, hf_repo):
     ]
     # Validation shows the test sets' models' validation runs first, in their order:
     # here only stage 2's two are in the mini repo.
-    assert app.default_runs(data, "validation") == [
+    assert hfsite.default_runs(data, "validation") == [
         "qwen3-8b-2k--step-00025",
         "qwen3-8b-2k--base",
     ]
-    assert app.default_runs(data, "time_test") == hf_repo.test_runs["time_test"]
-    verdicts = [v for _, v in app.verdict_filter_choices(data, "company_test")]
+    assert hfsite.default_runs(data, "time_test") == hf_repo.test_runs["time_test"]
+    verdicts = [v for _, v in hfsite.verdict_filter_choices(data, "company_test")]
     assert verdicts == [
-        app.ANY,
-        app.MISS,
+        hfsite.ANY,
+        hfsite.MISS,
         "correct",
         "scale",
         "wrong_line",
@@ -380,78 +284,21 @@ def test_split_and_model_choices(app, data, hf_context, hf_repo):
     ]
 
 
-def test_filters_by_a_models_misses_or_a_verdict(app, data, hf_context):
-    def tickers(split, model=app.ANY, verdict=app.ANY):
-        return [r["ticker"] for r in app.matching_releases(data, split, model, verdict)]
+def test_filters_by_a_models_misses_or_a_verdict(data, hf_context):
+    def tickers(split, model=hfsite.ANY, verdict=hfsite.ANY):
+        return [
+            r["ticker"] for r in hfsite.matching_releases(data, split, model, verdict)
+        ]
 
     base = run_name(hf_context, "company_test", "base")
     step = run_name(hf_context, "company_test", "step-00025")
-    assert tickers("company_test", base, app.MISS) == ["CCC"]  # a scale error
-    assert tickers("company_test", step, app.MISS) == ["DDD"]  # the common line
+    assert tickers("company_test", base, hfsite.MISS) == ["CCC"]  # a scale error
+    assert tickers("company_test", step, hfsite.MISS) == ["DDD"]  # the common line
     assert tickers("company_test", step, "scale") == []
     assert tickers("company_test", verdict="not_in_input") == ["CCC"]
     assert tickers("time_test", verdict="adjusted") == ["EEE"]
     assert tickers("time_test") == ["EEE", "FFF", "GGG"]  # left out too
-    assert tickers("validation", verdict=app.MISS) == ["AAA"]
-    assert app.verdict_after_model_change(base, app.ANY) == app.MISS
-    assert app.verdict_after_model_change(base, "scale") == "scale"
-    assert app.verdict_after_model_change(app.ANY, app.ANY) == app.ANY
-
-
-def test_explore_state(app, data, hf_context):
-    first = app.explore_state(data)
-    assert (first.split, first.ticker, first.model, first.verdict) == (
-        "company_test",
-        "CCC",
-        app.ANY,
-        app.ANY,
-    )
-    assert first.accession == accession(hf_context, "CCC")
-    assert first.company_choices == [
-        ("CCC · Gamma Co", "CCC"),
-        ("DDD · Delta Corp", "DDD"),
-    ]
-    assert first.status == "2 releases in the company test split."
-    assert app.explore_state(data, "validation").status == (
-        "2 releases in the validation split."
-    )
-    # The left-out release is counted, and said to be (the Leaderboard counts only
-    # the kept ones).
-    assert app.explore_state(data, "time_test").status == (
-        "3 releases in the time test split, 1 of them left out for every model."
-    )
-    step = run_name(hf_context, "company_test", "step-00025")
-    misses = app.explore_state(data, "company_test", step, app.MISS)
-    assert (misses.ticker, misses.accession) == ("DDD", accession(hf_context, "DDD"))
-    assert misses.status == "1 of the 2 releases match, from 1 company."
-    # A link to a release: its split and company, with filters that hide it cleared.
-    ggg = accession(hf_context, "GGG")
-    linked = app.explore_state(data, accession=ggg)
-    assert (linked.split, linked.ticker, linked.accession) == ("time_test", "GGG", ggg)
-    assert linked.release_choices == [
-        ("2026-08-01 · 10-Q, period ended 2026-06-30 · left out", ggg)
-    ]
-    ccc = accession(hf_context, "CCC")
-    cleared = app.explore_state(data, "company_test", step, app.MISS, accession=ccc)
-    assert (cleared.model, cleared.verdict, cleared.accession) == (
-        app.ANY,
-        app.ANY,
-        ccc,
-    )
-    # Unknown values fall back to the defaults.
-    odd = app.explore_state(data, "nope", "nobody", "bad verdict", "ZZZ", "0-0", ["x"])
-    assert (odd.split, odd.model, odd.verdict, odd.ticker) == (
-        "company_test",
-        app.ANY,
-        app.ANY,
-        "CCC",
-    )
-    assert odd.runs == app.default_runs(data, "company_test")
-    nothing = app.explore_state(data, "company_test", step, "scale")
-    assert (nothing.ticker, nothing.accession) == (None, None)
-    assert app.release_view(data, "company_test", None, []).header.startswith(
-        "<p>No release matches"
-    )
+    assert tickers("validation", verdict=hfsite.MISS) == ["AAA"]
 
 
 def test_a_repeated_run_shows_under_its_own_name(hf_repo_copy, tmp_path):
@@ -469,9 +316,8 @@ def test_a_repeated_run_shows_under_its_own_name(hf_repo_copy, tmp_path):
     ) == 2
     out = tmp_path / "space"
     hfspace.build_space(context, out)
-    app = load_app(out)
-    data = app.load_data(out / "data")
-    labels = {run: label for label, run in app.run_choices(data, "validation")}
+    data = hfsite.load_data(out / "data")
+    labels = {run: label for label, run in hfsite.run_choices(data, "validation")}
     assert labels == {
         "2026-10-14T023302_claude-haiku-5-5_extract_v1": "Claude Haiku 5.5 · v1",
         "qwen3-8b-2k--base": "Qwen3-8B base · v2",
@@ -479,7 +325,7 @@ def test_a_repeated_run_shows_under_its_own_name(hf_repo_copy, tmp_path):
         "qwen3-8b-nothink-v2": "Qwen3-8B (no thinking) · v2 · qwen3-8b-nothink-v2",
         repeat.name: f"Qwen3-8B (no thinking) · v2 · {repeat.name}",
     }
-    _, rows = app.verdict_table(data, "validation")
+    _, rows = hfsite.verdict_table(data, "validation")
     assert sorted(row[0] for row in rows) == sorted(labels.values())
     board = data.leaderboard["validation"]
     models = dict(zip(board["runs"], (row[0] for row in board["rows"]), strict=True))
@@ -491,9 +337,7 @@ def test_a_repeated_run_shows_under_its_own_name(hf_repo_copy, tmp_path):
     )
 
 
-def test_left_out_releases_say_why_without_citing_the_plan(
-    app, data, hf_context, built
-):
+def test_left_out_releases_say_why_without_citing_the_plan(data, hf_context, built):
     """The split's own reason cites PLAN.md, which isn't published; the Space says why
     from the prompt's token count and the limit."""
     out, _ = built
@@ -504,13 +348,15 @@ def test_left_out_releases_say_why_without_citing_the_plan(
         f"its prompt is {ggg.prompt_tokens:,} tokens, over the 39,936-token limit "
         "(the GPU model's context of 40,960 tokens minus 1,024 for the reply)"
     )
-    header = app.release_header(data, "time_test", ggg.release_accession)
+    header = hfsite.release_header(data, "time_test", ggg.release_accession)
     assert f"Left out for every model: {html.escape(reason)}." in header
-    assert html.escape(reason) in app.figures_table(
+    assert html.escape(reason) in hfsite.figures_table(
         data, "time_test", ggg.release_accession, []
     )
     for path in out.rglob("*"):
-        if path.suffix in (".json", ".md") and "texts" not in path.parts:
+        if path.suffix in (".json", ".md", ".html") and not (
+            {"texts", "release"} & set(path.relative_to(out).parts)
+        ):
             assert "PLAN.md" not in path.read_text(encoding="utf-8"), path
     assert hfspace.left_out_text(hf_context.releases["time_test"][0]) is None
     for odd in (
@@ -531,25 +377,25 @@ def cells_by_slot(rows, run):
     }
 
 
-def test_the_figures_table_and_its_colours(app, data, hf_context):
+def test_the_figures_table_and_its_colours(data, hf_context):
     step = run_name(hf_context, "company_test", "step-00025")
     base = run_name(hf_context, "company_test", "base")
     ddd = accession(hf_context, "DDD")
-    rows = app.figure_rows(data, "company_test", ddd, [step, base])
+    rows = hfsite.figure_rows(data, "company_test", ddd, [step, base])
     assert [(r.field, r.period) for r in rows] == [
         (f, p) for f in grade.FIELD_NAMES for p in ("quarter", "year_to_date")
     ]
     mine = cells_by_slot(rows, step)
     wrong = mine["net_income", "quarter"]
     assert (wrong.kind, wrong.prediction["verdict"], wrong.prediction["predicted"]) == (
-        app.ERROR,
+        hfsite.ERROR,
         "wrong_line",
         "190000000",
     )
-    assert mine["revenue", "quarter"].kind == app.CORRECT
-    assert cells_by_slot(rows, base)["net_income", "quarter"].kind == app.CORRECT
-    table = app.figures_table(data, "company_test", ddd, [step, base])
-    background = app.KIND_COLOURS[app.ERROR][0]
+    assert mine["revenue", "quarter"].kind == hfsite.CORRECT
+    assert cells_by_slot(rows, base)["net_income", "quarter"].kind == hfsite.CORRECT
+    table = hfsite.figures_table(data, "company_test", ddd, [step, base])
+    background = hfsite.KIND_COLOURS[hfsite.ERROR][0]
     evidence = html.escape(wrong.prediction["evidence"], quote=True)
     assert re.search(
         rf'background:{background};[^"]*" title="wrong_line: {re.escape(evidence)}"',
@@ -558,29 +404,31 @@ def test_the_figures_table_and_its_colours(app, data, hf_context):
     assert "190,000,000" in table and "200,000,000" in table
 
     ccc = accession(hf_context, "CCC")
-    theirs = cells_by_slot(app.figure_rows(data, "company_test", ccc, [base]), base)
+    theirs = cells_by_slot(hfsite.figure_rows(data, "company_test", ccc, [base]), base)
     slip = theirs["revenue", "quarter"]
-    assert (slip.kind, slip.prediction["factor"]) == (app.SLIP, "0.001")
+    assert (slip.kind, slip.prediction["factor"]) == (hfsite.SLIP, "0.001")
     assert theirs["eps_diluted", "quarter"].prediction["verdict"] == "not_in_input"
-    assert theirs["eps_diluted", "quarter"].kind == app.UNGRADED
+    assert theirs["eps_diluted", "quarter"].kind == hfsite.UNGRADED
     assert theirs["revenue", "year_to_date"].prediction["verdict"] == "no_answer"
     assert theirs["net_income", "year_to_date"].prediction is None  # null, no answer
-    assert theirs["net_income", "year_to_date"].kind == app.UNGRADED
-    table = app.figures_table(data, "company_test", ccc, [base])
-    for colour in (app.SLIP, app.UNGRADED, app.CORRECT):
-        assert f"background:{app.KIND_COLOURS[colour][0]}" in table
+    assert theirs["net_income", "year_to_date"].kind == hfsite.UNGRADED
+    table = hfsite.figures_table(data, "company_test", ccc, [base])
+    for colour in (hfsite.SLIP, hfsite.UNGRADED, hfsite.CORRECT):
+        assert f"background:{hfsite.KIND_COLOURS[colour][0]}" in table
     assert "scale (×0.001)" in table and "not printed: not graded" in table
 
     # A fourth quarter: the full year's column, and no quarter EPS answer.
     bbb = accession(hf_context, "BBB")
-    rows = app.figure_rows(
-        data, "validation", bbb, app.default_runs(data, "validation")
+    rows = hfsite.figure_rows(
+        data, "validation", bbb, hfsite.default_runs(data, "validation")
     )
     assert [r.period for r in rows[:2]] == ["quarter", "full_year"]
     assert rows[4].answer is None and rows[0].answer["derived"]
     ggg = accession(hf_context, "GGG")
-    assert app.figure_rows(data, "time_test", ggg, ["x"]) == []
-    assert "Left out for every model" in app.figures_table(data, "time_test", ggg, [])
+    assert hfsite.figure_rows(data, "time_test", ggg, ["x"]) == []
+    assert "Left out for every model" in hfsite.figures_table(
+        data, "time_test", ggg, []
+    )
 
 
 def marked(html_text: str) -> list[str]:
@@ -589,18 +437,18 @@ def marked(html_text: str) -> list[str]:
     ]
 
 
-def test_highlights_land_on_the_printed_form(app, data, hf_context):
+def test_highlights_land_on_the_printed_form(data, hf_context):
     bbb, eee = accession(hf_context, "BBB"), accession(hf_context, "EEE")
-    text = app.read_release_text(data, "validation", bbb)
-    shown = marked(app.release_view(data, "validation", bbb, []).text)
+    text = hfsite.read_release_text(data, "validation", bbb)
+    shown = marked(hfsite.release_view(data, "validation", bbb, []).text)
     assert "(30,250)" in shown and "512,300" in shown and "0.59" in shown
-    text = app.read_release_text(data, "time_test", eee)
-    view = app.release_view(data, "time_test", eee, [])
+    text = hfsite.read_release_text(data, "time_test", eee)
+    view = hfsite.release_view(data, "time_test", eee, [])
     assert {"640", "1,255", "−15", "40", "(0.11)", "(0.29)"} <= set(marked(view.text))
-    marks = app.text_marks(data, "time_test", eee)
+    marks = hfsite.text_marks(data, "time_test", eee)
     loss = [m for m in marks if m[3].startswith("Net income, year to date")]
     assert [text[a:b] for a, b, _, _ in loss] == ["40"]
-    number, line, start, end = app.line_of(text, loss[0][0], loss[0][1])
+    number, line, start, end = hfsite.line_of(text, loss[0][0], loss[0][1])
     assert line.startswith("| Net loss |") and line[start:end] == "40"
     assert view.answers.count("<li>") == 6
     assert "40 on a loss row (Net loss" in html.unescape(view.answers)
@@ -608,10 +456,10 @@ def test_highlights_land_on_the_printed_form(app, data, hf_context):
     assert "<b>40</b>" in view.answers
 
 
-def test_highlights_split_overlapping_marks_and_escape_the_text(app):
+def test_highlights_split_overlapping_marks_and_escape_the_text():
     text = "a<b>cdef"
     marks = [(0, 5, "revenue", "first"), (3, 8, "net_income", "second")]
-    shown = app.highlighted_text(text, marks)
+    shown = hfsite.highlighted_text(text, marks)
     pieces = re.findall(r'<mark [^>]*title="([^"]*)">(.*?)</mark>', shown)
     assert [(html.unescape(t), html.unescape(x)) for t, x in pieces] == [
         ("first", "a<b"),
@@ -619,25 +467,25 @@ def test_highlights_split_overlapping_marks_and_escape_the_text(app):
         ("second", "def"),
     ]
     assert "<b>" not in shown.replace("&lt;b&gt;", "")
-    assert app.excerpt("x" * 500 + "123" + "y" * 500, 500, 503).count("…") == 2
+    assert hfsite.excerpt("x" * 500 + "123" + "y" * 500, 500, 503).count("…") == 2
 
 
-def test_figures_are_exact_with_separators(app):
-    assert app.figure("1234000000") == "1,234,000,000"
-    assert app.figure("-30250000") == "-30,250,000"
-    assert app.figure("202000000.0") == "202,000,000.0"
-    assert app.figure("0.45") == "0.45"
-    assert app.figure("1.25E+7") == "12,500,000"
-    assert app.figure(None) == "null"
+def test_figures_are_exact_with_separators():
+    assert hfsite.figure("1234000000") == "1,234,000,000"
+    assert hfsite.figure("-30250000") == "-30,250,000"
+    assert hfsite.figure("202000000.0") == "202,000,000.0"
+    assert hfsite.figure("0.45") == "0.45"
+    assert hfsite.figure("1.25E+7") == "12,500,000"
+    assert hfsite.figure(None) == "null"
 
 
 # Errors
 
 
-def test_the_errors_tab_counts_graded_csv(app, data, hf_context):
+def test_the_errors_tab_counts_graded_csv(data, hf_context):
     for split in SPLITS:
         runs = hf_context.runs(split)
-        columns, rows = app.verdict_table(data, split)
+        columns, rows = hfsite.verdict_table(data, split)
         assert columns[0] == "model" and columns[-1] == "unit slips"
         assert [row[0] for row in rows] == [hfspace.run_label(r) for r in runs]
         for run, row in zip(runs, rows, strict=True):
@@ -647,7 +495,7 @@ def test_the_errors_tab_counts_graded_csv(app, data, hf_context):
             }
             assert set(tally) <= set(columns[1:-1])
             assert row[-1] == sum(bool(g["factor"]) for g in run.graded)
-        columns, examples = app.examples_table(data, split)
+        columns, examples = hfsite.examples_table(data, split)
         expected = []
         for run in runs:
             first = {}
@@ -661,7 +509,7 @@ def test_the_errors_tab_counts_graded_csv(app, data, hf_context):
                     )
         assert [(r[0], r[1], r[3]) for r in examples] == expected
     base = run_name(hf_context, "company_test", "base")
-    _, rows = app.examples_table(data, "company_test", base, app.MISS)
+    _, rows = hfsite.examples_table(data, "company_test", base, hfsite.MISS)
     assert [(r[0], r[1], r[6], r[7], r[8]) for r in rows] == [
         ("Qwen3-8B base", "scale", "845,000,000", "845,000,000,000", "0.001")
     ]
@@ -670,8 +518,8 @@ def test_the_errors_tab_counts_graded_csv(app, data, hf_context):
 # Leaderboard
 
 
-def test_the_validation_leaderboard_is_comparison_md(app, data, hf_context, hf_repo):
-    columns, rows = app.validation_board(data)
+def test_the_validation_leaderboard_is_comparison_md(data, hf_context, hf_repo):
+    columns, rows = hfsite.validation_board(data)
     table = hfcommon.validation_table(hf_context.validation_runs)
     # A GPU run's "runs on" is its GPU, as README's tables: stage 2's runs on the
     # validation GPU test_results.json names, the others on stage 1's A100.
@@ -714,9 +562,9 @@ def test_the_validation_leaderboard_is_comparison_md(app, data, hf_context, hf_r
     assert "Repeated runs" not in notes
 
 
-def test_the_test_leaderboard_reads_as_test_results_md(app, data, hf_repo):
+def test_the_test_leaderboard_reads_as_test_results_md(data, hf_repo):
     results = hf_repo.test_results
-    boards = app.test_boards(data)
+    boards = hfsite.test_boards(data)
     assert [b["name"] for b in boards] == ["company_test", "time_test"]
     runs_on = {
         "step-00025": "1× H100 NVL",  # model_under_test.gpus, as README's table
@@ -769,15 +617,6 @@ def test_the_test_leaderboard_reads_as_test_results_md(app, data, hf_repo):
     ) in notes
     assert "$2.91" in notes and "time test's GPU runs record" not in notes
     assert "on one Vast H100 NVL per test split" in notes
-
-
-def test_tabs_from_the_url_query(app, data):
-    tabs = app.available_tabs(data)
-    assert tabs == ["leaderboard", "explore", "errors", "about"]
-    assert app.tab_from_query({"tab": "errors"}, tabs) == "errors"
-    assert app.tab_from_query({"tab": " About "}, tabs) == "about"
-    assert app.tab_from_query({"tab": "serving"}, tabs) == "leaderboard"
-    assert app.tab_from_query({}, tabs) == "leaderboard"
 
 
 def test_meta_describes_every_verdict_and_split(data, hf_context):
@@ -899,16 +738,15 @@ def test_serving_data_without_commands_or_paths(serving_build):
     text = (out / "data" / "serving.json").read_text(encoding="utf-8")
     for private in ("server_command", "vllm", "MODEL", "training/", "runs/", "error"):
         assert private not in text, private
-    app = load_app(out)
-    data = app.load_data(out / "data")
-    assert app.available_tabs(data) == [
+    data = hfsite.load_data(out / "data")
+    assert hfsite.available_tabs(data) == [
         "leaderboard",
         "explore",
         "errors",
         "serving",
         "about",
     ]
-    columns, rows = app.serving_table(data, "summary")
+    columns, rows = hfsite.serving_table(data, "summary")
     merged = dict(zip(columns, rows[1], strict=True))
     variant = results["variants"]["merged"]
     best = variant["best"]
@@ -921,7 +759,7 @@ def test_serving_data_without_commands_or_paths(serving_build):
     )
     # Accuracy, with each variant's agreement with the adapter variant and with
     # stage 2's runs (adapter's own: the check that serving reproduces stage 2).
-    columns, rows = app.serving_table(data, "accuracy")
+    columns, rows = hfsite.serving_table(data, "accuracy")
     by_variant = {row[0]: dict(zip(columns, row, strict=True)) for row in rows}
     assert list(by_variant) == ["adapter", "merged", "fp8", "int4-awq"]
     merged = by_variant["merged"]
@@ -938,11 +776,19 @@ def test_serving_data_without_commands_or_paths(serving_build):
         "360/360 figures, 60/60 releases"
     )
     assert "Same as stage 2:" in data.serving["notes"]
-    columns, rows = app.serving_table(data, "memory")
+    columns, rows = hfsite.serving_table(data, "memory")
     assert rows[3] == ["int4-awq", "5.60", "70.00", "566,000", "13.80x", "85"]
-    columns, rows = app.serving_table(data, "level")
+    columns, rows = hfsite.serving_table(data, "level")
     assert len(rows) == 4 * 3 and rows[0][:3] == ["adapter", "1", "128/128"]
     assert "1, 16 or 64 requests in flight" in data.serving["intro"]
+    page = (out / "serving.html").read_text(encoding="utf-8")
+    for name in ("summary", "accuracy", "memory", "level"):
+        assert hfsite.html_table(*hfsite.serving_table(data, name)) in page, name
+    assert 'href="serving.html" aria-current="page"' in page
+    assert f'<img src="data/{data.serving["chart"]}"' in page
+    assert 'href="serving.html">Serving</a>' in (out / "index.html").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_a_failed_serving_variant(hf_repo_copy, tmp_path):
@@ -992,9 +838,11 @@ def test_serving_without_its_chart(hf_repo_copy, tmp_path):
     ]
     serving = json.loads((tmp_path / "space/data/serving.json").read_text())
     assert serving["chart"] is None
+    page = (tmp_path / "space/serving.html").read_text(encoding="utf-8")
+    assert "<img " not in page and "<h3>Every load level</h3>" in page
 
 
-def test_html_table(app):
+def test_html_table():
     columns = ["model", "wrong_period", "cost / 1,000", "latency", "accuracy", "note"]
     rows = [
         [
@@ -1015,7 +863,7 @@ def test_html_table(app):
             "$2.66 (about $0.56 a)",
         ],
     ]
-    out = app.html_table(columns, rows)
+    out = hfsite.html_table(columns, rows)
     assert out.startswith('<div style="overflow-x:auto"><table')
     assert "wrong_<wbr>period" in out  # a header breaks at its underscores only
     assert "GPT &lt;6&gt;" in out
@@ -1026,87 +874,366 @@ def test_html_table(app):
     assert out.count("white-space:nowrap") == 17
     assert out.count("white-space:normal") == 1
     assert "657/662\u00a0(99.24%) [98.05,\u00a0100.00]" in out
-    boxed = app.html_table(columns, rows, max_height=700)
+    boxed = hfsite.html_table(columns, rows, max_height=700)
     assert boxed.startswith(
         '<div style="overflow-x:auto;max-height:700px;overflow-y:auto">'
     )
-    assert app.html_table(columns, []) == "<p>Nothing to show.</p>"
+    assert hfsite.html_table(columns, []) == "<p>Nothing to show.</p>"
 
 
-def test_the_answer_list_shows_a_table_row_when_there_is_one(app):
+def test_the_answer_list_shows_a_table_row_when_there_is_one():
     text = "Capital spending of about $600 million.\n| Net income | $600 | $458 |\n"
     first = text.index("600")
     prose = (first, first + 3)
     row = (text.index("600", first + 3), text.index("600", first + 3) + 3)
-    assert app.shown_span(text, [prose, row]) == row
-    assert app.shown_span(text, [prose]) == prose
+    assert hfsite.shown_span(text, [prose, row]) == row
+    assert hfsite.shown_span(text, [prose]) == prose
 
 
-def test_the_release_header_says_whether_models_saw_it(app, data, hf_context):
+def test_the_release_header_says_whether_models_saw_it(data, hf_context):
     aaa = accession(hf_context, "AAA")
     tokens = data.index["validation"][aaa]["prompt_tokens"]
-    header = app.release_header(data, "validation", aaa)
+    header = hfsite.release_header(data, "validation", aaa)
     assert f"Sent to every model: its prompt is {tokens:,} tokens." in header
     ggg = accession(hf_context, "GGG")
     assert "Left out for every model: its prompt is 45,000 tokens" in (
-        app.release_header(data, "time_test", ggg)
+        hfsite.release_header(data, "time_test", ggg)
     )
 
 
-# The Gradio app (the hf group; CI has no gradio)
+# The pages
+
+# Where a page may link off the site (in a new tab: the Hub shows a Space in a frame);
+# nothing is loaded from anywhere else.
+LINKED_HOSTS = {"github.com", "huggingface.co", "www.sec.gov"}
+VOID_ELEMENTS = {"br", "img", "input", "link", "meta", "wbr"}
 
 
-def tab_ids(demo, gr) -> list[str]:
-    return [b.id for b in demo.blocks.values() if isinstance(b, gr.Tab)]
+class Markup(HTMLParser):
+    """A page's elements, checked to nest (each closed, in order), with their
+    attributes."""
+
+    def __init__(self, text: str):
+        super().__init__(convert_charrefs=True)
+        self.open: list[str] = []
+        self.problems: list[str] = []
+        self.tags: list[tuple[str, dict]] = []
+        self.feed(text)
+        self.close()
+        if self.open:
+            self.problems.append(f"never closed: {self.open}")
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append((tag, dict(attrs)))
+        if tag not in VOID_ELEMENTS:
+            self.open.append(tag)
+
+    def handle_startendtag(self, tag, attrs):
+        self.problems.append(f"<{tag} /> (no element here closes itself)")
+
+    def handle_endtag(self, tag):
+        if tag in VOID_ELEMENTS or not self.open or self.open[-1] != tag:
+            self.problems.append(f"</{tag}> where {self.open[-1:]} is open")
+        else:
+            self.open.pop()
 
 
-def handler(demo, name: str):
-    return next(f.fn for f in demo.fns.values() if f.name == name)
+def page_files(out: Path) -> list[Path]:
+    return sorted(out.glob("*.html")) + sorted((out / "release").glob("*.html"))
 
 
-@pytest.mark.filterwarnings("ignore::ResourceWarning")
-def test_the_blocks_and_their_tabs(app, data, hf_context):
-    gr = pytest.importorskip("gradio")
-    demo = app.build_demo(data)
-    assert tab_ids(demo, gr) == ["leaderboard", "explore", "errors", "about"]
-    on_load = handler(demo, "on_load")
-    tabs, split, *_ = on_load(gr.Request(query_params={"tab": "errors"}))
-    assert (tabs.selected, split.value) == ("errors", "company_test")
-    tabs, *_ = on_load(gr.Request(query_params={"tab": "serving"}))
-    assert tabs.selected == "leaderboard"
+def sections(text: str) -> dict[str, str]:
+    """A page's split sections, by split, in order."""
+    found = re.findall(
+        r'<section class="split(?: current)?" data-split="(\w+)">(.*?)</section>',
+        text,
+        re.DOTALL,
+    )
+    return dict(found)
+
+
+def test_every_page_nests_and_links_only_where_it_should(built):
+    """Every element closed in order; every link and file on the site found; off
+    the site, only links (to GitHub, the Hub and EDGAR), each in a new tab."""
+    out, _ = built
+    pages = page_files(out)
+    assert len(pages) == len(list(out.rglob("*.html")))
+    for path in pages:
+        text = path.read_text(encoding="utf-8")
+        assert text.startswith('<!doctype html>\n<html lang="en">\n'), path
+        markup = Markup(text)
+        assert markup.problems == [], (path, markup.problems[:3])
+        for tag, attrs in markup.tags:
+            for name in ("href", "src"):
+                url = attrs.get(name)
+                if url is None:
+                    continue
+                if url.startswith("data:"):
+                    assert (tag, attrs.get("rel")) == ("link", "icon"), (path, url)
+                    continue
+                parts = urllib.parse.urlsplit(url)
+                if parts.scheme:
+                    assert parts.scheme == "https", (path, url)
+                    assert parts.hostname in LINKED_HOSTS, (path, url)
+                    assert tag == "a", (path, url)
+                    assert (attrs.get("target"), attrs.get("rel")) == (
+                        "_blank",
+                        "noopener",
+                    ), (path, url)
+                    continue
+                assert parts.path, (path, url)
+                target = (path.parent / urllib.parse.unquote(parts.path)).resolve()
+                assert target.is_file(), (path, url)
+                assert out.resolve() in target.parents, (path, url)
+
+
+def test_each_page_names_its_tab(built, data, hf_context):
+    out, _ = built
+    tabs = hfsite.available_tabs(data)
+    assert tabs == ["leaderboard", "explore", "errors", "about"]
+    pages = {hfsite.PAGES[t]: t for t in tabs}
+    ddd = accession(hf_context, "DDD")
+    for name, tab, root in [
+        *((name, tab, "") for name, tab in pages.items()),
+        (f"release/{ddd}.html", "explore", "../"),
+    ]:
+        text = (out / name).read_text(encoding="utf-8")
+        nav = re.search(r'<nav class="tabs" aria-label="Pages">(.*?)</nav>', text)[1]
+        assert re.findall(r'href="([^"]+)"', nav) == [root + p for p in pages], name
+        assert re.findall(r'href="([^"]+)" aria-current="page"', nav) == [
+            root + hfsite.PAGES[tab]
+        ], name
+        assert f'<link rel="stylesheet" href="{root}assets/style.css">' in text
+        assert f'<script src="{root}assets/explorer.js" defer></script>' in text
+        title = re.search(r"<title>(.*?)</title>", text)[1]
+        assert title.endswith(f" · {html.escape(data.meta['title'])}"), name
+    assert "<title>Errors · " in (out / "errors.html").read_text(encoding="utf-8")
+
+
+def test_the_explore_page_lists_every_release_and_what_each_filter_matches(
+    built, data, hf_context
+):
+    """Each split's releases by ticker and date, each linked to its page; for each
+    model and verdict choice, the build's list of the releases that match, which is
+    matching_releases' (the script only looks it up)."""
+    out, _ = built
+    text = (out / "explore.html").read_text(encoding="utf-8")
+    found = sections(text)
+    assert list(found) == list(SPLITS)
+    assert '<section class="split current" data-split="company_test">' in text
+    assert text.count("split current") == 1  # the default split first
+    for split, body in found.items():
+        order = hfsite.release_order(data, split)
+        rows = re.findall(
+            r'<tr data-i="(\d+)" data-ticker="([^"]+)" data-search="([^"]*)">'
+            r'<td><a href="release/([\d-]+)\.html">',
+            body,
+        )
+        assert [int(i) for i, *_ in rows] == list(range(len(order)))
+        assert [a for *_, a in rows] == [r["release_accession"] for r in order]
+        tickers = [t for _, t, _, _ in rows]
+        assert tickers == sorted(tickers)
+        for (_, _, search, _), r in zip(rows, order, strict=True):
+            assert search == html.escape(f"{r['ticker']} {r['company']}".lower())
+        models = [m for _, m in hfsite.model_filter_choices(data, split)]
+        verdicts = [v for _, v in hfsite.verdict_filter_choices(data, split)]
+        for name, choices in (
+            ("model", hfsite.model_filter_choices(data, split)),
+            ("verdict", hfsite.verdict_filter_choices(data, split)),
+        ):
+            assert (
+                f'<select data-filter="{name}">{hfsite.options(choices)}</select>'
+                in (body)
+            )
+        matches = json.loads(
+            re.search(
+                r'<script type="application/json" class="filter-data">(.*?)</script>',
+                body,
+                re.DOTALL,
+            )[1]
+        )
+        assert list(matches) == models
+        for model in models:
+            wanted = [v for v in verdicts if (model, v) != (hfsite.ANY, hfsite.ANY)]
+            assert list(matches[model]) == wanted
+            for verdict in wanted:
+                shown = {order[i]["release_accession"] for i in matches[model][verdict]}
+                assert shown == {
+                    r["release_accession"]
+                    for r in hfsite.matching_releases(data, split, model, verdict)
+                }, (split, model, verdict)
+        status = html.escape(hfsite.split_meta(data, split)["status"])
+        assert f'<p class="status" data-default="{status}">{status}</p>' in body
+    step = run_name(hf_context, "company_test", "step-00025")
+    order = hfsite.release_order(data, "company_test")
+    picked = json.loads(
+        re.search(r'class="filter-data">(.*?)</script>', found["company_test"])[1]
+    )[step][hfsite.MISS]
+    assert [order[i]["ticker"] for i in picked] == ["DDD"]
+    # The left-out release says so, and why on hover.
     ggg = accession(hf_context, "GGG")
-    updates = on_load(gr.Request(query_params={"tab": "explore", "release": ggg}))
-    assert updates[0].selected == "explore"
-    assert (updates[1].value, updates[5].value, updates[6].value) == (
-        "time_test",
-        "GGG",
-        ggg,
-    )
-    assert "Left out for every model" in updates[9]
-    # The Errors tab's tables are HTML; the examples scroll in their box.
-    counts, _, _, examples = handler(demo, "on_error_split")("time_test")
-    assert counts.startswith('<div style="overflow-x:auto"><table')
-    assert examples.startswith(
-        f'<div style="overflow-x:auto;max-height:{app.EXAMPLES_HEIGHT}px;'
-    )
-    assert handler(demo, "on_example_filter")("time_test", app.ANY, app.ANY) == (
-        examples
+    assert re.search(
+        rf'release/{ggg}\.html">GGG · [^<]*</a></td>(?:<td[^>]*>[^<]*</td>)*?'
+        r'<td class="num" title="its prompt is 45,000 tokens[^"]*">'
+        r"45,000 tokens · left out</td>",
+        found["time_test"],
     )
 
 
-@pytest.mark.filterwarnings("ignore::ResourceWarning")
-def test_the_blocks_with_serving_data(serving_build):
-    gr = pytest.importorskip("gradio")
-    _, out, _ = serving_build
-    app = load_app(out)
-    data = app.load_data(out / "data")
-    demo = app.build_demo(data)
-    assert tab_ids(demo, gr) == ["leaderboard", "explore", "errors", "serving", "about"]
-    tabs, *_ = handler(demo, "on_load")(gr.Request(query_params={"tab": "serving"}))
-    assert tabs.selected == "serving"
-    shown = [b.value for b in demo.blocks.values() if isinstance(b, gr.HTML)]
-    for name in ("summary", "accuracy", "memory", "level"):
-        assert app.html_table(*app.serving_table(data, name)) in shown, name
+def test_a_release_page(built, data, hf_context):
+    out, _ = built
+    ccc, ddd = accession(hf_context, "CCC"), accession(hf_context, "DDD")
+    text = (out / f"release/{ddd}.html").read_text(encoding="utf-8")
+    shown = hfsite.default_runs(data, "company_test")
+    for part in hfsite.release_view(data, "company_test", ddd, shown):
+        assert part in text
+    assert (
+        '<a href="../explore.html#split=company_test">← Company test releases</a>'
+        in (text)
+    )
+    assert f'<a href="../release/{ccc}.html" rel="prev">‹ CCC ' in text
+    assert 'rel="next"' not in text  # DDD is the company test's last
+    assert "<title>DDD 20" in text
+    assert "<details>" not in text  # the company test shows every model already
+    assert "<h3>Where the release prints each answer</h3>" in text
+    # Validation shows its default models, and every model in a fold.
+    aaa = accession(hf_context, "AAA")
+    text = (out / f"release/{aaa}.html").read_text(encoding="utf-8")
+    every = [run for _, run in hfsite.run_choices(data, "validation")]
+    assert len(every) == 4 > len(hfsite.default_runs(data, "validation"))
+    assert (
+        "<details><summary>Every model on this split (4)</summary>"
+        f"{hfsite.figures_table(data, 'validation', aaa, every)}</details>"
+    ) in text
+    # A left-out release: why, and its text, with no answers to list.
+    ggg = accession(hf_context, "GGG")
+    text = (out / f"release/{ggg}.html").read_text(encoding="utf-8")
+    assert "Left out for every model" in text and "<mark " not in text
+    assert "Where the release prints each answer" not in text
+    assert "<details>" not in text
+    assert html.escape(hfsite.read_release_text(data, "time_test", ggg)) in text
+
+
+def test_the_errors_page_holds_every_example_with_what_its_filters_read(built, data):
+    out, _ = built
+    text = (out / "errors.html").read_text(encoding="utf-8")
+    found = sections(text)
+    assert list(found) == list(SPLITS)
+    assert '(see <a href="about.html">About</a>)' in text
+    assert hfsite.markdown(hfsite.verdict_glossary(data)) in text
+    for split, body in found.items():
+        assert hfsite.html_table(*hfsite.verdict_table(data, split)) in body
+        rows = re.findall(
+            r'<tr data-run="([^"]*)" data-verdict="([^"]*)" data-miss="([01])">', body
+        )
+        assert rows == [
+            (
+                row["run"],
+                row["verdict"],
+                "1" if hfsite.is_miss(data, row["verdict"]) else "0",
+            )
+            for row, _ in hfsite.example_rows(data, split)
+        ]
+        assert len(rows) == len(hfsite.examples_table(data, split)[1])
+        assert '<p class="empty" hidden>' in body
+
+
+def test_the_leaderboard_and_about_pages(built, data):
+    out, _ = built
+    text = (out / "index.html").read_text(encoding="utf-8")
+    assert hfsite.html_table(*hfsite.validation_board(data)) in text
+    for board in hfsite.test_boards(data):
+        assert hfsite.html_table(board["columns"], board["rows"]) in text
+        assert hfsite.markdown(board["differences"]) in text
+    for key in ("validation", "test"):
+        board = data.leaderboard[key]
+        assert hfsite.markdown(board["notes"]) in text
+        width, height = hfsite.png_size(out / "data" / board["chart"])
+        assert width > 0 and height > 0
+        assert (
+            f'<img src="data/{board["chart"]}" width="{width}" height="{height}"'
+            in (text)
+        )
+    assert "<strong>Unit slips:</strong>" in text
+    about = (out / "about.html").read_text(encoding="utf-8")
+    assert hfsite.markdown(data.meta["about"]) in about
+    assert "<table>" in about  # its markdown tables
+
+
+def test_markdown_escapes_html_and_opens_off_site_links_in_a_new_tab():
+    out = hfsite.markdown(
+        "See [About](about.html) and [GitHub](https://github.com/x). <b>raw</b> "
+        "not_in_input\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n"
+    )
+    assert '<a href="about.html">About</a>' in out
+    assert '<a href="https://github.com/x" target="_blank" rel="noopener">' in out
+    assert "&lt;b&gt;raw&lt;/b&gt; not_in_input" in out
+    assert "<td>1</td>" in out
+    assert hfsite.markdown_inline("*a* b") == "<em>a</em> b"
+
+
+def test_the_script_finds_what_it_needs_in_the_pages(built):
+    """explorer.js's hooks (classes, data attributes, filters) are on the pages, and
+    the miss filter's value is the build's (the script reads it there)."""
+    out, _ = built
+    script = (SPACE / "explorer.js").read_text(encoding="utf-8")
+    pages = "".join(
+        (out / name).read_text(encoding="utf-8")
+        for name in ("explore.html", "errors.html")
+    )
+    attributes = set(re.findall(r'getAttribute\("([\w-]+)"\)', script))
+    assert attributes >= {"data-i", "data-miss", "data-run", "data-split"}
+    for name in attributes:
+        assert f' {name}="' in pages, name
+    filters = set(re.findall(r'data-filter="([\w-]+)"', script))
+    assert filters == {
+        "model",
+        "verdict",
+        "company",
+        "example-model",
+        "example-verdict",
+    }
+    for name in filters:
+        assert f'data-filter="{name}"' in pages, name
+    for selector, markup in (
+        (".split-tabs", 'class="split-tabs"'),
+        ("section.split", '<section class="split'),
+        ("script.filter-data", 'class="filter-data"'),
+        (".filters", 'class="filters js-only"'),
+        (".status", 'class="status"'),
+        (".empty", 'class="empty"'),
+    ):
+        assert f'"{selector}' in script or f"'{selector}" in script, selector
+        assert markup in pages, selector
+    assert pages.count(f'data-miss="{hfsite.MISS}"') == 2 * len(SPLITS)
+    assert '"miss"' not in script  # read from the page, not written twice
+
+
+def test_the_style_sheet_hides_only_what_the_script_shows():
+    """Without the script (no "js" class), every split and row shows, and the
+    filters, which need it, don't."""
+    style = (SPACE / "style.css").read_text(encoding="utf-8")
+    assert ".js section.split:not(.current) {\n  display: none;" in style
+    assert ".split-tabs,\n.js-only {\n  display: none;" in style
+    rules = re.sub(r"/\*.*?\*/", "", style, flags=re.DOTALL)
+    hidden = re.findall(r"([^{}]+)\{[^}]*display: none;", rules)
+    for selector in hidden:
+        names = [n.strip() for n in selector.split(",")]
+        assert all(
+            n.startswith(".js ")
+            or n in (".split-tabs", ".js-only", "tr[hidden]", "p[hidden]")
+            for n in names
+        ), selector
+
+
+def test_html_table_row_attributes():
+    rows = [["a", 1], ["b", 2]]
+    out = hfsite.html_table(
+        ["name", "n"], rows, row_attributes=[{"data-run": 'x"<y'}, {}]
+    )
+    assert '<tr data-run="x&quot;&lt;y"><td' in out and "<tr><td" in out
+    with pytest.raises(ValueError, match="one mapping per row"):
+        hfsite.html_table(["name", "n"], rows, row_attributes=[{}])
 
 
 # The real data (skipped without runs/, training/ and data/splits/)
@@ -1176,9 +1303,8 @@ def test_real_space_folder(real):
 @needs_real_data
 def test_real_leaderboard_is_comparison_md_and_test_results(real):
     context, out, _ = real
-    app = load_app(out)
-    data = app.load_data(out / "data")
-    columns, rows = app.validation_board(data)
+    data = hfsite.load_data(out / "data")
+    columns, rows = hfsite.validation_board(data)
     comparison = comparison_main_table(REAL.comparison)
     assert len(rows) == len(comparison) == 24
     for row, theirs in zip(rows, comparison, strict=True):
@@ -1201,18 +1327,18 @@ def test_real_leaderboard_is_comparison_md_and_test_results(real):
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     for place in set(runs_on.values()):
         assert f"| {place} |" in readme, place
-    assert app.explore_state(data, "time_test").status == (
+    assert hfsite.split_meta(data, "time_test")["status"] == (
         "355 releases in the time test split, 9 of them left out for every model."
     )
-    assert app.explore_state(data, "validation").status == (
+    assert hfsite.split_meta(data, "validation")["status"] == (
         "60 releases in the validation split."
     )
     results = context.test_results
-    for board in app.test_boards(data):
+    for board in hfsite.test_boards(data):
         for row in board["rows"]:
             for cell in row[2:6]:
                 assert cell in TEST_RESULTS_MD
-    company, time_test = app.test_boards(data)
+    company, time_test = hfsite.test_boards(data)
     assert company["rows"][0][2] == "657/662 (99.24%) [98.05, 100.00]"
     assert time_test["rows"][0][2] == "1,699/1,740 (97.64%) [96.64, 98.57]"
     primary = data.leaderboard["test"]["primary"]
@@ -1221,7 +1347,7 @@ def test_real_leaderboard_is_comparison_md_and_test_results(real):
         primary.removeprefix("**Primary result (pre-registered).** ") in TEST_RESULTS_MD
     )
     # Explore shows the test sets' models' validation runs first.
-    assert app.default_runs(data, "validation") == [
+    assert hfsite.default_runs(data, "validation") == [
         c["run"] for c in results["validation"]["counts"].values()
     ]
     # The Errors tab's counts are test_results.json's, from the same graded.csv.
@@ -1283,23 +1409,22 @@ def test_real_about_has_readmes_limitations_and_failures(real):
 @needs_real_data
 def test_real_misses_are_found_by_the_filters(real):
     context, out, _ = real
-    app = load_app(out)
-    data = app.load_data(out / "data")
+    data = hfsite.load_data(out / "data")
     for split in ("company_test", "time_test"):
         step = run_name(context, split, "step-00025")
         found = {
             r["release_accession"]
-            for r in app.matching_releases(data, split, step, app.MISS)
+            for r in hfsite.matching_releases(data, split, step, hfsite.MISS)
         }
         misses = context.test_results["splits"][split]["misses"]
         assert found == {m["release_accession"] for m in misses}
         miss = misses[0]
-        rows = app.figure_rows(data, split, miss["release_accession"], [step])
+        rows = hfsite.figure_rows(data, split, miss["release_accession"], [step])
         cell = next(
             row.cells[0]
             for row in rows
             if (row.field, row.period) == (miss["field"], miss["period_type"])
         )
-        assert cell.kind in (app.ERROR, app.SLIP)
+        assert cell.kind in (hfsite.ERROR, hfsite.SLIP)
         assert cell.prediction["predicted"] == miss["predicted"]
         assert cell.prediction["verdict"] == miss["verdict"]

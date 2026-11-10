@@ -32,7 +32,10 @@ testpaths = ["tests"]
 extend-select = ["I", "UP", "B"]
 
 [dependency-groups]
+# markdown-it-py renders the results explorer's markdown (notes, About) into its static
+# pages (secbench.hfsite); it was already in the lock, through rich.
 dev = [
+    "markdown-it-py>=4.2.0",
     "matplotlib>=3.11.2",
     "pytest>=9.1.1",
     "ruff>=0.17.0",
@@ -67,13 +70,10 @@ quantize = [
 ]
 # The Hugging Face export's checks (secbench.hfexport), not needed to build it: the
 # tests that load the exported dataset with datasets.load_dataset, as the Hub reads
-# it, and that build the results explorer's Gradio app without starting it. CI
-# installs neither, so those tests skip there (uv sync --group hf to run them).
-# gradio is the version the Space pins in its own requirements.txt (space/), which a
-# test checks.
+# it. CI doesn't install it, so those tests skip there (uv sync --group hf to run
+# them).
 hf = [
     "datasets==5.2.0",
-    "gradio==6.30.0",
 ]
 
 [tool.uv]

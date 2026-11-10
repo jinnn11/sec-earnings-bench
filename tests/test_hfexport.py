@@ -29,7 +29,7 @@ def test_build_writes_every_folder_and_the_manifest(hf_repo, tmp_path):
         "folder": "model",
         "private": True,
     }
-    assert record["repos"]["space"]["sdk"] == "gradio"
+    assert record["repos"]["space"]["sdk"] == "static"
     assert record["repos"]["dataset"]["id"] == "test-user/sec-earnings-bench"
     assert "int4-awq card: results/serving_results.json not found" in record["skipped"]
     assert any("serving" in note for note in record["skipped"])

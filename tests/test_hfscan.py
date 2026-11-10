@@ -337,6 +337,10 @@ def test_release_text_rules():
     assert not hfscan.is_release_text(rules, ("messages", "x", "content"), {})
     assert hfscan.release_rules("space/data/texts/a/b/c.md")
     assert not hfscan.release_rules("space/data/texts.md")
+    # The explorer's release pages print their release's text; its other pages don't.
+    assert hfscan.release_rules("space/release/0000001001-26-000010.html")
+    assert not hfscan.release_rules("space/index.html")
+    assert not hfscan.release_rules("space/release/a/b.html")
     assert not hfscan.release_rules("dataset/data/releases/x/y.jsonl")
     assert hfscan.glob_match("a/**/b", "a/b") and hfscan.glob_match("a/**/b", "a/x/y/b")
 

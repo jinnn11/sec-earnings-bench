@@ -16,8 +16,9 @@ use the placeholder HF_USER, which hf_publish.sh refuses. Folders, one per repos
   and skipped (said so) until then;
 - dataset/: <NAME>/sec-earnings-bench, the benchmark as JSONL configs (releases, answers,
   train, predictions) with its card (secbench.hfdataset);
-- space/: <NAME>/sec-earnings-explorer, the results explorer (a Gradio app on the free CPU
-  tier that reads precomputed files only; secbench.hfspace, app source in space/).
+- space/: <NAME>/sec-earnings-explorer, the results explorer, a static site (pages
+  rendered from precomputed files by secbench.hfspace and secbench.hfsite; their style
+  sheet and script in space/).
 
 Every number comes from a results file (see secbench.hfcommon). The build goes into
 <out>.part and replaces <out> only when complete: manifest.json lists every file with
@@ -104,7 +105,7 @@ def repos_entry(hf_user: str, built: Sequence[str]) -> dict[str, dict[str, Any]]
             "private": True,
         }
         if kind == SPACE:
-            entry["sdk"] = "gradio"
+            entry["sdk"] = "static"
         if kind == INT4:
             entry["card_only"] = True
         repos[kind] = entry
