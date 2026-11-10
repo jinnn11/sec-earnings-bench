@@ -65,6 +65,16 @@ quantize = [
     "torch==2.13.0",
     "transformers==5.19.0",
 ]
+# The Hugging Face export's checks (secbench.hfexport), not needed to build it: the
+# tests that load the exported dataset with datasets.load_dataset, as the Hub reads
+# it, and that build the results explorer's Gradio app without starting it. CI
+# installs neither, so those tests skip there (uv sync --group hf to run them).
+# gradio is the version the Space pins in its own requirements.txt (space/), which a
+# test checks.
+hf = [
+    "datasets==5.2.0",
+    "gradio==6.30.0",
+]
 
 [tool.uv]
 conflicts = [[{ group = "quantize" }, { group = "serve" }]]
