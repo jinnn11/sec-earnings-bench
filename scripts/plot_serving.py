@@ -120,8 +120,8 @@ def plot(results: dict[str, Any], out: Path) -> None:
     ax.set_title(
         f"{settings['prompts']} {settings['load_split'].replace('_', ' ')} prompts per "
         f"level after {settings['warmup']} warm-up; left to right, "
-        f"{', '.join(map(str, settings['levels']))} requests in flight (numbered on "
-        f"{NAMES.get(top, top)}).",
+        f"{', '.join(map(str, settings['levels']))} requests in flight, numbered on "
+        f"{top}.",
         loc="left",
         fontsize=8.5,
         color=TEXT_SECONDARY,
@@ -132,7 +132,8 @@ def plot(results: dict[str, Any], out: Path) -> None:
     ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:g}"))
     ax.xaxis.set_minor_formatter(FuncFormatter(lambda x, _: ""))
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:,.0f}"))
-    ax.set_ylim(bottom=0)
+    highest = max(p[2] for points in found.values() for p in points)
+    ax.set_ylim(0, highest * 1.15)  # room for the level numbers above the top line
     ax.grid(True, which="major", color=GRID, linewidth=0.8)
     ax.set_axisbelow(True)
     ax.tick_params(colors=TEXT_SECONDARY, labelsize=8.5)
