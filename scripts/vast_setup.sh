@@ -103,6 +103,8 @@ case "${1:-}" in
         SERVING_CONFIG=$(field config)
         SETUP_LOG=${SETUP_LOG:-$WORK/setup-serving.log}
         MIN_DISK_GB=120
+        # Python's output goes to the log as it is printed, so tail -f shows progress.
+        export PYTHONUNBUFFERED=1
         ;;
     --split | --gpu-hourly)
         MODE=test

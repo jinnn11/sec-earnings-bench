@@ -30,6 +30,7 @@ SERVING="training/$RUN/serving"
 CONFIG="$SERVING/smoke.toml"
 RUNS="$SERVING/runs"
 REPORT="$SERVING/report"
+export PYTHONUNBUFFERED=1  # progress shows as it is printed when the output is a file
 
 step() { printf '\n== %s %s\n' "$(date +%H:%M:%S)" "$*"; }
 
