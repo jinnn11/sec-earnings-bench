@@ -10,6 +10,8 @@ import json
 import random
 import shlex
 import shutil
+import subprocess
+import tarfile
 from pathlib import Path
 
 import httpx
@@ -27,12 +29,13 @@ from test_splits import AAPL, MSFT, PROMPTS, repo  # noqa: F401 (repo is a fixtu
 from test_splits import run as build_splits
 from test_train import prepare, write_labels
 
-from secbench import quantize, score, servebench, serving, train
+from secbench import bundle, quantize, score, servebench, serving, splits, train
 from secbench.serving import ServingError
 
 WEIGHTS = b"adapter weights"
 CONFIG = Path("configs/serving/run.toml")
 SNAPSHOT = Path("/snapshots/tiny")
+SPLIT_FILES = (*splits.FILES, splits.MANIFEST)
 VLLM_LOG = """\
 (EngineCore_DP0 pid=7) INFO 11-10 12:00:01 [gpu_model_runner.py:2602] Model loading took 15.2683 GiB memory and 4.512 seconds
 (EngineCore_DP0 pid=7) INFO 11-10 12:00:30 [gpu_worker.py:298] Available KV cache memory: 52.34 GiB
@@ -565,3 +568,115 @@ def test_load_draw(tmp_path) -> None:
     assert {p[0] for p in (*measured, *warmup)} == {f"time_test {n}" for n in range(5)}
     with pytest.raises(ServingError, match="needs 5 prompts; time_test has 4"):
         servebench.load_draw(config, prompts[:4])
+
+
+# The bundle for the serving benchmark, unpacked as scripts/vast_setup.sh unpacks it
+
+
+def test_servebench_from_an_unpacked_bundle(
+    lab,
+    perfect,  # noqa: F811
+    tmp_path_factory,
+    monkeypatch,
+) -> None:
+    state = lab / "training/run/checkpoints/step-00002/training_state.pt"
+    state.write_bytes(b"optimizer")  # not packed
+    files, entry = bundle.files_for_serving(CONFIG, labels_dir=lab / "labels")
+    assert [str(p) for p in files] == [
+        str(CONFIG),
+        "training/run/config.json",
+        "training/run/checkpoints/step-00002/adapter_config.json",
+        "training/run/checkpoints/step-00002/adapter_model.safetensors",
+        "training/run/checkpoints/step-00002/state.json",
+        *(f"data/splits/validation/{name}" for name in SPLIT_FILES),
+        f"data/releases/0000320193/{AAPL}.json",
+        f"data/releases/0000320193/{AAPL}.md",
+        f"data/releases/0000789019/{MSFT}.json",
+        f"data/releases/0000789019/{MSFT}.md",
+        "data/serving/run/calibration.jsonl",
+        "data/serving/run/calibration.csv",
+        "data/serving/run/calibration.json",
+    ]
+    calibration = lab / "data/serving/run/calibration.json"
+    assert entry == {
+        "kind": "serving",
+        "config": str(CONFIG),
+        "config_sha256": sha256((lab / CONFIG).read_bytes()),
+        "config_tracked": False,
+        "run": "run",
+        "checkpoint": "step-00002",
+        "adapter_sha256": sha256(WEIGHTS),
+        "variants": ["adapter", "merged", "fp8", "int4-awq"],
+        "splits": {
+            "validation": {
+                "built_at": "c0ffee" * 6,
+                "releases": 2,
+                "files": {
+                    f"data/splits/validation/{name}": sha256(
+                        (lab / "data/splits/validation" / name).read_bytes()
+                    )
+                    for name in SPLIT_FILES
+                },
+            }
+        },
+        "calibration": {
+            "folder": "data/serving/run",
+            "manifest_sha256": sha256(calibration.read_bytes()),
+            "examples": 2,
+            "tokens": json.loads(calibration.read_text())["tokens"]["total"],
+        },
+    }
+    out = tmp_path_factory.mktemp("tar") / "bundle.tar"
+    branch = bundle.git("rev-parse", "--abbrev-ref", "HEAD")
+    info = bundle.make_bundle(out, files, "abc123", branch, {"serving": entry})
+    assert info["serving"] == entry
+
+    instance = tmp_path_factory.mktemp("instance")
+    staging = instance / "bundle"
+    with tarfile.open(out) as tar:
+        tar.extractall(staging, filter="data")
+    clone = instance / "sec-earnings-bench"
+    git = ["git", "clone", "-q", "-b", branch, str(staging / "repo.bundle"), str(clone)]
+    subprocess.run(git, check=True)
+    for name in ("configs", "data", "training"):
+        shutil.copytree(staging / name, clone / name, dirs_exist_ok=True)
+    assert not (clone / "data/raw").exists() and not (clone / "data/stage2").exists()
+    assert not (clone / "training/run/examples.csv").exists()
+    assert not list(clone.rglob(state.name))
+    bundle.check_serving_unpacked(clone, CONFIG, Path("data/splits"))
+
+    # Anything servebench reads beyond the bundle (the laptop's files) fails here.
+    monkeypatch.chdir(clone)
+    python = clone / ".venv-quantize/bin/python"
+    python.parent.mkdir(parents=True)
+    python.write_text("")
+    server = StreamingVLLM(lambda model, text: perfect[text])
+    assert bench(clone, server) == 0
+    record = json.loads((clone / "training/run/serving/servebench.json").read_text())
+    assert all(r["status"] == "complete" for r in record["variants"].values())
+
+
+def test_a_serving_bundle_refuses_bad_calibration(lab) -> None:
+    folder = lab / "data/serving/run"
+    with (folder / "calibration.jsonl").open("a") as f:
+        f.write("\n")
+    with pytest.raises(quantize.QuantizeError, match="isn't the file the manifest"):
+        bundle.files_for_serving(CONFIG, labels_dir=lab / "labels")
+    shutil.rmtree(folder)
+    with pytest.raises(quantize.QuantizeError, match="secbench.quantize calibration"):
+        bundle.files_for_serving(CONFIG, labels_dir=lab / "labels")
+
+
+def test_bundle_options(capsys) -> None:
+    with pytest.raises(SystemExit):
+        bundle.main(
+            [
+                "--serving-config",
+                "a.toml",
+                "--test-config",
+                "b",
+                "--split",
+                "validation",
+            ]
+        )
+    assert "--serving-config or --test-config, not both" in capsys.readouterr().err
