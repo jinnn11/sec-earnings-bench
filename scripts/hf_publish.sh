@@ -32,17 +32,24 @@
 # commit. The script never makes a repo public: do that on the Hub, in each repo's
 # settings, after a look at it there.
 #
+# --skip REPO[,REPO...] leaves those repos out of the run, by their keys in the
+# manifest (model, int4-awq, dataset, space): they are not created, read or uploaded,
+# and the dry run lists them as skipped. A key the export doesn't have stops the run,
+# as does skipping every repo. The option can be given more than once.
+#
 # Usage: bash scripts/hf_publish.sh [--dry-run] [--dist dist/hf] [--allow-public]
+#        [--skip REPO[,REPO...]]
 set -euo pipefail
 unset CDPATH  # so cd prints nothing
 
 fail() { echo "error: $*" >&2; exit 1; }
 step() { printf '\n== %s\n' "$*"; }
-USAGE="usage: bash scripts/hf_publish.sh [--dry-run] [--dist dist/hf] [--allow-public]"
+USAGE="usage: bash scripts/hf_publish.sh [--dry-run] [--dist dist/hf] [--allow-public] [--skip REPO[,REPO...]]"
 
 DRY_RUN=0
 ALLOW_PUBLIC=0
 DIST_ARG=dist/hf
+SKIP=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run) DRY_RUN=1; shift ;;
@@ -50,6 +57,11 @@ while [ $# -gt 0 ]; do
         --dist)
             [ $# -ge 2 ] && [ -n "$2" ] || fail "--dist needs a folder ($USAGE)"
             DIST_ARG=$2
+            shift 2
+            ;;
+        --skip)
+            [ $# -ge 2 ] && [ -n "$2" ] || fail "--skip needs a repo: model, int4-awq, dataset or space ($USAGE)"
+            SKIP="${SKIP:+$SKIP,}$2"
             shift 2
             ;;
         -h | --help)
@@ -64,11 +76,13 @@ done
 DIST=$(cd "$DIST_ARG" && pwd)
 cd "$(dirname "$0")/.."  # uv runs the repository's project
 
-# The manifest, read by Python (no jq). `manifest show`: the dry run's listing, with
-# the folders checked against the manifest; `manifest plan`: one tab-separated line
-# for the user, one for the commit message and one per repo; `manifest whoami USER
-# JSON`: whether `hf auth whoami --format json` names the manifest's user; `manifest
-# repo ID CARD_ONLY JSON`: the repo's visibility from `hf <type>s info --format json`.
+# The manifest, read by Python (no jq). `manifest show [SKIP]`: the dry run's listing,
+# with the folders checked against the manifest; `manifest plan [SKIP]`: one
+# tab-separated line for the user, one for the commit message and one per repo, a
+# skipped repo's starting "skip" (SKIP: --skip's keys, comma-separated); `manifest
+# whoami USER JSON`: whether `hf auth whoami --format json` names the manifest's user;
+# `manifest repo ID CARD_ONLY JSON`: the repo's visibility from `hf <type>s info
+# --format json`.
 manifest() {
     uv run python - "$DIST" "$DIST_ARG" "$@" <<'EOF'
 import json
@@ -215,6 +229,20 @@ def problems(repos, files):
     return found
 
 
+def skipped(repos, given=""):
+    """The keys --skip leaves out (comma-separated), each one of the export's repos."""
+    keys = [key.strip() for key in given.split(",") if key.strip()]
+    if given and not keys:
+        fail("--skip needs a repo: model, int4-awq, dataset or space")
+    for key in keys:
+        if key not in repos:
+            names = ", ".join(repos)
+            fail(f"--skip {key}: the export has no such repo (its repos: {names})")
+    if set(repos) <= set(keys):
+        fail("--skip leaves no repo to publish")
+    return set(keys)
+
+
 def commit_message(data):
     build = data.get("build") or {}
     commit = str(build.get("commit") or "")[:12]
@@ -226,7 +254,8 @@ def commit_message(data):
     return message
 
 
-def show(data, user, repos, files):
+def show(data, user, repos, files, skip=""):
+    skip = skipped(repos, skip)
     print(f"Hugging Face export {shown} (dry run: nothing is sent)")
     if user == hfcommon.PLACEHOLDER_USER:
         print(
@@ -239,6 +268,10 @@ def show(data, user, repos, files):
     sent = []
     for key, repo in repos.items():
         extra = f", sdk {repo['sdk']}" if repo["type"] == "space" else ""
+        if key in skip:
+            print(f"\n{key}: {repo['id']} ({repo['type']}, private{extra})")
+            print(f"  skipped (--skip): not created, read or uploaded ({count(uploads(repo, files))})")
+            continue
         print(f"\n{key}: {repo['id']} ({repo['type']}, private{extra})")
         print(f"  folder: {shown}/{repo['folder']}")
         if repo.get("card_only"):
@@ -253,12 +286,18 @@ def show(data, user, repos, files):
         print(f"  {count(mine)}")
         sent += mine
     sent_paths = {f["path"] for f in sent}
-    others = [f for f in files if f["path"] not in sent_paths]
+    left_out = {repos[key]["folder"] for key in skip}
+    others = [
+        f
+        for f in files
+        if f["path"] not in sent_paths and f["path"].split("/")[0] not in left_out
+    ]
     if others:
         print("\nNot uploaded (in no repo's upload):")
         for f in others:
             print(f"  {human(f['size']):>10}  {f['path']}")
-    repo_count = f"{len(repos)} repo" + ("" if len(repos) == 1 else "s")
+    sending = len(repos) - len(skip)
+    repo_count = f"{sending} repo" + ("" if sending == 1 else "s")
     print(f"\nTotal: {repo_count}, {count(sent)}")
     for item in data.get("skipped") or []:
         print(f"Skipped in the build: {item}")
@@ -280,7 +319,8 @@ def show(data, user, repos, files):
     return 1 if found else 0
 
 
-def plan(data, user, repos, files):
+def plan(data, user, repos, files, skip=""):
+    skip = skipped(repos, skip)
     if user == hfcommon.PLACEHOLDER_USER:
         fail(
             f"{shown} was built for the placeholder user {user}: rebuild it for "
@@ -290,6 +330,9 @@ def plan(data, user, repos, files):
     print(f"user\t{user}")
     print(f"message\t{commit_message(data)}")
     for key, repo in repos.items():
+        if key in skip:
+            print("\t".join(("skip", key, repo["id"], repo["type"])))
+            continue
         uploads(repo, files)  # a card-only repo's README.md is listed
         fields = (
             "repo",
@@ -306,12 +349,12 @@ def plan(data, user, repos, files):
 
 
 commands = {"show": show, "plan": plan}
-raise SystemExit(commands[command](*load()))
+raise SystemExit(commands[command](*load(), *args))
 EOF
 }
 
 if [ "$DRY_RUN" = 1 ]; then
-    manifest show
+    manifest show ${SKIP:+"$SKIP"}
     exit 0
 fi
 
@@ -328,13 +371,17 @@ NO_LOGIN=$(mktemp -d)
 trap 'rm -rf "$NO_LOGIN"' EXIT
 export HF_TOKEN_PATH="$NO_LOGIN/token"
 export HF_HUB_DISABLE_TELEMETRY=1
-plan=$(manifest plan) || exit 1
+plan=$(manifest plan ${SKIP:+"$SKIP"}) || exit 1
 TAB=$(printf '\t')
 NL='
 '
 user=$(printf '%s\n' "$plan" | sed -n "s/^user$TAB//p")
 message=$(printf '%s\n' "$plan" | sed -n "s/^message$TAB//p")
 NOTHING_UPLOADED="no file was uploaded (a repo this run created is private and empty)"
+create_failed() {
+    echo "error: hf couldn't create $1 on the Hub (hf's message is above)" >&2
+    fail "$NOTHING_UPLOADED"
+}
 
 step "Checking $DIST_ARG: its files against the manifest, and the privacy scan"
 uv run python -m secbench.hfexport --verify --out "$DIST" </dev/null ||
@@ -351,7 +398,13 @@ step "Repositories (a missing one is created private; nothing is uploaded yet)"
 states=""
 public=""
 private=0
+skipped=""
 while IFS="$TAB" read -r kind key id type folder card_only sdk url; do
+    if [ "$kind" = skip ]; then
+        echo "$key: $id ($type): skipped (--skip): not created, read or uploaded"
+        skipped="$skipped $id"
+        continue
+    fi
     if [ "$kind" != repo ]; then
         continue
     fi
@@ -360,10 +413,10 @@ while IFS="$TAB" read -r kind key id type folder card_only sdk url; do
         expand=private,siblings
     elif [ "$type" = space ]; then
         uv run hf repos create "$id" --type "$type" --private --exist-ok \
-            --space-sdk "$sdk" </dev/null >/dev/null
+            --space-sdk "$sdk" </dev/null >/dev/null || create_failed "$id"
     else
         uv run hf repos create "$id" --type "$type" --private --exist-ok \
-            </dev/null >/dev/null
+            </dev/null >/dev/null || create_failed "$id"
     fi
     if ! info=$(uv run hf "${type}s" info "$id" --expand "$expand" --format json </dev/null); then
         if [ "$card_only" = 1 ]; then
@@ -408,6 +461,9 @@ EOF
 
 step "Done: each repo's visibility, as the Hub reported it before the upload"
 printf '%s' "$states"
+if [ -n "$skipped" ]; then
+    echo "Skipped (--skip):$skipped: not created, read or uploaded"
+fi
 if [ -n "$public" ]; then
     echo "Public (--allow-public):$public: their files are published."
 fi

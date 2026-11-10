@@ -31,7 +31,8 @@ hold), runs `uv run python` with this interpreter, and answers `uv run hf` only 
 FAKE_HF is 1: whoami as FAKE_HF_USER (of FAKE_HF_ORGS), and `<type>s info` as the
 Hub would: a repo of FAKE_HF_MISSING (ids, comma-separated) isn't found until
 `repos create` made it, one of FAKE_HF_UNREADABLE never is, one of FAKE_HF_PUBLIC is
-public, and a repo's files (siblings) are FAKE_HF_FILES."""
+public, and a repo's files (siblings) are FAKE_HF_FILES. `repos create` fails for a
+repo of FAKE_HF_CREATE_FAILS, as the Hub refuses a Gradio Space without a paid plan."""
 import json, os, sys
 
 
@@ -60,6 +61,9 @@ if args[:2] == ["run", "hf"]:
     if hf[:2] == ["auth", "whoami"]:
         orgs = os.environ.get("FAKE_HF_ORGS") or None
         print(json.dumps({"user": os.environ["FAKE_HF_USER"], "orgs": orgs, "endpoint": None}))
+    elif hf[:2] == ["repos", "create"] and hf[2] in ids("FAKE_HF_CREATE_FAILS"):
+        print(f"Error: Client error '402 Payment Required' for {hf[2]}", file=sys.stderr)
+        sys.exit(1)
     elif hf[1:2] == ["info"]:
         repo = hf[2]
         with open(log_path) as log:
@@ -397,12 +401,125 @@ def test_a_token_of_another_user_is_refused(tmp_path, dist):
     assert hf_calls(tmp_path) == [["auth", "whoami", "--format", "json"]]
 
 
-@pytest.mark.parametrize("arguments", [["--bogus"], ["--dist"]])
+@pytest.mark.parametrize(
+    "arguments", [["--bogus"], ["--dist"], ["--skip"], ["--skip", ""]]
+)
 def test_bad_arguments(tmp_path, arguments):
     result = run(tmp_path, *arguments)
     assert result.returncode != 0
     assert "usage: bash scripts/hf_publish.sh" in result.stderr
     assert calls(tmp_path) == []
+
+
+# Skipping repos (--skip)
+
+
+def test_the_dry_run_lists_a_skipped_repo_without_its_files(tmp_path, dist):
+    result = run(tmp_path, "--dry-run", "--dist", str(dist), "--skip", "space")
+    assert result.returncode == 0, result.stderr
+    out = result.stdout
+    assert (
+        f"\nspace: {USER}/sec-earnings-explorer (space, private, sdk gradio)\n"
+        "  skipped (--skip): not created, read or uploaded (3 files, 45 B)\n"
+        "\nTotal: 3 repos, 6 files, 2.5 MiB\n"
+    ) in out
+    assert "app.py" not in out
+    assert "Not uploaded" not in out
+    assert out.endswith("Nothing was sent (dry run).\n")
+    assert hf_calls(tmp_path) == []
+
+
+def test_skip_takes_several_repos(tmp_path, dist):
+    """A comma-separated list, and the option more than once."""
+    result = run(
+        tmp_path,
+        "--dry-run",
+        "--dist",
+        str(dist),
+        "--skip",
+        "space, dataset",
+        "--skip",
+        "int4-awq",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Total: 1 repo, 3 files, 2.5 MiB\n" in result.stdout
+    for kind in ("int4-awq", "dataset", "space"):
+        assert f"\n{kind}: " in result.stdout
+    assert result.stdout.count("skipped (--skip)") == 3
+
+
+@pytest.mark.parametrize(
+    "skip, message",
+    [
+        ("bogus", "--skip bogus: the export has no such repo (its repos: model, "),
+        ("model,int4-awq,dataset,space", "--skip leaves no repo to publish"),
+        (",", "--skip needs a repo"),
+    ],
+    ids=["unknown", "every repo", "no key"],
+)
+def test_a_skip_it_wont_follow(tmp_path, dist, skip, message):
+    """Refused in the dry run, and in a real run before anything is sent."""
+    for folder in ("dry", "real"):
+        (tmp_path / folder).mkdir()
+    dry = run(tmp_path / "dry", "--dry-run", "--dist", str(dist), "--skip", skip)
+    real = run(
+        tmp_path / "real",
+        *("--dist", str(dist), "--skip", skip),
+        HF_TOKEN=TOKEN,
+        FAKE_HF="1",
+        FAKE_HF_USER=USER,
+    )
+    for result in (dry, real):
+        assert result.returncode == 1
+        assert message in result.stderr
+    assert [c["args"][:3] for c in calls(tmp_path / "real")] == [["run", "python", "-"]]
+    assert hf_calls(tmp_path / "real") == []
+
+
+def test_an_upload_leaves_a_skipped_repo_alone(tmp_path, dist):
+    """--skip space: the Space's repo is neither created, read nor uploaded to."""
+    model, int4, dataset, space = (
+        hfcommon.repo_id(USER, k) for k in ("model", "int4-awq", "dataset", "space")
+    )
+    result = run(
+        tmp_path,
+        *("--dist", str(dist), "--skip", "space"),
+        HF_TOKEN=TOKEN,
+        FAKE_HF="1",
+        FAKE_HF_USER=USER,
+        FAKE_HF_MISSING=f"{model},{dataset},{space}",
+    )
+    assert result.returncode == 0, result.stderr
+    message = f"Upload from {hfcommon.REPO_URL} at 3624f3c62c7e"
+    account = json.dumps({"user": USER, "orgs": None, "endpoint": None})
+    assert [c["args"] for c in calls(tmp_path)] == [
+        script(dist, "plan", "space"),
+        ["run", "python", "-m", "secbench.hfexport", "--verify", "--out", str(dist)],
+        ["run", "hf", "auth", "whoami", "--format", "json"],
+        script(dist, "whoami", USER, account),
+        create(model, "model"),
+        info("model", model),
+        script(dist, "repo", model, "0", hub_info(model)),
+        info("model", int4, "private,siblings"),
+        script(dist, "repo", int4, "1", hub_info(int4, INT4_FILES)),
+        create(dataset, "dataset"),
+        info("dataset", dataset),
+        script(dist, "repo", dataset, "0", hub_info(dataset)),
+        upload(model, f"{dist}/model", ".", "model", message),
+        upload(int4, f"{dist}/int4-awq/README.md", "README.md", "model", message),
+        upload(dataset, f"{dist}/dataset", ".", "dataset", message),
+    ]
+    assert (
+        f"space: {space} (space): skipped (--skip): not created, read or uploaded\n"
+        in result.stdout
+    )
+    assert result.stdout.endswith(
+        "== Done: each repo's visibility, as the Hub reported it before the upload\n"
+        + "".join(f"{repo}: private\n" for repo in (model, int4, dataset))
+        + f"Skipped (--skip): {space}: not created, read or uploaded\n"
+        + "Look at each private repo on the Hub, then make it public in its settings.\n"
+    )
+    assert TOKEN not in result.stdout + result.stderr
 
 
 def test_a_missing_export(tmp_path):
@@ -559,6 +676,29 @@ def test_the_int4_card_goes_only_where_its_model_is(tmp_path, dist, hub, message
     assert uploads(tmp_path) == []
 
 
+def test_a_repo_hf_cant_create_stops_the_run(tmp_path, dist):
+    """As the Hub refuses a Gradio Space without a paid plan: hf's message, then the
+    script's, and nothing uploaded."""
+    space = hfcommon.repo_id(USER, "space")
+    result = run(
+        tmp_path,
+        "--dist",
+        str(dist),
+        HF_TOKEN=TOKEN,
+        FAKE_HF="1",
+        FAKE_HF_USER=USER,
+        FAKE_HF_CREATE_FAILS=space,
+    )
+    assert result.returncode == 1
+    assert result.stderr == (
+        f"Error: Client error '402 Payment Required' for {space}\n"
+        f"error: hf couldn't create {space} on the Hub (hf's message is above)\n"
+        + NOTHING_UPLOADED
+    )
+    assert hf_calls(tmp_path)[-1][:3] == ["repos", "create", space]
+    assert uploads(tmp_path) == []
+
+
 def test_a_repo_hf_cant_read_stops_the_run(tmp_path, dist):
     space = hfcommon.repo_id(USER, "space")
     result = run(
@@ -629,6 +769,6 @@ def test_help(tmp_path):
     assert result.stdout.startswith("Publishes the Hugging Face export")
     assert (
         "Usage: bash scripts/hf_publish.sh [--dry-run] [--dist dist/hf] "
-        "[--allow-public]\n" in result.stdout
+        "[--allow-public]\n       [--skip REPO[,REPO...]]\n" in result.stdout
     )
     assert calls(tmp_path) == []
