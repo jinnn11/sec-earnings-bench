@@ -32,7 +32,8 @@ results/serving_results.md and .json:
 - the time test, descriptive only (its stage 2 results are reported and no variant is
   chosen on it): accuracy and agreement with stage 2's step-00025 time-test run;
 - the session's fixed overhead: the setup log's steps (install, download, the
-  benchmark), the model builds and the server starts, and their cost at the price.
+  benchmark), the model builds (their manifests' times, so a build from an earlier
+  session counts) and the server starts, and their cost at the price.
 """
 
 from __future__ import annotations
@@ -344,10 +345,11 @@ def build_results(
         v: (r.get("startup") or {}).get("launch_to_healthy_s")
         for v, r in results.items()
     }
+    models = model_sizes(config)
+    # From each model's own manifest: a model built in an earlier session counts too.
     builds = {
-        name: model.get("wall_s")
-        for name, model in record.get("models", {}).items()
-        if model.get("status") == "built"
+        name: (model.get("timings_s") or {}).get("total")
+        for name, model in models.items()
     }
     overhead_s = sum(s for s in starts.values() if s) + sum(
         s for s in builds.values() if s
@@ -381,7 +383,7 @@ def build_results(
             "accuracy_concurrency": config.concurrency,
         },
         "variants": results,
-        "models": model_sizes(config),
+        "models": models,
         "reference_accuracy": reference_accuracy,
         "overhead": {
             "setup_steps": steps,
@@ -451,7 +453,7 @@ def format_report(results: Mapping[str, Any]) -> str:
         "",
         (
             "| variant | weights (GiB) | KV cache (GiB) | KV cache (tokens) | max "
-            "concurrency at 40,960 tokens | weights on disk (GiB) | launch to healthy (s) |"
+            "concurrency at 40,960 tokens | model on disk (GiB) | launch to healthy (s) |"
         ),
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
@@ -581,14 +583,19 @@ def format_report(results: Mapping[str, Any]) -> str:
             f"| {s['step']} | {fmt(s['minutes'])} |" for s in overhead["setup_steps"]
         ]
         lines.append("")
-    starts = ", ".join(
-        f"{v} {fmt(s, '.0f')} s" for v, s in overhead["server_starts_s"].items()
+    starts = (
+        ", ".join(
+            f"{v} {s:.0f} s"
+            for v, s in overhead["server_starts_s"].items()
+            if s is not None
+        )
+        or "none"
     )
     builds = (
         ", ".join(
             f"{m} {fmt(s, '.0f')} s" for m, s in overhead["model_builds_s"].items()
         )
-        or "none in this session"
+        or "none"
     )
     lines.append(
         f"Server starts (launch to healthy): {starts}. Model builds: {builds}. "

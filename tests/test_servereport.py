@@ -127,9 +127,8 @@ def test_the_report(served, capsys) -> None:
     steps = results["overhead"]["setup_steps"]
     assert [s["minutes"] for s in steps] == [1.0, 1.5, 7.0, 3.5, 147.0, None]
     assert steps[2]["step"].startswith("Install uv")
-    assert results["overhead"]["model_builds_s"] == {
-        "merged": results["overhead"]["model_builds_s"]["merged"]
-    }
+    # The fake builds' manifests record no times.
+    assert results["overhead"]["model_builds_s"] == {"merged": None}
     assert "| Install uv 0.13.0, Python and the train and serve groups | 7.0 |" in md
 
 
