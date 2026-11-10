@@ -5,6 +5,13 @@
 Extract revenue, net income and diluted EPS from SEC earnings press releases with LLMs,
 auto-graded against XBRL from the matching 10-Q/10-K.
 
+**On Hugging Face:**
+[results explorer](https://huggingface.co/spaces/Jinnn2001/sec-earnings-explorer) (every
+release, figure and verdict) ·
+[dataset](https://huggingface.co/datasets/Jinnn2001/sec-earnings-bench) ·
+[fine-tuned Qwen3-8B (LoRA adapter)](https://huggingface.co/Jinnn2001/qwen3-8b-sec-earnings-lora) ·
+[4-bit AWQ model](https://huggingface.co/Jinnn2001/qwen3-8b-sec-earnings-int4-awq)
+
 **Results on 60 earnings releases, 293 graded figures per model:**
 
 - **Three API models made no errors; the two cheapest came close.** Claude Opus 5.5,
