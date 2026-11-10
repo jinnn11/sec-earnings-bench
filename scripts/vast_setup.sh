@@ -39,7 +39,7 @@
 #
 # Pick an instance with one A100 80GB or H100 (an H100 for the serving benchmark), a
 # driver for CUDA 13.0 or later (torch 2.13.0 and vLLM 0.32.0 are CUDA 13 builds) and
-# 100 GB of disk (150 GB for the serving benchmark).
+# 100 GB of disk (the serving benchmark needs 100 GB free in /workspace).
 #
 # On the laptop, at a clean commit:
 #   uv run python -m secbench.bundle                        # gpu-bundle-<commit>.tar
@@ -102,7 +102,10 @@ case "${1:-}" in
         RUN=$(field run)
         SERVING_CONFIG=$(field config)
         SETUP_LOG=${SETUP_LOG:-$WORK/setup-serving.log}
-        MIN_DISK_GB=120
+        # The run of 2026-11-10 started with 100 GB free in $WORK and finished: the
+        # base model, the merged model (16.4 GB each), int4-awq (6.1 GB) and the two
+        # environments fit. (It was 120, a guess, which stopped that instance.)
+        MIN_DISK_GB=100
         # Python's output goes to the log as it is printed, so tail -f shows progress.
         export PYTHONUNBUFFERED=1
         ;;
