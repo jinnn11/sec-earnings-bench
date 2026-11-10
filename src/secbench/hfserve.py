@@ -7,12 +7,16 @@ It answers what secbench.score and secbench.extract ask of vLLM, in vLLM's shape
 GET /health; POST /tokenize with chat messages (the model's chat template with the
 request's add_generation_prompt and chat_template_kwargs, then the tokens with no
 special tokens added; {"count", "max_model_len", "tokens"}); POST
-/v1/chat/completions (temperature 0 or none; max_tokens; chat_template_kwargs). A
-reply ends at an end-of-sequence token of the model's generation config or after
-max_tokens (or what --max-model-len leaves); a prompt that leaves no room for
-max_tokens is HTTP 400, as in vLLM. The base model is served as
---served-model-name, each --lora-modules NAME=PATH adapter as NAME; another name is
-HTTP 404.
+/v1/chat/completions (temperature 0 or none; max_tokens; chat_template_kwargs;
+stream and stream_options include_usage). A reply ends at an end-of-sequence token of
+the model's generation config or after max_tokens (or what --max-model-len leaves); a
+prompt that leaves no room for max_tokens is HTTP 400, as in vLLM. Streamed, the reply
+comes as vLLM sends it, server-sent events: a chunk with the assistant role, a chunk
+per piece of text as tokens are generated (text is held back while it ends inside a
+character), a chunk with the finish reason, a usage chunk (no choices) if
+stream_options include_usage, then [DONE]; an error after the first chunk is sent as
+a chunk with "error". The base model is served as --served-model-name, each
+--lora-modules NAME=PATH adapter as NAME; another name is HTTP 404.
 
 Usage: uv run --group train python -m secbench.hfserve SNAPSHOT
            --served-model-name NAME [--lora-modules NAME=PATH ...] [--port 8000]
@@ -24,6 +28,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import queue
 import sys
 import threading
 import time
@@ -111,15 +116,14 @@ class Model:
             self.model.set_adapter(name)
             yield
 
-    def complete(self, body: Mapping[str, Any]) -> dict[str, Any]:
-        import torch
-        from transformers import GenerationConfig
-
+    def request(self, body: Mapping[str, Any]) -> tuple[str, list[int], int]:
+        """The model name, the prompt's tokens and max_tokens of a completion
+        request; RequestError if it can't be served."""
         if body.get("temperature") not in (None, 0, 0.0):
             raise RequestError(400, "this stand-in decodes greedily: temperature 0")
-        if body.get("stream"):
-            raise RequestError(400, "stream is not supported here")
         name = str(body.get("model"))
+        if name not in self.names:
+            raise RequestError(404, f"The model `{name}` does not exist.")
         ids = self.render(body, generation_prompt=True)
         room = self.max_model_len - len(ids)
         max_tokens = body.get("max_tokens") or room
@@ -130,6 +134,15 @@ class Model:
                 f"tokens. However, you requested {len(ids) + max_tokens} tokens "
                 f"({len(ids)} in the messages, {max_tokens} in the completion).",
             )
+        return name, ids, max_tokens
+
+    def generate(
+        self, name: str, ids: list[int], max_tokens: int, streamer: Any = None
+    ) -> list[int]:
+        """The new tokens, greedy; one generation at a time."""
+        import torch
+        from transformers import GenerationConfig
+
         with self.lock, self.serving(name), torch.inference_mode():
             prompt = torch.tensor([ids], device=self.device)
             output = self.model.generate(
@@ -141,9 +154,18 @@ class Model:
                     eos_token_id=self.eos,
                     pad_token_id=self.pad,
                 ),
+                streamer=streamer,
             )
-        new = output[0, len(ids) :].tolist()
-        finish = "stop" if new and new[-1] in self.eos else "length"
+        return output[0, len(ids) :].tolist()
+
+    def finish_reason(self, new: Sequence[int]) -> str:
+        return "stop" if new and new[-1] in self.eos else "length"
+
+    def complete(self, body: Mapping[str, Any]) -> dict[str, Any]:
+        if body.get("stream"):
+            raise RequestError(400, "a streamed request goes to complete_stream")
+        name, ids, max_tokens = self.request(body)
+        new = self.generate(name, ids, max_tokens)
         text = self.tokenizer.decode(new, skip_special_tokens=True)
         return {
             "id": f"chatcmpl-{time.time_ns()}",
@@ -154,15 +176,93 @@ class Model:
                 {
                     "index": 0,
                     "message": {"role": "assistant", "content": text},
-                    "finish_reason": finish,
+                    "finish_reason": self.finish_reason(new),
                 }
             ],
-            "usage": {
-                "prompt_tokens": len(ids),
-                "completion_tokens": len(new),
-                "total_tokens": len(ids) + len(new),
-            },
+            "usage": usage(len(ids), len(new)),
         }
+
+    def complete_stream(self, body: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
+        """The chunks of a streamed completion; the request is checked before the
+        first (RequestError), so an error before the stream starts is an HTTP
+        error."""
+        name, ids, max_tokens = self.request(body)
+        options = body.get("stream_options") or {}
+        return self.chunks(name, ids, max_tokens, bool(options.get("include_usage")))
+
+    def chunks(
+        self, name: str, ids: list[int], max_tokens: int, include_usage: bool
+    ) -> Iterator[dict[str, Any]]:
+        tokens = TokenQueue()
+        failed: list[Exception] = []
+
+        def run() -> None:
+            try:
+                self.generate(name, ids, max_tokens, streamer=tokens)
+            except Exception as exc:  # noqa: BLE001 (sent to the client as an error chunk)
+                failed.append(exc)
+                tokens.end()
+
+        identity = {
+            "id": f"chatcmpl-{time.time_ns()}",
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": name,
+        }
+
+        def chunk(delta: dict[str, Any], finish: str | None = None) -> dict[str, Any]:
+            choice = {"index": 0, "delta": delta, "finish_reason": finish}
+            return {**identity, "choices": [choice]}
+
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        yield chunk({"role": "assistant", "content": ""})
+        new: list[int] = []
+        sent = ""
+        while (token := tokens.queue.get()) is not None:
+            new.append(token)
+            text = self.tokenizer.decode(new, skip_special_tokens=True)
+            if text.endswith("\ufffd"):
+                continue  # inside a character: wait for its other bytes
+            if text[len(sent) :]:
+                yield chunk({"content": text[len(sent) :]})
+            sent = text
+        thread.join()
+        if failed:
+            raise failed[0]
+        text = self.tokenizer.decode(new, skip_special_tokens=True)
+        if text[len(sent) :]:
+            yield chunk({"content": text[len(sent) :]})
+        yield chunk({}, self.finish_reason(new))
+        if include_usage:
+            yield {**identity, "choices": [], "usage": usage(len(ids), len(new))}
+
+
+def usage(prompt_tokens: int, completion_tokens: int) -> dict[str, int]:
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+
+
+class TokenQueue:
+    """A transformers streamer: generate puts the prompt, then each new token; the
+    new tokens go on a queue, then None at the end."""
+
+    def __init__(self) -> None:
+        self.queue: queue.Queue[int | None] = queue.Queue()
+        self.prompt_seen = False
+
+    def put(self, value: Any) -> None:
+        if not self.prompt_seen:
+            self.prompt_seen = True  # generate's first call: the prompt
+            return
+        for token in value.reshape(-1).tolist():
+            self.queue.put(token)
+
+    def end(self) -> None:
+        self.queue.put(None)
 
 
 def handler(model: Model) -> type[BaseHTTPRequestHandler]:
@@ -174,6 +274,28 @@ def handler(model: Model) -> type[BaseHTTPRequestHandler]:
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+
+        def stream(self, chunks: Iterator[dict[str, Any]]) -> None:
+            """Server-sent events, one per chunk, then [DONE]; the connection
+            closes at the end (no Content-Length)."""
+            first = next(chunks)  # the request was checked; generation started
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.close_connection = True
+
+            def event(data: str) -> None:
+                self.wfile.write(f"data: {data}\n\n".encode())
+                self.wfile.flush()
+
+            event(json.dumps(first))
+            try:
+                for chunk in chunks:
+                    event(json.dumps(chunk))
+            except Exception as exc:  # noqa: BLE001 (the client sees it as an error)
+                event(json.dumps({"error": {"message": str(exc), "code": 500}}))
+            event("[DONE]")
 
         def do_GET(self) -> None:
             if self.path == "/health":
@@ -197,7 +319,10 @@ def handler(model: Model) -> type[BaseHTTPRequestHandler]:
                 body = json.loads(self.rfile.read(length) or b"{}")
                 if not isinstance(body, dict):
                     raise RequestError(400, "the body must be a JSON object")
-                self.reply(200, route(body))
+                if route == model.complete and body.get("stream"):
+                    self.stream(model.complete_stream(body))
+                else:
+                    self.reply(200, route(body))
             except RequestError as exc:
                 self.reply(
                     exc.status, {"error": {"message": str(exc), "code": exc.status}}
